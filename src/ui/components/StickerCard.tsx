@@ -4,6 +4,7 @@
 
 import { useCallback, useRef } from "react";
 import { levelStats, type CardDef, type CardInstance, type Position } from "../../core/types";
+import { portraitUrl } from "../portraits";
 
 const POSITION_TINTS: Record<Position | "tactic" | "moment", [string, string]> = {
   ST: ["#7e2c2c", "#c75450"],
@@ -68,6 +69,7 @@ export function StickerCard({
   const stats = levelStats(def, level);
   const power = (stats.power ?? 0) + (inst?.formPower ?? 0);
   const kind = def.position ?? (def.kind === "moment" ? "moment" : "tactic");
+  const portrait = def.portrait ?? portraitUrl(def.id);
 
   const onPointerMove = useCallback((e: React.PointerEvent) => {
     const el = ref.current;
@@ -94,7 +96,7 @@ export function StickerCard({
     >
       <div className="sticker-frame">
         <div className="portrait-slot">
-          {def.portrait ? <img src={def.portrait} alt="" /> : <Silhouette kind={kind} />}
+          {portrait ? <img src={portrait} alt="" /> : <Silhouette kind={kind} />}
         </div>
         <div className="name-bar">{def.name}</div>
         <div className="meta-row">
