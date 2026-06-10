@@ -1,5 +1,25 @@
 import type { ContentBundle, RunState } from "../../core/types";
 
+function Confetti() {
+  const COLORS = ["#ffd34d", "#4dd07a", "#6ec3ff", "#ff5d5d", "#f5f1e3"];
+  return (
+    <div className="confetti-layer" aria-hidden>
+      {Array.from({ length: 60 }, (_, i) => (
+        <span
+          key={i}
+          className="confetti"
+          style={{
+            left: `${(i * 137.5) % 100}%`,
+            background: COLORS[i % COLORS.length],
+            animationDelay: `${(i % 12) * 0.28}s`,
+            animationDuration: `${2.4 + ((i * 7) % 10) / 6}s`,
+          }}
+        />
+      ))}
+    </div>
+  );
+}
+
 export function ResultScreen({
   run,
   content,
@@ -14,6 +34,7 @@ export function ResultScreen({
 
   return (
     <main style={{ padding: 24, maxWidth: 640, margin: "0 auto", textAlign: "center" }}>
+      {won && <Confetti />}
       <h1 data-testid="run-result">
         {won ? "🏆 CHAMPIONS OF THE WORLD" : "Eliminated"}
       </h1>

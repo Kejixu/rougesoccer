@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { applyRunAction, createRun } from "../core/run/run";
 import type { GameEvent, RunAction, RunState } from "../core/types";
 import { makeContent } from "../data/content";
@@ -18,6 +18,12 @@ export function App() {
   const [showShop, setShowShop] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [events, setEvents] = useState<GameEvent[]>([]);
+
+  useEffect(() => {
+    if (!error) return;
+    const t = setTimeout(() => setError(null), 4000);
+    return () => clearTimeout(t);
+  }, [error]);
 
   const dispatch = (action: RunAction) => {
     setRun((current) => {

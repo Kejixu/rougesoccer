@@ -1,6 +1,13 @@
 import { useEffect, useRef, useState } from "react";
 import { defenseRating } from "../../core/match/engine";
-import type { ContentBundle, GameEvent, MatchAction, RunAction, RunState } from "../../core/types";
+import {
+  levelStats,
+  type ContentBundle,
+  type GameEvent,
+  type MatchAction,
+  type RunAction,
+  type RunState,
+} from "../../core/types";
 import { useFlip } from "../anim/flip";
 import { ClockBar } from "../components/ClockBar";
 import { ScorePopups } from "../components/ScorePopups";
@@ -63,6 +70,16 @@ export function MatchScreen({
     setSel((s) => (s.includes(uid) ? s.filter((x) => x !== uid) : [...s, uid]));
 
   const defNow = defenseRating(content.defs, m);
+  const selPower = sel.some((uid) => {
+    const c = m.hand.find((x) => x.uid === uid);
+    if (!c) return false;
+    return (levelStats(content.defs[c.defId]!, c.level).power ?? 0) + c.formPower > 0;
+  });
+  const selDefense = sel.every((uid) => {
+    const c = m.hand.find((x) => x.uid === uid);
+    if (!c) return false;
+    return (levelStats(content.defs[c.defId]!, c.level).defense ?? 0) > 0;
+  });
   const style = content.styles[m.opp.style];
   const coach = content.teams.find((t) => t.id === m.opp.teamId)?.coach;
   const playerName = content.teams.find((t) => t.id === run.playerTeamId)?.name ?? "You";
@@ -162,7 +179,12 @@ export function MatchScreen({
               type="button"
               className="btn btn--primary"
               data-testid="attack"
-              disabled={sel.length === 0 || m.playsLeft === 0}
+              disabled={
+                sel.length === 0 ||
+                sel.length > m.bal.MAX_ATTACK_CARDS ||
+                m.playsLeft === 0 ||
+                !selPower
+              }
               onClick={() => act({ type: "ATTACK", cardUids: sel })}
             >
               Attack ({sel.length})
@@ -174,6 +196,8 @@ export function MatchScreen({
               disabled={
                 sel.length === 0 ||
                 m.playsLeft === 0 ||
+                !selDefense ||
+                sel.length > m.bal.MAX_DEFEND_CARDS ||
                 m.deployed.length + sel.length > m.bal.MAX_DEPLOYED
               }
               onClick={() => act({ type: "DEFEND", cardUids: sel })}
