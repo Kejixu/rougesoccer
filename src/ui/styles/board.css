@@ -123,6 +123,92 @@
   background: rgba(245, 241, 227, 0.25);
 }
 
+/* ---- combat mode: intent + stamina ---- */
+
+.intent-panel {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  font-size: 15px;
+  border-color: #7e3a3a;
+}
+
+.intent-icon {
+  font-size: 24px;
+}
+
+.intent-threat {
+  margin-left: auto;
+  color: var(--danger);
+  font-weight: 700;
+}
+
+.intent-threat.safe {
+  color: var(--accent-2);
+}
+
+.stamina-bar {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.stamina-label {
+  font-family: var(--font-display);
+  font-size: 13px;
+  color: var(--ink-dim);
+  letter-spacing: 0.08em;
+}
+
+.stamina-pip {
+  width: 16px;
+  height: 16px;
+  border-radius: 50%;
+  background: #233a2c;
+  border: 1px solid #3a5a44;
+}
+
+.stamina-pip.full {
+  background: radial-gradient(circle at 35% 30%, #ffe9b0, var(--accent) 70%);
+  box-shadow: 0 0 6px rgba(255, 211, 77, 0.6);
+}
+
+.block-badge,
+.buff-badge {
+  font-weight: 800;
+  padding: 2px 10px;
+  border-radius: 10px;
+  font-size: 13px;
+}
+
+.block-badge {
+  background: #1d3a5f;
+  color: #bcd9ff;
+}
+
+.buff-badge {
+  background: #4a3a10;
+  color: var(--accent);
+}
+
+.cost-badge {
+  position: absolute;
+  top: -6px;
+  left: -6px;
+  width: 26px;
+  height: 26px;
+  border-radius: 50%;
+  background: radial-gradient(circle at 35% 30%, #ffe9b0, var(--accent) 70%);
+  color: #2a230a;
+  font-weight: 900;
+  font-size: 14px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  box-shadow: 0 1px 4px rgba(0, 0, 0, 0.6);
+  z-index: 2;
+}
+
 /* ---- attack preview (live play + score readout) ---- */
 
 .attack-preview {

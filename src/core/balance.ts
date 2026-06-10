@@ -12,6 +12,7 @@ export interface RarityWeights {
 export interface BalanceConfig {
   GOAL_THRESHOLD: number; // shot-value points per goal
   HAND_SIZE: number;
+  STAMINA_PER_ROUND: number;
   PLAYS_PER_ROUND: number;
   DISCARDS_PER_ROUND: number;
   MAX_ATTACK_CARDS: number;
@@ -58,8 +59,9 @@ export interface BalanceConfig {
 }
 
 export const DEFAULT_BALANCE: BalanceConfig = {
-  GOAL_THRESHOLD: 60,
-  HAND_SIZE: 7,
+  GOAL_THRESHOLD: 40,
+  HAND_SIZE: 5,
+  STAMINA_PER_ROUND: 4,
   PLAYS_PER_ROUND: 2,
   DISCARDS_PER_ROUND: 2,
   MAX_ATTACK_CARDS: 4,
@@ -109,11 +111,11 @@ export const DEFAULT_BALANCE: BalanceConfig = {
   MIN_DECK_SIZE: 10,
   MIN_MATCH_DECK: 10,
   STAGE_CLOCK_MULT: {
-    GROUP: 2.5,
-    R32: 3.6,
-    R16: 4.0,
-    QF: 4.5,
-    SF: 4.9,
-    FINAL: 5.9,
+    GROUP: 1.0,
+    R32: 1.05,
+    R16: 1.15,
+    QF: 1.2,
+    SF: 1.2,
+    FINAL: 1.2,
   },
 };

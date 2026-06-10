@@ -167,7 +167,7 @@ function settleMatch(draft: RunState, content: ContentBundle, match: MatchState)
 
   // sync fatigue back to the run deck; rested cards recover
   const playedUids = new Map<string, boolean>();
-  for (const pile of [match.hand, match.drawPile, match.discardPile, match.exile, match.deployed]) {
+  for (const pile of [match.hand, match.drawPile, match.discardPile, match.exile]) {
     for (const inst of pile) playedUids.set(inst.uid, inst.fatigued);
   }
   for (const card of draft.deck) {

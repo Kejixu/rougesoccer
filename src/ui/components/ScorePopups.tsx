@@ -63,19 +63,24 @@ export function ScorePopups({ events }: { events: GameEvent[] }) {
           popup: { id: nextId++, kind: "goal", text: e.goals > 1 ? `⚽ ${e.goals} GOALS!` : "⚽ GOAL!" },
         });
         delay += 650;
-      } else if (e.type === "CLOCK_TICK" && e.totalPoints < e.points) {
-        // remainder smaller than the tick means the bar wrapped: they scored
-        staged.push({
-          delay,
-          popup: { id: nextId++, kind: "concede", text: `${"They score…"} ${e.oppGoals}` },
-        });
-        delay += 600;
-      } else if (e.type === "CLOCK_BURST") {
-        staged.push({
-          delay,
-          popup: { id: nextId++, kind: "concede", text: `Counter! +${e.points} clock` },
-        });
-        delay += 500;
+      } else if (e.type === "INTENT_EXECUTED") {
+        if (e.blocked > 0 && e.points === 0) {
+          staged.push({
+            delay,
+            popup: { id: nextId++, kind: "info", text: `Blocked! 🛡 ${e.blocked}` },
+          });
+          delay += 500;
+        } else if (e.points > 0) {
+          staged.push({
+            delay,
+            popup: {
+              id: nextId++,
+              kind: "concede",
+              text: e.intent.kind === "counter" ? `Countered! +${e.points}` : `They push +${e.points}`,
+            },
+          });
+          delay += 500;
+        }
       } else if (e.type === "ET_SURVIVED") {
         staged.push({
           delay,

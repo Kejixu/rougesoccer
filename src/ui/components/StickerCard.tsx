@@ -56,12 +56,14 @@ export function StickerCard({
   inst,
   selected,
   disabled,
+  cost,
   onClick,
 }: {
   def: CardDef;
   inst?: CardInstance;
   selected?: boolean;
   disabled?: boolean;
+  cost?: number;
   onClick?: () => void;
 }) {
   const ref = useRef<HTMLButtonElement>(null);
@@ -110,6 +112,7 @@ export function StickerCard({
         <div className="rules-text">{stats.text}</div>
         {inst?.fatigued && <div className="fatigue-strip">Tired</div>}
       </div>
+      {cost !== undefined && <div className="cost-badge">{cost}</div>}
       {def.rarity === "legendary" && <div className="legend-badge">★</div>}
       <div className="foil-layer" />
     </button>

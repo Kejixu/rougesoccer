@@ -1,22 +1,27 @@
-// The match state machine. Pure & deterministic: applyMatchAction(defs, state,
-// action) -> { state, events }. No DOM, no timers, no ambient randomness — all
-// randomness flows through the RngState carried inside MatchState.
+// COMBAT MODE (Slay-the-Spire-style): stamina costs, telegraphed opponent
+// intents, per-round block. Pure & deterministic: applyMatchAction(defs, state,
+// action) -> { state, events }. All randomness flows through state.rng.
+//
+// Round loop: draw -> intent revealed -> play cards within stamina ->
+// END_ROUND executes the intent (block absorbs) -> next round / verdict.
+// Push-your-luck extra time and sudden death carry over from the clock mode.
 
 import { nextFloat, type RngState } from "../rng";
-import { clockTick } from "./clock";
-import { computeAttack, type AttackCard } from "./scoring";
+import { rollIntent } from "./intents";
 import {
+  cardCost,
   levelStats,
   type CardDefMap,
   type CardInstance,
+  type EffectDef,
   type GameEvent,
   type MatchAction,
   type MatchContext,
   type MatchState,
   type MatchStep,
   type OppInfo,
-  type EffectDef,
   type PlayDef,
+  type Condition,
 } from "../types";
 import type { BalanceConfig } from "../balance";
 
@@ -30,7 +35,7 @@ export interface MatchConfig {
   balance: BalanceConfig;
 }
 
-// ---------- rng helpers (advance the state's own rng) ----------
+// ---------- rng / pile helpers ----------
 
 function rand(draft: MatchState): number {
   const [v, next] = nextFloat(draft.rng);
@@ -51,8 +56,6 @@ function shuffleInPlace(draft: MatchState, arr: CardInstance[]): void {
   }
 }
 
-// ---------- pile helpers ----------
-
 function drawCards(draft: MatchState, n: number, events: GameEvent[]): void {
   const drawn: string[] = [];
   for (let i = 0; i < n; i++) {
@@ -70,27 +73,24 @@ function drawCards(draft: MatchState, n: number, events: GameEvent[]): void {
   if (drawn.length > 0) events.push({ type: "CARDS_DRAWN", uids: drawn });
 }
 
-function takeFromHand(draft: MatchState, uids: string[]): CardInstance[] {
-  const taken: CardInstance[] = [];
-  for (const uid of uids) {
-    const idx = draft.hand.findIndex((c) => c.uid === uid);
-    if (idx === -1) throw new Error(`card ${uid} is not in hand`);
-    taken.push(draft.hand.splice(idx, 1)[0]!);
+// ---------- scoring helpers ----------
+
+function addPlayerPoints(draft: MatchState, points: number, events: GameEvent[]): number {
+  // sit-deep parry absorbs first
+  const absorbed = Math.min(draft.sitDeepPool, points);
+  draft.sitDeepPool -= absorbed;
+  const gained = points - absorbed;
+  draft.playerShotPoints += gained;
+  const goals = Math.floor(draft.playerShotPoints / draft.bal.GOAL_THRESHOLD);
+  if (goals > 0) {
+    draft.playerShotPoints -= goals * draft.bal.GOAL_THRESHOLD;
+    draft.playerGoals += goals;
+    events.push({ type: "GOAL_SCORED", goals, total: draft.playerGoals });
   }
-  return taken;
+  return goals;
 }
 
-export function defenseRating(defs: CardDefMap, state: MatchState): number {
-  let total = 0;
-  for (const inst of state.deployed) {
-    const def = defs[inst.defId];
-    if (!def) continue;
-    total += levelStats(def, inst.level).defense ?? 0;
-  }
-  return total;
-}
-
-function addOppClockPoints(draft: MatchState, points: number): number {
+function addOppPoints(draft: MatchState, points: number): number {
   draft.oppClockPoints += points;
   const goals = Math.floor(draft.oppClockPoints / draft.bal.GOAL_THRESHOLD);
   draft.oppClockPoints -= goals * draft.bal.GOAL_THRESHOLD;
@@ -98,63 +98,50 @@ function addOppClockPoints(draft: MatchState, points: number): number {
   return goals;
 }
 
-// ---------- style effects (scripted registry interpretation) ----------
-
-function fireStyleEffects(
-  draft: MatchState,
-  trigger: "onMatchStart" | "onRoundStart" | "onAttackResolve",
-  events: GameEvent[],
-  attackGoals?: number,
-): void {
-  for (const eff of draft.styleEffects) {
-    if (eff.trigger !== trigger) continue;
-    if (eff.op.kind !== "scripted") continue;
-    switch (eff.op.key) {
-      case "capMultAt2x":
-        draft.multCap = 2;
-        break;
-      case "shrinkHand1":
-        draft.handSizeMod = -1;
-        break;
-      case "forceRandomDiscard1": {
-        if (draft.hand.length === 0) break;
-        const idx = randInt(draft, draft.hand.length);
-        const card = draft.hand.splice(idx, 1)[0]!;
-        draft.discardPile.push(card);
-        events.push({ type: "CARDS_DISCARDED", uids: [card.uid], forced: true });
-        break;
-      }
-      case "burstClockOnFailedAttack": {
-        if (attackGoals === 0) {
-          const pts = draft.bal.COUNTER_BURST_POINTS;
-          addOppClockPoints(draft, pts);
-          events.push({ type: "CLOCK_BURST", points: pts });
-        }
-        break;
-      }
+function evalCombatCondition(draft: MatchState, cond: Condition): boolean {
+  switch (cond.kind) {
+    case "attackIncludesPosition":
+      // "alongside a ST" = a ST was already played this round
+      return draft.playedThisRound.some((p) => p.position === cond.position);
+    case "attackCardCount": {
+      const n = draft.playedThisRound.length + 1; // including this card
+      return cond.cmp === "lte" ? n <= cond.value : n >= cond.value;
     }
+    case "handSize": {
+      const n = draft.hand.length; // card already removed from hand
+      return cond.cmp === "lte" ? n <= cond.value : n >= cond.value;
+    }
+    case "leading":
+      return draft.playerGoals > draft.oppGoals;
+    case "trailing":
+      return draft.playerGoals < draft.oppGoals;
   }
+}
+
+function scaled(amount: number, scaling: "perLevel" | undefined, level: number): number {
+  return scaling === "perLevel" ? amount * (level + 1) : amount;
 }
 
 // ---------- round flow ----------
 
-function startRound(defs: CardDefMap, draft: MatchState, events: GameEvent[]): void {
+function startRound(draft: MatchState, events: GameEvent[]): void {
   draft.round += 1;
-  const sd = draft.mode === "suddendeath";
-  draft.playsLeft = sd ? 1 : draft.bal.PLAYS_PER_ROUND;
-  draft.discardsLeft = sd ? 1 : draft.bal.DISCARDS_PER_ROUND;
+  draft.stamina = draft.mode === "suddendeath" ? draft.bal.STAMINA_PER_ROUND - 1 : draft.bal.STAMINA_PER_ROUND;
+  draft.block = 0;
+  draft.pendingMult = 1;
+  draft.pendingFlat = 0;
+  draft.playedThisRound = [];
   events.push({ type: "ROUND_START", round: draft.round, mode: draft.mode });
-  const handSize = Math.max(1, draft.bal.HAND_SIZE + draft.handSizeMod);
+  const handSize = Math.max(2, draft.bal.HAND_SIZE - draft.handPenalty);
+  draft.handPenalty = 0;
   drawCards(draft, handSize - draft.hand.length, events);
-  fireStyleEffects(draft, "onRoundStart", events);
-  void defs;
+  const intent = rollIntent(draft);
+  draft.intent = intent;
+  draft.sitDeepPool = intent.kind === "sitDeep" ? intent.amount : 0;
+  events.push({ type: "INTENT_REVEALED", intent });
 }
 
-function finish(
-  draft: MatchState,
-  result: "win" | "draw" | "loss",
-  events: GameEvent[],
-): void {
+function finish(draft: MatchState, result: "win" | "draw" | "loss", events: GameEvent[]): void {
   draft.phase = "DONE";
   draft.result = result;
   events.push({
@@ -166,12 +153,7 @@ function finish(
 }
 
 function shootout(defs: CardDefMap, draft: MatchState, events: GameEvent[]): void {
-  const pool = [
-    ...draft.hand,
-    ...draft.drawPile,
-    ...draft.discardPile,
-    ...draft.deployed,
-  ];
+  const pool = [...draft.hand, ...draft.drawPile, ...draft.discardPile];
   const powers = pool
     .map((inst) => {
       const def = defs[inst.defId];
@@ -193,30 +175,48 @@ function shootout(defs: CardDefMap, draft: MatchState, events: GameEvent[]): voi
   finish(draft, won ? "win" : "loss", events);
 }
 
-function enterSuddenDeath(defs: CardDefMap, draft: MatchState, events: GameEvent[]): void {
+function enterSuddenDeath(draft: MatchState, events: GameEvent[]): void {
   draft.mode = "suddendeath";
   events.push({ type: "SUDDEN_DEATH_START" });
-  startRound(defs, draft, events);
+  startRound(draft, events);
+}
+
+function executeIntent(draft: MatchState, events: GameEvent[]): void {
+  const intent = draft.intent;
+  if (!intent) return;
+  const etMult = draft.mode === "extratime" ? draft.bal.EXTRA_TIME_CLOCK_MULT : 1;
+  let raw = 0;
+  if (intent.kind === "attack") raw = intent.points;
+  else if (intent.kind === "counter") {
+    const attacksPlayed = draft.playedThisRound.filter((p) => p.isAttack).length;
+    raw = attacksPlayed < 2 ? intent.points : 0;
+  } else if (intent.kind === "press") {
+    draft.handPenalty = 1;
+  }
+  raw = Math.round(raw * etMult);
+  const blocked = Math.min(draft.block, raw);
+  const through = raw - blocked;
+  if (through > 0) addOppPoints(draft, through);
+  events.push({
+    type: "INTENT_EXECUTED",
+    intent,
+    blocked,
+    points: through,
+    oppGoals: draft.oppGoals,
+  });
+  draft.intent = null;
 }
 
 function endRound(defs: CardDefMap, draft: MatchState, events: GameEvent[]): void {
-  // Opponent clock tick
-  const tick = clockTick({
-    attackRating: draft.opp.attackRating,
-    clockMult: draft.mode === "extratime" ? draft.bal.EXTRA_TIME_CLOCK_MULT : 1,
-    defense: defenseRating(defs, draft),
-    currentPoints: draft.oppClockPoints,
-    goalThreshold: draft.bal.GOAL_THRESHOLD,
-    floorRatio: draft.bal.CLOCK_FLOOR_RATIO,
-  });
-  draft.oppClockPoints = tick.newPoints;
-  draft.oppGoals += tick.oppGoalsScored;
-  events.push({
-    type: "CLOCK_TICK",
-    points: tick.effectiveRate,
-    totalPoints: draft.oppClockPoints,
-    oppGoals: draft.oppGoals,
-  });
+  executeIntent(draft, events);
+
+  // hand fully discards at end of round (Slay-the-Spire economy)
+  if (draft.hand.length > 0) {
+    const uids = draft.hand.map((c) => c.uid);
+    draft.discardPile.push(...draft.hand);
+    draft.hand = [];
+    events.push({ type: "CARDS_DISCARDED", uids, forced: true });
+  }
 
   const leading = draft.playerGoals > draft.oppGoals;
   const tied = draft.playerGoals === draft.oppGoals;
@@ -224,19 +224,15 @@ function endRound(defs: CardDefMap, draft: MatchState, events: GameEvent[]): voi
   switch (draft.mode) {
     case "regulation": {
       if (draft.round < draft.bal.MATCH_ROUNDS) {
-        startRound(defs, draft, events);
+        startRound(draft, events);
         return;
       }
       if (leading) {
         draft.phase = "PUSH_DECISION";
-        events.push({
-          type: "PUSH_DECISION",
-          playerGoals: draft.playerGoals,
-          oppGoals: draft.oppGoals,
-        });
+        events.push({ type: "PUSH_DECISION", playerGoals: draft.playerGoals, oppGoals: draft.oppGoals });
       } else if (tied) {
         if (draft.context === "group") finish(draft, "draw", events);
-        else enterSuddenDeath(defs, draft, events);
+        else enterSuddenDeath(draft, events);
       } else {
         finish(draft, "loss", events);
       }
@@ -246,24 +242,16 @@ function endRound(defs: CardDefMap, draft: MatchState, events: GameEvent[]): voi
       if (leading) {
         draft.earned.budget += draft.bal.ET_BUDGET_REWARD;
         draft.earned.scout += draft.bal.ET_SCOUT_REWARD;
-        events.push({
-          type: "ET_SURVIVED",
-          budget: draft.bal.ET_BUDGET_REWARD,
-          scout: draft.bal.ET_SCOUT_REWARD,
-        });
+        events.push({ type: "ET_SURVIVED", budget: draft.bal.ET_BUDGET_REWARD, scout: draft.bal.ET_SCOUT_REWARD });
         if (draft.extraRoundsPlayed < draft.bal.MAX_EXTRA_ROUNDS) {
           draft.phase = "PUSH_DECISION";
-          events.push({
-            type: "PUSH_DECISION",
-            playerGoals: draft.playerGoals,
-            oppGoals: draft.oppGoals,
-          });
+          events.push({ type: "PUSH_DECISION", playerGoals: draft.playerGoals, oppGoals: draft.oppGoals });
         } else {
           finish(draft, "win", events);
         }
       } else if (tied) {
         if (draft.context === "group") finish(draft, "draw", events);
-        else enterSuddenDeath(defs, draft, events);
+        else enterSuddenDeath(draft, events);
       } else {
         finish(draft, "loss", events);
       }
@@ -274,7 +262,7 @@ function endRound(defs: CardDefMap, draft: MatchState, events: GameEvent[]): voi
       if (!tied) {
         finish(draft, leading ? "win" : "loss", events);
       } else if (draft.suddenDeathRoundsPlayed < draft.bal.MAX_SUDDEN_DEATH_ROUNDS) {
-        startRound(defs, draft, events);
+        startRound(draft, events);
       } else {
         shootout(defs, draft, events);
       }
@@ -283,9 +271,103 @@ function endRound(defs: CardDefMap, draft: MatchState, events: GameEvent[]): voi
   }
 }
 
+// ---------- card resolution ----------
+
+function playCard(defs: CardDefMap, draft: MatchState, uid: string, events: GameEvent[]): void {
+  const idx = draft.hand.findIndex((c) => c.uid === uid);
+  if (idx === -1) throw new Error(`card ${uid} is not in hand`);
+  const inst = draft.hand[idx]!;
+  const def = defs[inst.defId];
+  if (!def) throw new Error(`unknown card def ${inst.defId}`);
+  const cost = cardCost(def);
+  if (draft.stamina < cost) throw new Error(`not enough stamina (${def.name} costs ${cost})`);
+
+  draft.hand.splice(idx, 1);
+  draft.stamina -= cost;
+
+  const stats = levelStats(def, inst.level);
+  const isDefender = (stats.defense ?? 0) > 0;
+  const power = (stats.power ?? 0) + inst.formPower;
+
+  events.push({ type: "CARD_PLAYED", uid, as: isDefender ? "defend" : "attack", cost });
+
+  if (isDefender) {
+    draft.block += stats.defense ?? 0;
+    events.push({ type: "BLOCK_GAINED", amount: stats.defense ?? 0, total: draft.block });
+  } else {
+    // gather this card's own onPlay effects
+    let ownAdd = 0;
+    let ownMul = 1;
+    let ownFlat = 0;
+    let draws = 0;
+    for (const eff of def.effects) {
+      if (eff.trigger !== "onPlay") continue;
+      if (eff.condition && !evalCombatCondition(draft, eff.condition)) continue;
+      const op = eff.op;
+      if (op.kind === "addPower") ownFlat += scaled(op.amount, eff.scaling, inst.level);
+      else if (op.kind === "addMult") ownAdd += scaled(op.amount, eff.scaling, inst.level);
+      else if (op.kind === "mulMult") ownMul *= op.amount;
+      else if (op.kind === "draw") draws += op.amount;
+      else if (op.kind === "gainResource") {
+        if (op.resource === "budget") draft.earned.budget += op.amount;
+        else draft.earned.scout += op.amount;
+      }
+    }
+
+    if (power > 0) {
+      // attack card: buffs (its own + pending) multiply its shot points
+      let mult = draft.pendingMult * (1 + ownAdd) * ownMul;
+      if (draft.multCap !== null) mult = Math.min(mult, draft.multCap);
+      const value = Math.floor((power + ownFlat + draft.pendingFlat) * mult);
+      draft.pendingMult = 1;
+      draft.pendingFlat = 0;
+      events.push({
+        type: "SHOT_VALUE",
+        basePower: power,
+        mult,
+        value,
+        playName: def.name,
+      });
+      const goals = addPlayerPoints(draft, value, events);
+      if (goals > 0) {
+        for (const eff of def.effects) {
+          if (eff.trigger !== "onGoal") continue;
+          const op = eff.op;
+          if (op.kind === "gainFormPower" && inst.formPower < draft.bal.FORM_CAP) {
+            inst.formPower = Math.min(
+              draft.bal.FORM_CAP,
+              inst.formPower + scaled(op.amount, eff.scaling, inst.level) * goals,
+            );
+            events.push({ type: "FORM_GAINED", uid, amount: op.amount * goals, formPower: inst.formPower });
+          } else if (op.kind === "gainResource") {
+            if (op.resource === "budget") draft.earned.budget += op.amount * goals;
+            else draft.earned.scout += op.amount * goals;
+          }
+        }
+      }
+    } else {
+      // pure tactic/moment: buff the next attack card this round
+      draft.pendingMult *= (1 + ownAdd) * ownMul;
+      draft.pendingFlat += ownFlat;
+    }
+
+    if (draws > 0) drawCards(draft, draws, events);
+  }
+
+  draft.playedThisRound.push({ uid, position: def.position, isAttack: !isDefender && power > 0 });
+
+  if (draft.mode === "extratime" && draft.extraRoundsPlayed >= 2 && !inst.fatigued) {
+    inst.fatigued = true;
+    events.push({ type: "CARD_FATIGUED", uids: [uid] });
+  }
+
+  if (def.exileOnPlay) draft.exile.push(inst);
+  else draft.discardPile.push(inst);
+}
+
 // ---------- public API ----------
 
-export function createMatch(defs: CardDefMap, cfg: MatchConfig): MatchStep {
+export function createMatch(_defs: CardDefMap, cfg: MatchConfig): MatchStep {
   const state: MatchState = {
     phase: "ROUND_ACTIVE",
     mode: "regulation",
@@ -297,16 +379,22 @@ export function createMatch(defs: CardDefMap, cfg: MatchConfig): MatchStep {
     round: 0,
     playerGoals: 0,
     oppGoals: 0,
+    playerShotPoints: 0,
     oppClockPoints: 0,
+    stamina: 0,
+    block: 0,
+    pendingMult: 1,
+    pendingFlat: 0,
+    sitDeepPool: 0,
+    handPenalty: 0,
+    intent: null,
+    intentStep: 0,
+    playedThisRound: [],
     multCap: null,
-    handSizeMod: 0,
     hand: [],
     drawPile: cfg.deck.map((c) => ({ ...c })),
     discardPile: [],
     exile: [],
-    deployed: [],
-    playsLeft: 0,
-    discardsLeft: 0,
     extraRoundsPlayed: 0,
     suddenDeathRoundsPlayed: 0,
     earned: { budget: 0, scout: 0 },
@@ -315,8 +403,11 @@ export function createMatch(defs: CardDefMap, cfg: MatchConfig): MatchStep {
   };
   const events: GameEvent[] = [{ type: "MATCH_START", opp: cfg.opp }];
   shuffleInPlace(state, state.drawPile);
-  fireStyleEffects(state, "onMatchStart", events);
-  startRound(defs, state, events);
+  // fortress style still caps single-card mults
+  for (const eff of cfg.styleEffects) {
+    if (eff.op.kind === "scripted" && eff.op.key === "capMultAt2x") state.multCap = 2;
+  }
+  startRound(state, events);
   return { state, events };
 }
 
@@ -330,145 +421,21 @@ export function applyMatchAction(
   const events: GameEvent[] = [];
 
   switch (action.type) {
-    case "ATTACK": {
+    case "PLAY_CARD": {
       assertPhase(draft, "ROUND_ACTIVE");
-      if (draft.playsLeft <= 0) throw new Error("no plays left this round");
-      const n = action.cardUids.length;
-      if (n < 1 || n > draft.bal.MAX_ATTACK_CARDS)
-        throw new Error(`attack must commit 1-${draft.bal.MAX_ATTACK_CARDS} cards`);
-      const insts = takeFromHand(draft, action.cardUids);
-      const cards: AttackCard[] = insts.map((inst) => {
-        const def = defs[inst.defId];
-        if (!def) throw new Error(`unknown card def ${inst.defId}`);
-        return { inst, def };
-      });
-      const hasPower = cards.some(
-        (c) => (levelStats(c.def, c.inst.level).power ?? 0) + c.inst.formPower > 0,
-      );
-      if (!hasPower) throw new Error("attack needs at least one card with power");
-
-      const outcome = computeAttack(cards, {
-        handSizeAfter: draft.hand.length,
-        leading: draft.playerGoals > draft.oppGoals,
-        trailing: draft.playerGoals < draft.oppGoals,
-        multCap: draft.multCap,
-        goalThreshold: draft.bal.GOAL_THRESHOLD,
-        plays: draft.plays,
-      });
-
-      for (const c of cards) events.push({ type: "CARD_PLAYED", uid: c.inst.uid, as: "attack" });
-      events.push({
-        type: "SHOT_VALUE",
-        basePower: outcome.basePower,
-        mult: outcome.totalMult,
-        value: outcome.value,
-        playName: outcome.playName,
-      });
-
-      draft.playerGoals += outcome.goals;
-      if (outcome.goals > 0)
-        events.push({ type: "GOAL_SCORED", goals: outcome.goals, total: draft.playerGoals });
-
-      for (const gain of outcome.formGains) {
-        const inst = insts.find((c) => c.uid === gain.uid);
-        if (inst && inst.formPower < draft.bal.FORM_CAP) {
-          inst.formPower = Math.min(draft.bal.FORM_CAP, inst.formPower + gain.amount);
-          events.push({
-            type: "FORM_GAINED",
-            uid: inst.uid,
-            amount: gain.amount,
-            formPower: inst.formPower,
-          });
-        }
-      }
-
-      draft.earned.budget += outcome.budget;
-      draft.earned.scout += outcome.scout;
-
-      const fatigued: string[] = [];
-      for (const inst of insts) {
-        const def = defs[inst.defId]!;
-        if (draft.mode === "extratime" && draft.extraRoundsPlayed >= 2 && !inst.fatigued) {
-          inst.fatigued = true;
-          fatigued.push(inst.uid);
-        }
-        if (def.exileOnPlay) draft.exile.push(inst);
-        else draft.discardPile.push(inst);
-      }
-      if (fatigued.length > 0) events.push({ type: "CARD_FATIGUED", uids: fatigued });
-
-      if (outcome.draws > 0) drawCards(draft, outcome.draws, events);
-      fireStyleEffects(draft, "onAttackResolve", events, outcome.goals);
-      draft.playsLeft -= 1;
+      playCard(defs, draft, action.uid, events);
       break;
     }
-
-    case "DEFEND": {
-      assertPhase(draft, "ROUND_ACTIVE");
-      if (draft.playsLeft <= 0) throw new Error("no plays left this round");
-      const n = action.cardUids.length;
-      if (n < 1 || n > draft.bal.MAX_DEFEND_CARDS)
-        throw new Error(`defend deploys 1-${draft.bal.MAX_DEFEND_CARDS} cards`);
-      if (draft.deployed.length + n > draft.bal.MAX_DEPLOYED)
-        throw new Error(`only ${draft.bal.MAX_DEPLOYED} defender slots`);
-      const insts = takeFromHand(draft, action.cardUids);
-      const fatigued: string[] = [];
-      for (const inst of insts) {
-        const def = defs[inst.defId];
-        if (!def) throw new Error(`unknown card def ${inst.defId}`);
-        if ((levelStats(def, inst.level).defense ?? 0) <= 0)
-          throw new Error(`${def.name} has no defense and cannot be deployed`);
-        if (draft.mode === "extratime" && draft.extraRoundsPlayed >= 2 && !inst.fatigued) {
-          inst.fatigued = true;
-          fatigued.push(inst.uid);
-        }
-        draft.deployed.push(inst);
-        events.push({ type: "CARD_PLAYED", uid: inst.uid, as: "defend" });
-      }
-      if (fatigued.length > 0) events.push({ type: "CARD_FATIGUED", uids: fatigued });
-      draft.playsLeft -= 1;
-      break;
-    }
-
-    case "DISCARD": {
-      assertPhase(draft, "ROUND_ACTIVE");
-      if (draft.discardsLeft <= 0) throw new Error("no discards left this round");
-      const n = action.cardUids.length;
-      if (n < 1 || n > draft.bal.MAX_DISCARD_CARDS)
-        throw new Error(`discard 1-${draft.bal.MAX_DISCARD_CARDS} cards`);
-      const insts = takeFromHand(draft, action.cardUids);
-      for (const inst of insts) {
-        const def = defs[inst.defId];
-        draft.discardPile.push(inst);
-        if (def) {
-          for (const eff of def.effects) {
-            if (eff.trigger !== "onDiscard") continue;
-            if (eff.op.kind === "draw") drawCards(draft, eff.op.amount, events);
-            else if (eff.op.kind === "gainResource") {
-              if (eff.op.resource === "budget") draft.earned.budget += eff.op.amount;
-              else draft.earned.scout += eff.op.amount;
-            }
-          }
-        }
-      }
-      events.push({ type: "CARDS_DISCARDED", uids: action.cardUids, forced: false });
-      drawCards(draft, n, events);
-      draft.discardsLeft -= 1;
-      break;
-    }
-
     case "END_ROUND": {
       assertPhase(draft, "ROUND_ACTIVE");
       endRound(defs, draft, events);
       break;
     }
-
     case "TAKE_WIN": {
       assertPhase(draft, "PUSH_DECISION");
       finish(draft, "win", events);
       break;
     }
-
     case "EXTRA_TIME": {
       assertPhase(draft, "PUSH_DECISION");
       if (draft.extraRoundsPlayed >= draft.bal.MAX_EXTRA_ROUNDS)
@@ -477,7 +444,7 @@ export function applyMatchAction(
       draft.extraRoundsPlayed += 1;
       draft.phase = "ROUND_ACTIVE";
       events.push({ type: "EXTRA_TIME_START", round: draft.round + 1 });
-      startRound(defs, draft, events);
+      startRound(draft, events);
       break;
     }
   }
@@ -488,4 +455,9 @@ export function applyMatchAction(
 function assertPhase(state: MatchState, phase: MatchState["phase"]): void {
   if (state.phase !== phase)
     throw new Error(`action requires phase ${phase}, but match is in ${state.phase}`);
+}
+
+/** Sum of deployed... in combat mode, current block (kept for UI compatibility). */
+export function defenseRating(state: MatchState): number {
+  return state.block;
 }

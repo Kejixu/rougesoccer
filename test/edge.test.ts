@@ -41,11 +41,13 @@ describe("edge cases", () => {
         state = applyMatchAction(CARD_DEF_MAP, state, { type: "TAKE_WIN" }).state;
         continue;
       }
-      const attacker = state.hand.find((c) => c.defId.startsWith("st_"));
-      if (state.playsLeft > 0 && attacker) {
+      const attacker = state.hand.find(
+        (c) => c.defId.startsWith("st_") && state.stamina >= 2,
+      );
+      if (attacker) {
         state = applyMatchAction(CARD_DEF_MAP, state, {
-          type: "ATTACK",
-          cardUids: [attacker.uid],
+          type: "PLAY_CARD",
+          uid: attacker.uid,
         }).state;
       } else {
         state = applyMatchAction(CARD_DEF_MAP, state, { type: "END_ROUND" }).state;
@@ -53,7 +55,7 @@ describe("edge cases", () => {
     }
     expect(state.phase).toBe("DONE");
     // all five cards still exist somewhere
-    const all = [...state.hand, ...state.drawPile, ...state.discardPile, ...state.exile, ...state.deployed];
+    const all = [...state.hand, ...state.drawPile, ...state.discardPile, ...state.exile];
     expect(all).toHaveLength(5);
   });
 

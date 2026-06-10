@@ -91,6 +91,7 @@ export interface CardDef {
   kind: CardKind;
   name: string;
   position?: Position; // player cards only
+  cost?: number; // stamina cost override; defaults via cardCost()
   rarity: Rarity;
   levels: CardLevelStats[]; // index = upgrade level, length 1..3
   effects: EffectDef[];
@@ -117,6 +118,14 @@ export function levelStats(def: CardDef, level: number): CardLevelStats {
   return def.levels[idx]!;
 }
 
+/** Stamina cost: strikers are expensive, moments are free flourishes. */
+export function cardCost(def: CardDef): number {
+  if (def.cost !== undefined) return def.cost;
+  if (def.kind === "moment") return 0;
+  if (def.kind === "tactic") return 1;
+  return def.position === "ST" ? 2 : 1;
+}
+
 // ---------- teams ----------
 
 export interface TeamDef {
@@ -138,6 +147,14 @@ export interface OppInfo {
   tier: 1 | 2 | 3 | 4;
 }
 
+// ---------- intents (the opponent's telegraphed move each round) ----------
+
+export type Intent =
+  | { kind: "attack"; points: number; big?: boolean } // they build toward a goal
+  | { kind: "sitDeep"; amount: number } // they absorb your shot points this round
+  | { kind: "press" } // your next hand is 1 smaller
+  | { kind: "counter"; points: number }; // hits only if you played <2 attack cards
+
 // ---------- match ----------
 
 export type MatchPhase = "ROUND_ACTIVE" | "PUSH_DECISION" | "DONE";
@@ -156,16 +173,22 @@ export interface MatchState {
   round: number; // 1-based; keeps counting through extra time / sudden death
   playerGoals: number;
   oppGoals: number;
-  oppClockPoints: number; // remainder carries between rounds; GOAL_THRESHOLD pts = 1 goal
-  multCap: number | null; // set by fortress style
-  handSizeMod: number; // set by highpress style
+  playerShotPoints: number; // your meter: GOAL_THRESHOLD pts = 1 goal, remainder carries
+  oppClockPoints: number; // their meter, filled by executed attack intents
+  stamina: number; // energy this round
+  block: number; // absorbs this round's incoming intent, then expires
+  pendingMult: number; // tactic buffs applied to your next attack card
+  pendingFlat: number; // flat bonus applied to your next attack card
+  sitDeepPool: number; // their parry pool this round (absorbs your shot points)
+  handPenalty: number; // press effect: next round draws this many fewer
+  intent: Intent | null;
+  intentStep: number;
+  playedThisRound: { uid: string; position?: Position; isAttack: boolean }[];
+  multCap: number | null; // fortress legacy cap on a single card's mult
   hand: CardInstance[];
   drawPile: CardInstance[];
   discardPile: CardInstance[];
   exile: CardInstance[];
-  deployed: CardInstance[]; // persistent defenders
-  playsLeft: number;
-  discardsLeft: number;
   extraRoundsPlayed: number;
   suddenDeathRoundsPlayed: number;
   earned: { budget: number; scout: number }; // collected by the run layer at match end
@@ -174,9 +197,7 @@ export interface MatchState {
 }
 
 export type MatchAction =
-  | { type: "ATTACK"; cardUids: string[] }
-  | { type: "DEFEND"; cardUids: string[] }
-  | { type: "DISCARD"; cardUids: string[] }
+  | { type: "PLAY_CARD"; uid: string }
   | { type: "END_ROUND" }
   | { type: "EXTRA_TIME" }
   | { type: "TAKE_WIN" };
@@ -188,14 +209,21 @@ export type GameEvent =
   | { type: "ROUND_START"; round: number; mode: MatchMode }
   | { type: "CARDS_DRAWN"; uids: string[] }
   | { type: "PILE_RESHUFFLED" }
-  | { type: "CARD_PLAYED"; uid: string; as: "attack" | "defend" }
+  | { type: "CARD_PLAYED"; uid: string; as: "attack" | "defend"; cost: number }
   | { type: "SHOT_VALUE"; basePower: number; mult: number; value: number; playName: string }
   | { type: "GOAL_SCORED"; goals: number; total: number }
+  | { type: "BLOCK_GAINED"; amount: number; total: number }
+  | { type: "INTENT_REVEALED"; intent: Intent }
+  | {
+      type: "INTENT_EXECUTED";
+      intent: Intent;
+      blocked: number;
+      points: number; // what got through
+      oppGoals: number;
+    }
   | { type: "FORM_GAINED"; uid: string; amount: number; formPower: number }
   | { type: "CARD_FATIGUED"; uids: string[] }
   | { type: "CARDS_DISCARDED"; uids: string[]; forced: boolean }
-  | { type: "CLOCK_TICK"; points: number; totalPoints: number; oppGoals: number }
-  | { type: "CLOCK_BURST"; points: number } // counter style
   | { type: "PUSH_DECISION"; playerGoals: number; oppGoals: number }
   | { type: "EXTRA_TIME_START"; round: number }
   | { type: "ET_SURVIVED"; budget: number; scout: number }
