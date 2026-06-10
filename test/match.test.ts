@@ -56,11 +56,12 @@ function pickAction(defs: CardDefMap, s: MatchState, pushLuck = false): MatchAct
     if (attackers.length > 0) {
       return { type: "ATTACK", cardUids: attackers.map((c) => c.uid) };
     }
+    const slots = Math.max(0, s.bal.MAX_DEPLOYED - s.deployed.length);
     const defenders = s.hand
       .filter((c) => defense(c) > 0)
       .sort((a, b) => defense(b) - defense(a))
-      .slice(0, s.bal.MAX_DEFEND_CARDS);
-    if (defenders.length > 0 && s.deployed.length < 4) {
+      .slice(0, Math.min(s.bal.MAX_DEFEND_CARDS, slots));
+    if (defenders.length > 0) {
       return { type: "DEFEND", cardUids: defenders.map((c) => c.uid) };
     }
   }

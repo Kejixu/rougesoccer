@@ -190,3 +190,121 @@ export interface MatchStep {
   state: MatchState;
   events: GameEvent[];
 }
+
+// ---------- styles ----------
+
+export interface StyleDef {
+  id: StyleId;
+  name: string;
+  blurb: string; // shown on the opponent panel
+  clockMult: number; // baked into OppInfo.attackRating at matchup build
+  effects: EffectDef[];
+}
+
+// ---------- run / campaign ----------
+
+export type Stage = "GROUP" | "R32" | "R16" | "QF" | "SF" | "FINAL";
+
+export const STAGE_ORDER: readonly Stage[] = ["GROUP", "R32", "R16", "QF", "SF", "FINAL"];
+
+export interface GroupRow {
+  teamId: string; // the player's own row uses their chosen teamId
+  pts: number;
+  w: number;
+  d: number;
+  l: number;
+  gf: number;
+  ga: number;
+}
+
+export interface FixtureResult {
+  matchday: number;
+  homeId: string;
+  awayId: string;
+  homeGoals: number;
+  awayGoals: number;
+}
+
+export interface ShopState {
+  cards: { defId: string; price: number; sold: boolean }[];
+  trainPrice: number;
+  releasePrice: number;
+  rerollScoutPrice: number;
+}
+
+export interface KnockoutRecord {
+  stage: Stage;
+  oppId: string;
+  playerGoals: number;
+  oppGoals: number;
+  result: "win" | "loss";
+}
+
+export interface PlayerMatchRecord {
+  stage: Stage;
+  oppId: string;
+  playerGoals: number;
+  oppGoals: number;
+  result: "win" | "draw" | "loss";
+  pushedRounds: number;
+}
+
+export type RunPhase = "IDLE" | "MATCH" | "REWARD" | "DONE";
+
+export interface RewardOffer {
+  defIds: string[];
+}
+
+export interface RunState {
+  version: 1;
+  seed: string;
+  playerTeamId: string;
+  stage: Stage;
+  matchIndexInStage: number; // group: 0..2; knockout: always 0
+  phase: RunPhase;
+  groupTeamIds: string[]; // 3 AI teams in the player's group
+  groupTable: GroupRow[];
+  groupFixtures: FixtureResult[];
+  groupOpponentOrder: string[]; // matchday order of the player's 3 group games
+  tiebreak: Record<string, number>; // seeded random tiebreak per team
+  knockoutHistory: KnockoutRecord[];
+  lastMatch: PlayerMatchRecord | null;
+  nextOppId: string | null;
+  scouted: boolean; // paid to reveal the next opponent's profile
+  deck: CardInstance[];
+  uidCounter: number;
+  resources: { budget: number; scout: number };
+  activeMatch: MatchState | null;
+  pendingReward: RewardOffer | null;
+  shop: ShopState | null;
+  usedTeamIds: string[]; // already faced; excluded from knockout draws
+  result: "active" | "won" | "eliminated";
+  rng: RngState;
+}
+
+export type RunAction =
+  | { type: "START_MATCH" }
+  | { type: "MATCH_ACTION"; action: MatchAction }
+  | { type: "PICK_REWARD"; index: number }
+  | { type: "SKIP_REWARD" }
+  | { type: "BUY_CARD"; index: number }
+  | { type: "TRAIN_CARD"; uid: string }
+  | { type: "RELEASE_CARD"; uid: string }
+  | { type: "REROLL_SHOP" }
+  | { type: "SCOUT_OPPONENT" };
+
+export interface RunStep {
+  state: RunState;
+  events: GameEvent[]; // match events when the action was a MATCH_ACTION
+}
+
+/** Everything the core run layer needs to know about content, injected by the
+ * driver (sim/UI). Keeps core free of imports from src/data. */
+export interface ContentBundle {
+  defs: CardDefMap;
+  cardPool: CardDef[]; // cards that can appear in rewards/shops
+  teams: TeamDef[];
+  styles: Record<StyleId, StyleDef>;
+  startingDeck: { defId: string; level: 0 | 1 | 2 }[];
+  balance: BalanceConfig;
+}

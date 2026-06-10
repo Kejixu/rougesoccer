@@ -1,16 +1,8 @@
-import type { EffectDef, StyleId } from "../core/types";
+import type { StyleDef, StyleId } from "../core/types";
 
 // Team playing styles: each opponent's mechanical identity. clockMult is baked
 // into OppInfo.attackRating when the run layer builds a matchup; effects are
 // passed to the match engine as styleEffects.
-
-export interface StyleDef {
-  id: StyleId;
-  name: string;
-  blurb: string; // shown on the opponent panel
-  clockMult: number;
-  effects: EffectDef[];
-}
 
 export const STYLES: Record<StyleId, StyleDef> = {
   balanced: {

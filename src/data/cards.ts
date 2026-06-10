@@ -184,13 +184,18 @@ const STARTING_DECK_LIST: { defId: string; count: number }[] = [
   { defId: "mom_screamer", count: 1 },
 ];
 
+/** Flat template consumed by ContentBundle.startingDeck. */
+export const STARTING_DECK_TEMPLATE: { defId: string; level: 0 | 1 | 2 }[] =
+  STARTING_DECK_LIST.flatMap((entry) =>
+    Array.from({ length: entry.count }, () => ({ defId: entry.defId, level: 0 as const })),
+  );
+
 export function makeStartingDeck(): CardInstance[] {
-  const deck: CardInstance[] = [];
-  let i = 0;
-  for (const entry of STARTING_DECK_LIST) {
-    for (let c = 0; c < entry.count; c++) {
-      deck.push({ uid: `start-${i++}`, defId: entry.defId, level: 0, formPower: 0, fatigued: false });
-    }
-  }
-  return deck;
+  return STARTING_DECK_TEMPLATE.map((c, i) => ({
+    uid: `start-${i}`,
+    defId: c.defId,
+    level: c.level,
+    formPower: 0,
+    fatigued: false,
+  }));
 }

@@ -366,8 +366,8 @@ export function applyMatchAction(
 
       for (const gain of outcome.formGains) {
         const inst = insts.find((c) => c.uid === gain.uid);
-        if (inst) {
-          inst.formPower += gain.amount;
+        if (inst && inst.formPower < draft.bal.FORM_CAP) {
+          inst.formPower = Math.min(draft.bal.FORM_CAP, inst.formPower + gain.amount);
           events.push({
             type: "FORM_GAINED",
             uid: inst.uid,
@@ -404,6 +404,8 @@ export function applyMatchAction(
       const n = action.cardUids.length;
       if (n < 1 || n > draft.bal.MAX_DEFEND_CARDS)
         throw new Error(`defend deploys 1-${draft.bal.MAX_DEFEND_CARDS} cards`);
+      if (draft.deployed.length + n > draft.bal.MAX_DEPLOYED)
+        throw new Error(`only ${draft.bal.MAX_DEPLOYED} defender slots`);
       const insts = takeFromHand(draft, action.cardUids);
       const fatigued: string[] = [];
       for (const inst of insts) {
