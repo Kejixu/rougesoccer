@@ -14,7 +14,7 @@ export function TitleScreen({
   const [seed, setSeed] = useState<string>("");
 
   return (
-    <main style={{ padding: 24, maxWidth: 640, margin: "0 auto" }}>
+    <main className="screen">
       <h1>RogueSoccer</h1>
       <p style={{ color: "var(--ink-dim)" }}>
         A World Cup 2026 roguelike deckbuilder. Build your squad, beat the clock, lift the trophy.
@@ -22,7 +22,7 @@ export function TitleScreen({
 
       {hasSave && (
         <p>
-          <button type="button" data-testid="continue-run" onClick={onContinue}>
+          <button type="button" className="btn" data-testid="continue-run" onClick={onContinue}>
             Continue campaign
           </button>
         </p>
@@ -58,8 +58,7 @@ export function TitleScreen({
           />
         </label>
       </p>
-      <button
-        type="button"
+      <button type="button" className="btn"
         data-testid="start-run"
         onClick={() => onNewRun(teamId, seed || `run-${Math.random().toString(36).slice(2, 10)}`)}
       >

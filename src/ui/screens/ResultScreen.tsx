@@ -40,7 +40,7 @@ export function ResultScreen({
         <p>Final squad: {run.deck.length} cards</p>
       </section>
 
-      <button type="button" data-testid="new-run" onClick={onNewRun}>
+      <button type="button" className="btn" data-testid="new-run" onClick={onNewRun}>
         New campaign
       </button>
     </main>

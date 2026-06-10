@@ -1,6 +1,6 @@
 import { useState } from "react";
 import { applyRunAction, createRun } from "../core/run/run";
-import type { RunAction, RunState } from "../core/types";
+import type { GameEvent, RunAction, RunState } from "../core/types";
 import { makeContent } from "../data/content";
 import { loadRun, saveRun } from "../save/persistence";
 import { MatchScreen } from "./screens/MatchScreen";
@@ -17,6 +17,7 @@ export function App() {
   const [savedRun] = useState<RunState | null>(() => loadRun());
   const [showShop, setShowShop] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [events, setEvents] = useState<GameEvent[]>([]);
 
   const dispatch = (action: RunAction) => {
     setRun((current) => {
@@ -25,6 +26,7 @@ export function App() {
         const step = applyRunAction(content, current, action);
         saveRun(step.state.phase === "DONE" ? null : step.state);
         setError(null);
+        setEvents(step.events);
         return step.state;
       } catch (e) {
         setError(e instanceof Error ? e.message : String(e));
@@ -59,7 +61,7 @@ export function App() {
   } else if (run.phase === "DONE") {
     screen = <ResultScreen run={run} content={content} onNewRun={abandonRun} />;
   } else if (run.phase === "MATCH") {
-    screen = <MatchScreen run={run} content={content} dispatch={dispatch} />;
+    screen = <MatchScreen run={run} content={content} events={events} dispatch={dispatch} />;
   } else if (run.phase === "REWARD") {
     screen = <RewardScreen run={run} content={content} dispatch={dispatch} />;
   } else if (showShop) {

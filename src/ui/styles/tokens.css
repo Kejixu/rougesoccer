@@ -1,6 +1,8 @@
 :root {
   --bg: #0e1a12;
+  --bg-vignette: radial-gradient(ellipse at 50% 30%, #16281b 0%, #0e1a12 70%);
   --surface: #14241a;
+  --surface-2: #1b2f22;
   --ink: #f2efe6;
   --ink-dim: #b8b2a0;
   --accent: #ffd34d;
@@ -8,8 +10,10 @@
   --danger: #ff5d5d;
   --rare: #6ec3ff;
   --legendary: #ffb347;
-  --radius-card: 10px;
-  --font-display: "Arial Narrow", "Helvetica Neue", system-ui, sans-serif;
+  --sticker-paper: #f5f1e3;
+  --sticker-ink: #1c2520;
+  --radius-card: 12px;
+  --font-display: "Avenir Next Condensed", "Arial Narrow", "Helvetica Neue", system-ui, sans-serif;
   --font-body: system-ui, -apple-system, sans-serif;
 }
 
@@ -20,6 +24,91 @@
 body {
   margin: 0;
   background: var(--bg);
+  background-image: var(--bg-vignette);
+  min-height: 100vh;
   color: var(--ink);
   font-family: var(--font-body);
+}
+
+h1,
+h2,
+h3 {
+  font-family: var(--font-display);
+  letter-spacing: 0.02em;
+  text-transform: uppercase;
+}
+
+button.btn {
+  font-family: var(--font-display);
+  font-size: 15px;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  background: var(--surface-2);
+  color: var(--ink);
+  border: 1px solid #3a5a44;
+  border-radius: 8px;
+  padding: 8px 18px;
+  cursor: pointer;
+  transition: transform 0.08s ease, background 0.15s ease, box-shadow 0.15s ease;
+}
+
+button.btn:hover:not(:disabled) {
+  background: #24402f;
+  transform: translateY(-1px);
+  box-shadow: 0 3px 10px rgba(0, 0, 0, 0.4);
+}
+
+button.btn:active:not(:disabled) {
+  transform: translateY(0);
+}
+
+button.btn:disabled {
+  opacity: 0.4;
+  cursor: default;
+}
+
+button.btn--primary {
+  background: var(--accent);
+  color: #2a230a;
+  border-color: #d9ae28;
+  font-weight: 700;
+}
+
+button.btn--primary:hover:not(:disabled) {
+  background: #ffdd70;
+}
+
+button.btn--danger {
+  border-color: #7e3a3a;
+  color: #ffb3b3;
+}
+
+.screen {
+  padding: 24px;
+  max-width: 960px;
+  margin: 0 auto;
+}
+
+.panel {
+  background: var(--surface);
+  border: 1px solid #2b4434;
+  border-radius: 12px;
+  padding: 14px 18px;
+}
+
+table.standings {
+  border-collapse: collapse;
+  width: 100%;
+}
+
+table.standings th,
+table.standings td {
+  padding: 4px 10px;
+  text-align: left;
+  border-bottom: 1px solid #24382b;
+}
+
+table.standings tr.you {
+  color: var(--accent);
+  font-weight: 700;
 }

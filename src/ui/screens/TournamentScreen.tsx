@@ -21,7 +21,7 @@ export function TournamentScreen({
   const nextOpp = run.nextOppId ? content.teams.find((t) => t.id === run.nextOppId) : null;
 
   return (
-    <main style={{ padding: 24, maxWidth: 760, margin: "0 auto" }}>
+    <main className="screen">
       <h1>
         {run.stage === "GROUP"
           ? `Group stage — matchday ${run.matchIndexInStage + 1} of 3`
@@ -41,31 +41,31 @@ export function TournamentScreen({
       </p>
 
       {run.stage === "GROUP" ? (
-        <table data-testid="group-table" style={{ borderCollapse: "collapse" }}>
-          <thead>
-            <tr>
-              {["Team", "P", "W", "D", "L", "GF", "GA", "Pts"].map((h) => (
-                <th key={h} style={{ padding: "2px 8px", textAlign: "left" }}>
-                  {h}
-                </th>
-              ))}
-            </tr>
-          </thead>
-          <tbody>
-            {standings(run.groupTable, run.tiebreak).map((row) => (
-              <tr key={row.teamId}>
-                <td style={{ padding: "2px 8px" }}>{teamName(row.teamId)}</td>
-                <td style={{ padding: "2px 8px" }}>{row.w + row.d + row.l}</td>
-                <td style={{ padding: "2px 8px" }}>{row.w}</td>
-                <td style={{ padding: "2px 8px" }}>{row.d}</td>
-                <td style={{ padding: "2px 8px" }}>{row.l}</td>
-                <td style={{ padding: "2px 8px" }}>{row.gf}</td>
-                <td style={{ padding: "2px 8px" }}>{row.ga}</td>
-                <td style={{ padding: "2px 8px" }}>{row.pts}</td>
+        <div className="panel">
+          <table data-testid="group-table" className="standings">
+            <thead>
+              <tr>
+                {["Team", "P", "W", "D", "L", "GF", "GA", "Pts"].map((h) => (
+                  <th key={h}>{h}</th>
+                ))}
               </tr>
-            ))}
-          </tbody>
-        </table>
+            </thead>
+            <tbody>
+              {standings(run.groupTable, run.tiebreak).map((row) => (
+                <tr key={row.teamId} className={row.teamId === run.playerTeamId ? "you" : undefined}>
+                  <td>{teamName(row.teamId)}</td>
+                  <td>{row.w + row.d + row.l}</td>
+                  <td>{row.w}</td>
+                  <td>{row.d}</td>
+                  <td>{row.l}</td>
+                  <td>{row.gf}</td>
+                  <td>{row.ga}</td>
+                  <td>{row.pts}</td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
       ) : (
         <ol data-testid="knockout-history">
           {run.knockoutHistory.map((k) => (
@@ -86,8 +86,7 @@ export function TournamentScreen({
               {nextOpp.tier}).
             </p>
           ) : (
-            <button
-              type="button"
+            <button type="button" className="btn"
               data-testid="scout-button"
               disabled={run.resources.scout < content.balance.SHOP_PRICES.scoutOpponent}
               onClick={() => dispatch({ type: "SCOUT_OPPONENT" })}
@@ -99,13 +98,13 @@ export function TournamentScreen({
       )}
 
       <p style={{ display: "flex", gap: 8 }}>
-        <button type="button" data-testid="start-match" onClick={() => dispatch({ type: "START_MATCH" })}>
+        <button type="button" className="btn" data-testid="start-match" onClick={() => dispatch({ type: "START_MATCH" })}>
           Kick off
         </button>
-        <button type="button" data-testid="open-shop" onClick={onOpenShop}>
+        <button type="button" className="btn" data-testid="open-shop" onClick={onOpenShop}>
           Transfer market
         </button>
-        <button type="button" onClick={onAbandon} style={{ marginLeft: "auto" }}>
+        <button type="button" className="btn" onClick={onAbandon} style={{ marginLeft: "auto" }}>
           Abandon run
         </button>
       </p>

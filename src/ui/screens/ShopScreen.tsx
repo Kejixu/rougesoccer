@@ -1,6 +1,6 @@
 import { useState } from "react";
 import { levelStats, type ContentBundle, type RunAction, type RunState } from "../../core/types";
-import { CardView } from "../components/CardView";
+import { StickerCard } from "../components/StickerCard";
 
 export function ShopScreen({
   run,
@@ -23,7 +23,7 @@ export function ShopScreen({
       : false;
 
   return (
-    <main style={{ padding: 24, maxWidth: 900, margin: "0 auto" }}>
+    <main className="screen">
       <h1>Transfer market</h1>
       <p data-testid="resources">
         Budget {run.resources.budget} · Scout points {run.resources.scout}
@@ -35,9 +35,8 @@ export function ShopScreen({
           <div style={{ display: "flex", gap: 12, flexWrap: "wrap" }} data-testid="shop-cards">
             {shop.cards.map((slot, i) => (
               <div key={`${slot.defId}-${i}`} style={{ opacity: slot.sold ? 0.4 : 1 }}>
-                <CardView def={content.defs[slot.defId]!} />
-                <button
-                  type="button"
+                <StickerCard def={content.defs[slot.defId]!} />
+                <button type="button" className="btn"
                   data-testid={`buy-${i}`}
                   disabled={slot.sold || run.resources.budget < slot.price}
                   onClick={() => dispatch({ type: "BUY_CARD", index: i })}
@@ -47,8 +46,7 @@ export function ShopScreen({
               </div>
             ))}
           </div>
-          <button
-            type="button"
+          <button type="button" className="btn"
             data-testid="reroll-shop"
             disabled={run.resources.scout < shop.rerollScoutPrice}
             onClick={() => dispatch({ type: "REROLL_SHOP" })}
@@ -64,7 +62,7 @@ export function ShopScreen({
         <h2>Your squad ({run.deck.length})</h2>
         <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }} data-testid="squad">
           {run.deck.map((c) => (
-            <CardView
+            <StickerCard
               key={c.uid}
               def={content.defs[c.defId]!}
               inst={c}
@@ -75,8 +73,7 @@ export function ShopScreen({
         </div>
         {selected && selectedDef && (
           <p>
-            <button
-              type="button"
+            <button type="button" className="btn"
               data-testid="train-card"
               disabled={!canTrain || run.resources.budget < (shop?.trainPrice ?? Infinity)}
               onClick={() => dispatch({ type: "TRAIN_CARD", uid: selected.uid })}
@@ -86,8 +83,7 @@ export function ShopScreen({
                 ? ` → ${levelStats(selectedDef, selected.level + 1).text} (${shop?.trainPrice})`
                 : " (max level)"}
             </button>{" "}
-            <button
-              type="button"
+            <button type="button" className="btn"
               data-testid="release-card"
               disabled={
                 run.deck.length <= content.balance.MIN_DECK_SIZE ||
@@ -104,7 +100,7 @@ export function ShopScreen({
         )}
       </section>
 
-      <button type="button" data-testid="back-to-tournament" onClick={onBack}>
+      <button type="button" className="btn" data-testid="back-to-tournament" onClick={onBack}>
         Back to the tournament
       </button>
     </main>

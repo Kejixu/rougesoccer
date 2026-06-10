@@ -1,5 +1,5 @@
 import type { ContentBundle, RunAction, RunState } from "../../core/types";
-import { CardView } from "../components/CardView";
+import { StickerCard } from "../components/StickerCard";
 
 export function RewardScreen({
   run,
@@ -12,7 +12,7 @@ export function RewardScreen({
 }) {
   const offer = run.pendingReward!;
   return (
-    <main style={{ padding: 24, maxWidth: 760, margin: "0 auto" }}>
+    <main className="screen">
       <h1>Scout report: new signing</h1>
       {run.lastMatch && (
         <p data-testid="last-result">
@@ -23,9 +23,8 @@ export function RewardScreen({
       <div style={{ display: "flex", gap: 12, flexWrap: "wrap" }} data-testid="reward-options">
         {offer.defIds.map((defId, i) => (
           <div key={`${defId}-${i}`}>
-            <CardView def={content.defs[defId]!} />
-            <button
-              type="button"
+            <StickerCard def={content.defs[defId]!} />
+            <button type="button" className="btn"
               data-testid={`pick-reward-${i}`}
               onClick={() => dispatch({ type: "PICK_REWARD", index: i })}
             >
@@ -35,7 +34,7 @@ export function RewardScreen({
         ))}
       </div>
       <p>
-        <button type="button" data-testid="skip-reward" onClick={() => dispatch({ type: "SKIP_REWARD" })}>
+        <button type="button" className="btn" data-testid="skip-reward" onClick={() => dispatch({ type: "SKIP_REWARD" })}>
           Skip (+{content.balance.REWARD_BUDGET.skipPick} budget)
         </button>
       </p>
