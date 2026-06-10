@@ -1,0 +1,25 @@
+:root {
+  --bg: #0e1a12;
+  --surface: #14241a;
+  --ink: #f2efe6;
+  --ink-dim: #b8b2a0;
+  --accent: #ffd34d;
+  --accent-2: #4dd07a;
+  --danger: #ff5d5d;
+  --rare: #6ec3ff;
+  --legendary: #ffb347;
+  --radius-card: 10px;
+  --font-display: "Arial Narrow", "Helvetica Neue", system-ui, sans-serif;
+  --font-body: system-ui, -apple-system, sans-serif;
+}
+
+* {
+  box-sizing: border-box;
+}
+
+body {
+  margin: 0;
+  background: var(--bg);
+  color: var(--ink);
+  font-family: var(--font-body);
+}
