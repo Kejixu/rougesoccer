@@ -30,6 +30,7 @@ describe("edge cases", () => {
     let { state } = createMatch(CARD_DEF_MAP, {
       opp: OPP,
       styleEffects: [],
+      plays: [],
       context: "group",
       deck,
       rng: seedRng("edge-tiny"),

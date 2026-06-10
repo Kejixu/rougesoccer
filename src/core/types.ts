@@ -57,6 +57,27 @@ export interface EffectDef {
   scaling?: "perLevel"; // amount *= (level + 1)
 }
 
+// ---------- plays (the "poker hands" of an attack) ----------
+
+export type PlayPattern =
+  | { kind: "soloRun" } // exactly 1 player card
+  | {
+      kind: "positions";
+      need: Partial<Record<Position, number>>; // minimum counts
+      anyOf?: Position[]; // at least one of these also present
+      exact?: number; // exactly this many player cards
+    }
+  | { kind: "minPosition"; position: Position; count: number }
+  | { kind: "distinct"; count: number }; // N different positions
+
+export interface PlayDef {
+  id: string;
+  name: string; // splashed on screen: "WING PLAY!"
+  baseMult: number; // the play's multiplier tier
+  blurb: string; // human description of the pattern, shown in the legend
+  match: PlayPattern;
+}
+
 // ---------- cards ----------
 
 export interface CardLevelStats {
@@ -130,6 +151,7 @@ export interface MatchState {
   context: MatchContext;
   opp: OppInfo;
   styleEffects: EffectDef[];
+  plays: PlayDef[];
   bal: BalanceConfig;
   round: number; // 1-based; keeps counting through extra time / sudden death
   playerGoals: number;
@@ -167,7 +189,7 @@ export type GameEvent =
   | { type: "CARDS_DRAWN"; uids: string[] }
   | { type: "PILE_RESHUFFLED" }
   | { type: "CARD_PLAYED"; uid: string; as: "attack" | "defend" }
-  | { type: "SHOT_VALUE"; basePower: number; mult: number; value: number }
+  | { type: "SHOT_VALUE"; basePower: number; mult: number; value: number; playName: string }
   | { type: "GOAL_SCORED"; goals: number; total: number }
   | { type: "FORM_GAINED"; uid: string; amount: number; formPower: number }
   | { type: "CARD_FATIGUED"; uids: string[] }
@@ -305,6 +327,7 @@ export interface ContentBundle {
   cardPool: CardDef[]; // cards that can appear in rewards/shops
   teams: TeamDef[];
   styles: Record<StyleId, StyleDef>;
+  plays: PlayDef[];
   startingDeck: { defId: string; level: 0 | 1 | 2 }[];
   balance: BalanceConfig;
 }

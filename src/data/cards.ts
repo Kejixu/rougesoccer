@@ -136,7 +136,7 @@ export const CARD_DEFS = [
   {
     id: "tac_through",
     kind: "tactic",
-    name: "Through Ball",
+    name: "Slide-Rule Pass",
     rarity: "common",
     levels: [{ text: "x1.5 mult on this attack." }],
     effects: [{ trigger: "onPlay", op: { kind: "mulMult", amount: 1.5 } }],
@@ -464,7 +464,7 @@ export const CARD_DEFS = [
   {
     id: "tac_tikitaka",
     kind: "tactic",
-    name: "Tiki-Taka",
+    name: "Midfield Masterclass",
     rarity: "rare",
     levels: [{ text: "+0.75 mult on this attack." }],
     effects: [{ trigger: "onPlay", op: { kind: "addMult", amount: 0.75 } }],

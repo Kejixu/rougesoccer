@@ -44,6 +44,11 @@ export function ScorePopups({ events }: { events: GameEvent[] }) {
       if (e.type === "SHOT_VALUE") {
         staged.push({
           delay,
+          popup: { id: nextId++, kind: "info", text: `${e.playName}!` },
+        });
+        delay += 450;
+        staged.push({
+          delay,
           popup: {
             id: nextId++,
             kind: "shot",

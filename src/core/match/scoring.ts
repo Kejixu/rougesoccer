@@ -7,7 +7,9 @@ import {
   type CardDef,
   type CardInstance,
   type Condition,
+  type PlayDef,
 } from "../types";
+import { classifyAttack } from "./plays";
 
 export interface AttackCard {
   inst: CardInstance;
@@ -20,13 +22,16 @@ export interface AttackContext {
   trailing: boolean;
   multCap: number | null;
   goalThreshold: number;
+  plays: readonly PlayDef[];
 }
 
 export interface AttackOutcome {
   basePower: number;
+  playName: string; // the classified play ("Wing Play", "Tiki-Taka"...)
+  playMult: number;
   addMult: number;
   mulMult: number;
-  totalMult: number; // after cap
+  totalMult: number; // playMult x (1 + addMult) x mulMult, after cap
   value: number; // floored shot value
   goals: number;
   draws: number; // cards to draw after the attack
@@ -105,7 +110,8 @@ export function computeAttack(cards: AttackCard[], ctx: AttackContext): AttackOu
     }
   }
 
-  let totalMult = (1 + addMult) * mulMult;
+  const { mult: playMult, name: playName } = classifyAttack(cards, ctx.plays);
+  let totalMult = playMult * (1 + addMult) * mulMult;
   if (ctx.multCap !== null) totalMult = Math.min(totalMult, ctx.multCap);
 
   const value = Math.floor(basePower * totalMult);
@@ -131,5 +137,18 @@ export function computeAttack(cards: AttackCard[], ctx: AttackContext): AttackOu
     }
   }
 
-  return { basePower, addMult, mulMult, totalMult, value, goals, draws, budget, scout, formGains };
+  return {
+    basePower,
+    playName,
+    playMult,
+    addMult,
+    mulMult,
+    totalMult,
+    value,
+    goals,
+    draws,
+    budget,
+    scout,
+    formGains,
+  };
 }

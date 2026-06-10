@@ -21,6 +21,7 @@ const baseCtx = {
   trailing: false,
   multCap: null,
   goalThreshold: 25,
+  plays: [],
 };
 
 const striker = () =>

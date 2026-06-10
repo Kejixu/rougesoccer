@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 import { applyMatchAction, createMatch, type MatchConfig } from "../src/core/match/engine";
 import { seedRng } from "../src/core/rng";
 import { DEFAULT_BALANCE } from "../src/core/balance";
+import { DEFAULT_PLAYS } from "../src/core/match/plays";
 import {
   levelStats,
   type CardDefMap,
@@ -25,6 +26,7 @@ function config(overrides: Partial<MatchConfig> = {}): MatchConfig {
   return {
     opp: MINNOW,
     styleEffects: [],
+    plays: [...DEFAULT_PLAYS],
     context: "group",
     deck: makeStartingDeck(),
     rng: seedRng("test-1"),

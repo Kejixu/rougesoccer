@@ -145,6 +145,7 @@ function startMatch(draft: RunState, content: ContentBundle): GameEvent[] {
   const step = createMatch(content.defs, {
     opp,
     styleEffects: style.effects,
+    plays: content.plays,
     context: draft.stage === "GROUP" ? "group" : "knockout",
     deck: matchDeck.map((c) => ({ ...c, formPower: 0 })),
     rng: draft.rng,

@@ -36,6 +36,7 @@ function evaluate(content: ContentBundle, m: MatchState, cards: CardInstance[]) 
     trailing: m.playerGoals < m.oppGoals,
     multCap: m.multCap,
     goalThreshold: m.bal.GOAL_THRESHOLD,
+    plays: m.plays,
   });
 }
 
@@ -62,6 +63,30 @@ function bestAttack(
       const others = tactics.filter((x) => x !== t).slice(0, 1);
       candidates.push([...powerCards.slice(0, m.bal.MAX_ATTACK_CARDS - 2), t, ...others]);
     }
+  }
+
+  // play-directed candidates: hunt the named combos like a human would
+  const byPos = (pos: string) =>
+    powerCards.filter((c) => content.defs[c.defId]!.position === pos);
+  const st = byPos("ST");
+  const wg = byPos("WG");
+  const mf = byPos("MF");
+  const df = m.hand.filter(
+    (c) => content.defs[c.defId]!.position === "DF" && power(content, c) > 0,
+  );
+  const top = (arr: CardInstance[], n: number) => arr.slice(0, n);
+  const playShapes: CardInstance[][] = [
+    [...top(wg, 1), ...top(st, 1)], // counter / wing play
+    [...top(mf, 1), ...top(st, 1)], // through ball
+    [...top(mf, 2)], // one-two
+    [...top(mf, 3)], // tiki-taka
+    [...top(mf, 3), ...top(st, 1)], // tiki-taka + finisher
+    [...top(df, 1), ...top(wg, 1), ...top(st, 1)], // overlap
+    [...top(st, 1), ...top(wg, 1), ...top(mf, 1), ...top(df, 1)], // total football
+    [...top(wg, 1), ...top(st, 1), ...tactics.slice(0, 1)], // wing play + tactic
+  ];
+  for (const shape of playShapes) {
+    if (shape.length > 0 && shape.length <= m.bal.MAX_ATTACK_CARDS) candidates.push(shape);
   }
 
   let best: { cards: CardInstance[]; goals: number; value: number } | null = null;

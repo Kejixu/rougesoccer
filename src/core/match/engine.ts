@@ -16,12 +16,14 @@ import {
   type MatchStep,
   type OppInfo,
   type EffectDef,
+  type PlayDef,
 } from "../types";
 import type { BalanceConfig } from "../balance";
 
 export interface MatchConfig {
   opp: OppInfo;
   styleEffects: EffectDef[];
+  plays: PlayDef[];
   context: MatchContext;
   deck: CardInstance[];
   rng: RngState;
@@ -290,6 +292,7 @@ export function createMatch(defs: CardDefMap, cfg: MatchConfig): MatchStep {
     context: cfg.context,
     opp: cfg.opp,
     styleEffects: cfg.styleEffects,
+    plays: cfg.plays,
     bal: cfg.balance,
     round: 0,
     playerGoals: 0,
@@ -350,6 +353,7 @@ export function applyMatchAction(
         trailing: draft.playerGoals < draft.oppGoals,
         multCap: draft.multCap,
         goalThreshold: draft.bal.GOAL_THRESHOLD,
+        plays: draft.plays,
       });
 
       for (const c of cards) events.push({ type: "CARD_PLAYED", uid: c.inst.uid, as: "attack" });
@@ -358,6 +362,7 @@ export function applyMatchAction(
         basePower: outcome.basePower,
         mult: outcome.totalMult,
         value: outcome.value,
+        playName: outcome.playName,
       });
 
       draft.playerGoals += outcome.goals;

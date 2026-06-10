@@ -123,6 +123,62 @@
   background: rgba(245, 241, 227, 0.25);
 }
 
+/* ---- attack preview (live play + score readout) ---- */
+
+.attack-preview {
+  display: flex;
+  align-items: baseline;
+  gap: 18px;
+  flex-wrap: wrap;
+  min-height: 30px;
+  font-size: 15px;
+}
+
+.play-name {
+  font-family: var(--font-display);
+  font-weight: 800;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+}
+
+.play-name.good {
+  color: var(--accent);
+}
+
+.preview-math strong {
+  font-size: 20px;
+  color: var(--accent-2);
+}
+
+.preview-goals {
+  color: var(--ink-dim);
+}
+
+.preview-count {
+  margin-left: auto;
+  color: var(--ink-dim);
+  font-size: 12px;
+}
+
+.plays-legend summary {
+  cursor: pointer;
+  font-family: var(--font-display);
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  color: var(--ink-dim);
+}
+
+.plays-legend table {
+  margin-top: 8px;
+  border-collapse: collapse;
+  font-size: 13px;
+}
+
+.plays-legend td {
+  padding: 3px 14px 3px 0;
+  vertical-align: top;
+}
+
 /* ---- hand fan ---- */
 
 .hand-fan {

@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState } from "react";
 import { defenseRating } from "../../core/match/engine";
+import { computeAttack } from "../../core/match/scoring";
 import {
   levelStats,
   type ContentBundle,
@@ -80,6 +81,25 @@ export function MatchScreen({
     if (!c) return false;
     return (levelStats(content.defs[c.defId]!, c.level).defense ?? 0) > 0;
   });
+
+  // live attack preview: the Balatro moment — watch the play form as you select
+  const selCards = sel
+    .map((uid) => m.hand.find((c) => c.uid === uid))
+    .filter((c): c is NonNullable<typeof c> => !!c)
+    .map((inst) => ({ inst, def: content.defs[inst.defId]! }));
+  const preview =
+    selCards.length > 0
+      ? computeAttack(selCards, {
+          handSizeAfter: m.hand.length - selCards.length,
+          leading: m.playerGoals > m.oppGoals,
+          trailing: m.playerGoals < m.oppGoals,
+          multCap: m.multCap,
+          goalThreshold: m.bal.GOAL_THRESHOLD,
+          plays: m.plays,
+        })
+      : null;
+  const toNextGoal = preview ? m.bal.GOAL_THRESHOLD * (preview.goals + 1) - preview.value : 0;
+  const fmtMult = (x: number) => `×${x.toFixed(2).replace(/\.?0+$/, "")}`;
   const style = content.styles[m.opp.style];
   const coach = content.teams.find((t) => t.id === m.opp.teamId)?.coach;
   const playerName = content.teams.find((t) => t.id === run.playerTeamId)?.name ?? "You";
@@ -144,6 +164,32 @@ export function MatchScreen({
 
       {m.phase === "ROUND_ACTIVE" && (
         <>
+          <div className="attack-preview panel" data-testid="attack-preview">
+            {preview ? (
+              <>
+                <span className={`play-name${preview.playMult > 1 ? " good" : ""}`}>
+                  {preview.playName} {fmtMult(preview.playMult)}
+                </span>
+                <span className="preview-math">
+                  {preview.basePower} power {fmtMult(preview.totalMult)} ={" "}
+                  <strong>{preview.value}</strong>
+                </span>
+                <span className="preview-goals">
+                  {preview.goals > 0 ? `⚽ ${preview.goals}` : "no goal"}
+                  {" · "}
+                  {toNextGoal} short of {preview.goals + 1}
+                  {preview.goals === 0 ? "st" : preview.goals === 1 ? "nd" : preview.goals === 2 ? "rd" : "th"} goal
+                </span>
+                <span className="preview-count">{sel.length}/{m.bal.MAX_ATTACK_CARDS} cards</span>
+              </>
+            ) : (
+              <span style={{ color: "var(--ink-dim)" }}>
+                Select up to {m.bal.MAX_ATTACK_CARDS} cards to build a play — combos of positions
+                multiply your score. Every {m.bal.GOAL_THRESHOLD} points = 1 goal.
+              </span>
+            )}
+          </div>
+
           {m.deployed.length > 0 && (
             <div className="deployed-row panel">
               <strong style={{ fontFamily: "var(--font-display)" }}>BACK LINE</strong>
@@ -220,6 +266,28 @@ export function MatchScreen({
               draw {m.drawPile.length} · discard {m.discardPile.length}
             </span>
           </div>
+
+          <details className="plays-legend panel" data-testid="plays-legend">
+            <summary>The plays — combine positions for bigger multipliers</summary>
+            <table>
+              <tbody>
+                {[...m.plays]
+                  .sort((a, b) => a.baseMult - b.baseMult)
+                  .map((p) => (
+                    <tr key={p.id}>
+                      <td className="play-name good">{p.name}</td>
+                      <td>{fmtMult(p.baseMult)}</td>
+                      <td style={{ color: "var(--ink-dim)" }}>{p.blurb}</td>
+                    </tr>
+                  ))}
+                <tr>
+                  <td className="play-name">Hopeful Punt</td>
+                  <td>×1</td>
+                  <td style={{ color: "var(--ink-dim)" }}>Anything that isn't a real play.</td>
+                </tr>
+              </tbody>
+            </table>
+          </details>
         </>
       )}
     </main>
