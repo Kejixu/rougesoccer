@@ -58,7 +58,7 @@ export interface BalanceConfig {
 }
 
 export const DEFAULT_BALANCE: BalanceConfig = {
-  GOAL_THRESHOLD: 25,
+  GOAL_THRESHOLD: 40,
   HAND_SIZE: 7,
   PLAYS_PER_ROUND: 2,
   DISCARDS_PER_ROUND: 2,
@@ -66,12 +66,12 @@ export const DEFAULT_BALANCE: BalanceConfig = {
   MAX_DISCARD_CARDS: 3,
   MAX_DEFEND_CARDS: 2,
   MAX_DEPLOYED: 3,
-  FORM_CAP: 15,
+  FORM_CAP: 10,
   MATCH_ROUNDS: 5,
-  CLOCK_FLOOR_RATIO: 0.3,
-  EXTRA_TIME_CLOCK_MULT: 1.5,
+  CLOCK_FLOOR_RATIO: 0.35,
+  EXTRA_TIME_CLOCK_MULT: 2.0,
   MAX_EXTRA_ROUNDS: 2,
-  ET_BUDGET_REWARD: 15,
+  ET_BUDGET_REWARD: 20,
   ET_SCOUT_REWARD: 1,
   MAX_SUDDEN_DEATH_ROUNDS: 3,
   COUNTER_BURST_POINTS: 8,
@@ -109,11 +109,11 @@ export const DEFAULT_BALANCE: BalanceConfig = {
   MIN_DECK_SIZE: 10,
   MIN_MATCH_DECK: 10,
   STAGE_CLOCK_MULT: {
-    GROUP: 0.9,
-    R32: 1.2,
-    R16: 1.35,
-    QF: 1.65,
-    SF: 1.8,
-    FINAL: 2.0,
+    GROUP: 1.8,
+    R32: 2.4,
+    R16: 2.7,
+    QF: 3.1,
+    SF: 3.5,
+    FINAL: 4.0,
   },
 };

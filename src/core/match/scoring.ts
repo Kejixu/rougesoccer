@@ -43,10 +43,12 @@ export function evalCondition(
   cond: Condition,
   cards: AttackCard[],
   ctx: AttackContext,
+  ownerUid?: string,
 ): boolean {
   switch (cond.kind) {
     case "attackIncludesPosition":
-      return cards.some((c) => c.def.position === cond.position);
+      // a card never satisfies its own "includes position" check — "another MF"
+      return cards.some((c) => c.def.position === cond.position && c.inst.uid !== ownerUid);
     case "attackCardCount":
       return cmp(cond.cmp, cards.length, cond.value);
     case "handSize":
@@ -77,7 +79,7 @@ export function computeAttack(cards: AttackCard[], ctx: AttackContext): AttackOu
   for (const c of cards) {
     for (const eff of c.def.effects) {
       if (eff.trigger !== "onPlay") continue;
-      if (eff.condition && !evalCondition(eff.condition, cards, ctx)) continue;
+      if (eff.condition && !evalCondition(eff.condition, cards, ctx, c.inst.uid)) continue;
       const op = eff.op;
       switch (op.kind) {
         case "addPower":
@@ -114,7 +116,7 @@ export function computeAttack(cards: AttackCard[], ctx: AttackContext): AttackOu
     for (const c of cards) {
       for (const eff of c.def.effects) {
         if (eff.trigger !== "onGoal") continue;
-        if (eff.condition && !evalCondition(eff.condition, cards, ctx)) continue;
+        if (eff.condition && !evalCondition(eff.condition, cards, ctx, c.inst.uid)) continue;
         const op = eff.op;
         if (op.kind === "gainFormPower") {
           formGains.push({

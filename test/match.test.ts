@@ -141,15 +141,24 @@ describe("push-your-luck", () => {
     for (let guard = 0; guard < 50 && state.phase === "ROUND_ACTIVE"; guard++) {
       state = applyMatchAction(CARD_DEF_MAP, state, pickAction(CARD_DEF_MAP, state)).state;
     }
-    // survived one ET round in the lead: rewards earned, push offered again
+    // survived one ET round in the lead: rewards earned, push offered again,
+    // and the first push is "free" — no fatigue yet
     expect(state.earned.budget).toBe(DEFAULT_BALANCE.ET_BUDGET_REWARD);
     expect(state.earned.scout).toBe(DEFAULT_BALANCE.ET_SCOUT_REWARD);
     expect(state.phase).toBe("PUSH_DECISION");
-    expect(allCards(state).some((c) => c.fatigued)).toBe(true);
+    expect(allCards(state).some((c) => c.fatigued)).toBe(false);
 
-    // bank it
-    state = applyMatchAction(CARD_DEF_MAP, state, { type: "TAKE_WIN" }).state;
+    // push again: the second extra-time round is the one that tires the squad
+    state = applyMatchAction(CARD_DEF_MAP, state, { type: "EXTRA_TIME" }).state;
+    let attacked = false;
+    for (let guard = 0; guard < 50 && state.phase === "ROUND_ACTIVE"; guard++) {
+      const action = pickAction(CARD_DEF_MAP, state);
+      if (action.type === "ATTACK" || action.type === "DEFEND") attacked = true;
+      state = applyMatchAction(CARD_DEF_MAP, state, action).state;
+    }
+    expect(state.phase).toBe("DONE");
     expect(state.result).toBe("win");
+    if (attacked) expect(allCards(state).some((c) => c.fatigued)).toBe(true);
   });
 });
 

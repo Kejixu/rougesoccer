@@ -383,7 +383,7 @@ export function applyMatchAction(
       const fatigued: string[] = [];
       for (const inst of insts) {
         const def = defs[inst.defId]!;
-        if (draft.mode === "extratime" && !inst.fatigued) {
+        if (draft.mode === "extratime" && draft.extraRoundsPlayed >= 2 && !inst.fatigued) {
           inst.fatigued = true;
           fatigued.push(inst.uid);
         }
@@ -413,7 +413,7 @@ export function applyMatchAction(
         if (!def) throw new Error(`unknown card def ${inst.defId}`);
         if ((levelStats(def, inst.level).defense ?? 0) <= 0)
           throw new Error(`${def.name} has no defense and cannot be deployed`);
-        if (draft.mode === "extratime" && !inst.fatigued) {
+        if (draft.mode === "extratime" && draft.extraRoundsPlayed >= 2 && !inst.fatigued) {
           inst.fatigued = true;
           fatigued.push(inst.uid);
         }
