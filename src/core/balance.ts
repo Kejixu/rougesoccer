@@ -50,9 +50,11 @@ export interface BalanceConfig {
     legendary: number;
     train: number;
     release: number;
+    drill: number; // imbue a gameplan: permanent for the run, card removed
     rerollScout: number;
     scoutOpponent: number;
   };
+  STAFF_OFFER_SIZE: number; // staff hires offered per stage advance
   TRAIN_MAX_LEVEL: number;
   MIN_DECK_SIZE: number; // releases can't shrink the deck below this
   MIN_MATCH_DECK: number; // if fatigue would leave fewer cards, fatigued ones play anyway
@@ -106,18 +108,22 @@ export const DEFAULT_BALANCE: BalanceConfig = {
     legendary: 60,
     train: 25,
     release: 8,
+    drill: 25,
     rerollScout: 1,
     scoutOpponent: 1,
   },
+  STAFF_OFFER_SIZE: 3,
   TRAIN_MAX_LEVEL: 2,
   MIN_DECK_SIZE: 10,
   MIN_MATCH_DECK: 10,
+  // The player now snowballs (staff hires + gameplans), so the ramp climbs
+  // steeply after the group stage to keep knockouts honest.
   STAGE_CLOCK_MULT: {
-    GROUP: 1.0,
-    R32: 1.05,
-    R16: 1.15,
-    QF: 1.2,
-    SF: 1.2,
-    FINAL: 1.2,
+    GROUP: 1.1,
+    R32: 1.35,
+    R16: 1.55,
+    QF: 1.7,
+    SF: 1.8,
+    FINAL: 2.0,
   },
 };

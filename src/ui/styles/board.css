@@ -433,3 +433,100 @@
   text-align: center;
   box-shadow: 0 10px 50px rgba(0, 0, 0, 0.6);
 }
+
+/* ---- passives: staff hires + active gameplans ---- */
+
+.passive-strip {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  margin: 4px 0;
+}
+
+.passive-chip {
+  font-size: 12px;
+  padding: 3px 10px;
+  border-radius: 999px;
+  border: 1px solid var(--line);
+  background: var(--surface);
+  color: var(--ink-dim);
+  cursor: help;
+}
+
+.passive-chip.staff {
+  border-color: #7a6a3a;
+  color: #d9c178;
+}
+
+.passive-chip.gameplan {
+  border-color: #3aa0a8;
+  color: #7fd4da;
+  animation: chip-in 0.4s ease;
+}
+
+.passive-chip.drilled {
+  border-color: #2c6e74;
+  color: #6cb4ba;
+}
+
+@keyframes chip-in {
+  0% { transform: scale(0.7); opacity: 0; }
+  100% { transform: scale(1); opacity: 1; }
+}
+
+/* ---- staff hire screen ---- */
+
+.staff-card {
+  width: 220px;
+  min-height: 150px;
+  text-align: left;
+  padding: 16px;
+  border-radius: 12px;
+  border: 2px solid var(--line);
+  background: var(--surface);
+  color: var(--ink);
+  cursor: pointer;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  transition: transform 0.12s ease, border-color 0.12s ease;
+  font: inherit;
+}
+
+.staff-card:hover {
+  transform: translateY(-3px);
+  border-color: var(--accent);
+}
+
+.staff-card[data-rarity="rare"] {
+  border-color: #5470c7;
+}
+
+.staff-card[data-rarity="legendary"] {
+  border-color: #d9b832;
+  box-shadow: 0 0 18px rgba(217, 184, 50, 0.25);
+}
+
+.staff-role {
+  font-weight: 700;
+  font-size: 15px;
+}
+
+.staff-name {
+  font-size: 13px;
+  color: var(--ink-dim);
+  font-style: italic;
+}
+
+.staff-text {
+  font-size: 13px;
+  line-height: 1.4;
+}
+
+.staff-rarity {
+  margin-top: auto;
+  font-size: 11px;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  color: var(--ink-dim);
+}

@@ -2,7 +2,7 @@
 
 exports[`combat match > final scoreline snapshot (balance regression guard) 1`] = `
 {
-  "oppGoals": 0,
+  "oppGoals": 1,
   "playerGoals": 2,
   "result": "win",
 }

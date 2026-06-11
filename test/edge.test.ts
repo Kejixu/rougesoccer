@@ -89,8 +89,9 @@ describe("edge cases", () => {
     let run = createRun(content, "edge-release", "usa");
     run = structuredClone(run);
     run.resources.budget = 999;
-    // squad starts at 16, min is 10 -> 6 releases ok, 7th rejected
-    for (let i = 0; i < 6; i++) {
+    // release down to the floor, then one more must be rejected
+    const releases = run.deck.length - content.balance.MIN_DECK_SIZE;
+    for (let i = 0; i < releases; i++) {
       run = applyRunAction(content, run, { type: "RELEASE_CARD", uid: run.deck[0]!.uid }).state;
     }
     expect(run.deck.length).toBe(content.balance.MIN_DECK_SIZE);

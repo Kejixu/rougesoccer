@@ -19,7 +19,8 @@ import {
 import { emptyRow, playerGroupRank, recordResult, simulateOtherFixture } from "./group";
 import { drawKnockoutOpponent } from "./bracket";
 import { rollRewardOffer } from "./rewards";
-import { buyCard, generateShop, releaseCard, rerollShop, trainCard } from "./shop";
+import { buyCard, drillCard, generateShop, releaseCard, rerollShop, trainCard } from "./shop";
+import { rollStaffOffer, runPassives, runPassiveSum } from "./staff";
 
 function rand(draft: RunState): number {
   const [v, next] = nextFloat(draft.rng);
@@ -64,7 +65,7 @@ function pickGroupOpponents(draft: RunState, content: ContentBundle): string[] {
 export function createRun(content: ContentBundle, seed: string, playerTeamId: string): RunState {
   team(content, playerTeamId); // validate
   const state: RunState = {
-    version: 1,
+    version: 2,
     seed,
     playerTeamId,
     stage: "GROUP",
@@ -81,12 +82,15 @@ export function createRun(content: ContentBundle, seed: string, playerTeamId: st
     scouted: false,
     deck: [],
     uidCounter: 0,
+    staff: [],
+    drilled: [],
     resources: {
       budget: content.balance.STARTING_BUDGET,
       scout: content.balance.STARTING_SCOUT,
     },
     activeMatch: null,
     pendingReward: null,
+    pendingStaff: null,
     shop: null,
     usedTeamIds: [],
     result: "active",
@@ -159,6 +163,7 @@ function startMatch(draft: RunState, content: ContentBundle): GameEvent[] {
     plays: content.plays,
     context: draft.stage === "GROUP" ? "group" : "knockout",
     deck: matchDeck.map((c) => ({ ...c, formPower: 0 })),
+    passives: runPassives(content, draft),
     rng: draft.rng,
     balance: content.balance,
   });
@@ -189,6 +194,12 @@ function settleMatch(draft: RunState, content: ContentBundle, match: MatchState)
   // resources earned in-match (extra time bonuses etc.)
   draft.resources.budget += match.earned.budget;
   draft.resources.scout += match.earned.scout;
+
+  // staff payouts
+  draft.resources.scout += runPassiveSum(content, draft, "scoutPerMatch");
+  if (result === "win") draft.resources.budget += runPassiveSum(content, draft, "budgetOnWin");
+
+  let advancedStage = false;
 
   const oppId = match.opp.teamId;
   draft.usedTeamIds.push(oppId);
@@ -225,6 +236,7 @@ function settleMatch(draft: RunState, content: ContentBundle, match: MatchState)
         draft.stage = "R32";
         draft.matchIndexInStage = 0;
         draft.nextOppId = drawKnockoutOpponent(draft, content.teams, "R32");
+        advancedStage = true;
       } else {
         draft.result = "eliminated";
         draft.phase = "DONE";
@@ -276,6 +288,14 @@ function settleMatch(draft: RunState, content: ContentBundle, match: MatchState)
     draft.nextOppId = drawKnockoutOpponent(draft, content.teams, after as Exclude<Stage, "GROUP">);
     draft.pendingReward = rollRewardOffer(draft, content, content.balance.REWARD_PICKS.win);
     draft.phase = "REWARD";
+    advancedStage = true;
+  }
+
+  // reaching a new stage means a backroom hire — staff pick comes first,
+  // then any pending card reward
+  if (advancedStage) {
+    draft.pendingStaff = rollStaffOffer(draft, content);
+    if (draft.pendingStaff) draft.phase = "STAFF";
   }
   draft.scouted = false;
 }
@@ -331,9 +351,25 @@ export function applyRunAction(
       const idx = draft.deck.findIndex((c) => c.uid === action.uid);
       if (idx === -1) throw new Error(`card ${action.uid} not in deck`);
       draft.deck.splice(idx, 1);
+      draft.resources.budget += runPassiveSum(content, draft, "cutRefund");
       draft.pendingReward = null;
       draft.phase = "IDLE";
       draft.shop = generateShop(draft, content);
+      break;
+    }
+
+    case "PICK_STAFF": {
+      if (draft.phase !== "STAFF" || !draft.pendingStaff) throw new Error("no staff offer pending");
+      const staffId = draft.pendingStaff.staffIds[action.index];
+      if (!staffId) throw new Error(`no staff option ${action.index}`);
+      draft.staff.push(staffId);
+      resolveStaffOffer(draft, content);
+      break;
+    }
+
+    case "SKIP_STAFF": {
+      if (draft.phase !== "STAFF" || !draft.pendingStaff) throw new Error("no staff offer pending");
+      resolveStaffOffer(draft, content);
       break;
     }
 
@@ -359,6 +395,12 @@ export function applyRunAction(
     case "RELEASE_CARD": {
       requireIdle(draft);
       releaseCard(draft, content, action.uid);
+      draft.resources.budget += runPassiveSum(content, draft, "cutRefund");
+      break;
+    }
+    case "DRILL_CARD": {
+      requireIdle(draft);
+      drillCard(draft, content, action.uid);
       break;
     }
     case "REROLL_SHOP": {
@@ -383,4 +425,15 @@ export function applyRunAction(
 function requireIdle(state: RunState): void {
   if (state.phase !== "IDLE")
     throw new Error(`action requires the between-match phase, run is in ${state.phase}`);
+}
+
+/** After a staff pick/skip: fall through to the card reward, or back to camp. */
+function resolveStaffOffer(draft: RunState, content: ContentBundle): void {
+  draft.pendingStaff = null;
+  if (draft.pendingReward) {
+    draft.phase = "REWARD";
+  } else {
+    draft.phase = "IDLE";
+    if (!draft.shop) draft.shop = generateShop(draft, content);
+  }
 }

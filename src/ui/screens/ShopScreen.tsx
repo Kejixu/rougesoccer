@@ -21,6 +21,10 @@ export function ShopScreen({
     selected && selectedDef
       ? selected.level < Math.min(content.balance.TRAIN_MAX_LEVEL, selectedDef.levels.length - 1)
       : false;
+  const canDrill =
+    selectedDef?.kind === "gameplan" &&
+    !run.drilled.includes(selectedDef.id) &&
+    run.deck.length > content.balance.MIN_DECK_SIZE;
 
   return (
     <main className="screen">
@@ -95,7 +99,22 @@ export function ShopScreen({
               }}
             >
               Release ({shop?.releasePrice})
-            </button>
+            </button>{" "}
+            {selectedDef.kind === "gameplan" && (
+              <button type="button" className="btn"
+                data-testid="drill-card"
+                disabled={!canDrill || run.resources.budget < (shop?.drillPrice ?? Infinity)}
+                title="The gameplan becomes permanent for the run; the card leaves the deck."
+                onClick={() => {
+                  dispatch({ type: "DRILL_CARD", uid: selected.uid });
+                  setSelectedUid(null);
+                }}
+              >
+                {run.drilled.includes(selectedDef.id)
+                  ? "Already drilled in"
+                  : `Drill it in — permanent (${shop?.drillPrice})`}
+              </button>
+            )}
           </p>
         )}
       </section>

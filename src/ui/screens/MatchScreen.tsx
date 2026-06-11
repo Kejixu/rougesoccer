@@ -177,6 +177,29 @@ export function MatchScreen({
         </div>
       )}
 
+      {(m.gameplansPlayed.length > 0 || run.staff.length > 0 || run.drilled.length > 0) && (
+        <div className="passive-strip" data-testid="passives">
+          {run.staff.map((id) => {
+            const s = content.staffPool.find((x) => x.id === id);
+            return s ? (
+              <span key={id} className="passive-chip staff" title={s.text}>
+                👔 {s.role}
+              </span>
+            ) : null;
+          })}
+          {run.drilled.map((defId) => (
+            <span key={defId} className="passive-chip drilled" title={content.defs[defId]?.levels[0]?.text}>
+              📋 {content.defs[defId]?.name ?? defId}
+            </span>
+          ))}
+          {m.gameplansPlayed.map((defId) => (
+            <span key={defId} className="passive-chip gameplan" title={content.defs[defId]?.levels[0]?.text}>
+              📋 {content.defs[defId]?.name ?? defId} — active
+            </span>
+          ))}
+        </div>
+      )}
+
       {m.phase === "ROUND_ACTIVE" && (
         <>
           <div className="stamina-bar" data-testid="stamina">
@@ -200,7 +223,8 @@ export function MatchScreen({
             {m.hand.map((c, i) => {
               const def = content.defs[c.defId]!;
               const price = cardCost(def);
-              const playable = price <= m.stamina;
+              const alreadySet = def.kind === "gameplan" && m.gameplansPlayed.includes(def.id);
+              const playable = price <= m.stamina && !alreadySet;
               const mid = (m.hand.length - 1) / 2;
               return (
                 <div
@@ -227,6 +251,16 @@ export function MatchScreen({
             <span style={{ fontSize: 13, color: "var(--ink-dim)" }}>
               Click a card to play it ({levelLabel(m)})
             </span>
+            <button
+              type="button"
+              className="btn"
+              data-testid="mulligan"
+              disabled={m.mulliganUsed || m.hand.length === 0}
+              title="Once per match: throw the whole hand back and redraw"
+              onClick={() => act({ type: "MULLIGAN" })}
+            >
+              {m.mulliganUsed ? "Warm-up used" : "🔄 Warm-up: redraw hand"}
+            </button>
             <button type="button" className="btn btn--danger" data-testid="end-round" onClick={() => act({ type: "END_ROUND" })}>
               End round — they {m.intent ? intentVerb(m.intent) : "act"}
             </button>

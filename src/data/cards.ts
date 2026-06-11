@@ -521,6 +521,71 @@ export const CARD_DEFS = [
     ],
   },
 
+  // ======================== gameplans (Dawncaster enchantments) ========================
+  // Play one and its passive lasts the rest of the match; the card sits out.
+  // Unique: one copy of each in effect at a time. Drill them in at the shop
+  // to make them permanent for the run (and thin the deck).
+  {
+    id: "gp_gegenpress",
+    kind: "gameplan",
+    name: "Gegenpress",
+    rarity: "common",
+    cost: 1,
+    levels: [{ text: "Gameplan: every midfielder you play grants 3 block. Lasts the match." }],
+    effects: [],
+    passive: { kind: "blockOnPosition", position: "MF", amount: 3 },
+  },
+  {
+    id: "gp_overlap",
+    kind: "gameplan",
+    name: "Overlapping Runs",
+    rarity: "common",
+    cost: 1,
+    levels: [{ text: "Gameplan: your wingers hit +4 power. Lasts the match." }],
+    effects: [],
+    passive: { kind: "powerToPosition", position: "WG", amount: 4 },
+  },
+  {
+    id: "gp_lowblock",
+    kind: "gameplan",
+    name: "Organized Low Block",
+    rarity: "common",
+    cost: 1,
+    levels: [{ text: "Gameplan: start every round with 3 block. Lasts the match." }],
+    effects: [],
+    passive: { kind: "blockPerRound", amount: 3 },
+  },
+  {
+    id: "gp_tikitaka",
+    kind: "gameplan",
+    name: "Tiki-Taka",
+    rarity: "rare",
+    cost: 2,
+    levels: [{ text: "Gameplan: your first attack each round gets x1.5 mult. Lasts the match." }],
+    effects: [],
+    passive: { kind: "firstAttackMult", amount: 1.5 },
+  },
+  {
+    id: "gp_targetman",
+    kind: "gameplan",
+    name: "Target Man",
+    rarity: "rare",
+    cost: 2,
+    levels: [{ text: "Gameplan: your strikers hit +5 power. Lasts the match." }],
+    effects: [],
+    passive: { kind: "powerToPosition", position: "ST", amount: 5 },
+  },
+  {
+    id: "gp_total",
+    kind: "gameplan",
+    name: "Total Football",
+    rarity: "legendary",
+    cost: 2,
+    levels: [{ text: "Gameplan: draw 1 extra card every round. Lasts the match." }],
+    effects: [],
+    passive: { kind: "drawBonus", amount: 1 },
+  },
+
   // ======================== moments (once per match) ========================
   {
     id: "mom_bicycle",
@@ -571,6 +636,7 @@ const STARTING_DECK_LIST: { defId: string; count: number }[] = [
   { defId: "gk_wall", count: 1 },
   { defId: "tac_through", count: 1 },
   { defId: "tac_switch", count: 1 },
+  { defId: "gp_gegenpress", count: 1 }, // teaches the gameplan mechanic from match 1
   { defId: "mom_screamer", count: 1 },
 ];
 

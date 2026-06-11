@@ -20,6 +20,7 @@ import {
   type MatchState,
   type MatchStep,
   type OppInfo,
+  type PassiveEffect,
   type PlayDef,
   type Condition,
 } from "../types";
@@ -31,6 +32,7 @@ export interface MatchConfig {
   plays: PlayDef[];
   context: MatchContext;
   deck: CardInstance[];
+  passives?: PassiveEffect[]; // staff hires + drilled gameplans, active from kickoff
   rng: RngState;
   balance: BalanceConfig;
 }
@@ -122,19 +124,51 @@ function scaled(amount: number, scaling: "perLevel" | undefined, level: number):
   return scaling === "perLevel" ? amount * (level + 1) : amount;
 }
 
+// ---------- passives (gameplans in play + staff) ----------
+
+function passiveSum(draft: MatchState, kind: PassiveEffect["kind"]): number {
+  let total = 0;
+  for (const p of draft.activePassives) {
+    if (p.kind === kind && "amount" in p) total += p.amount;
+  }
+  return total;
+}
+
+function positionPassiveSum(
+  draft: MatchState,
+  kind: "blockOnPosition" | "powerToPosition",
+  position: string | undefined,
+): number {
+  if (!position) return 0;
+  let total = 0;
+  for (const p of draft.activePassives) {
+    if (p.kind === kind && p.position === position) total += p.amount;
+  }
+  return total;
+}
+
+function staminaCap(draft: MatchState): number {
+  return draft.bal.STAMINA_CARRY_CAP + passiveSum(draft, "carryCapBonus");
+}
+
 // ---------- round flow ----------
 
 function startRound(draft: MatchState, events: GameEvent[]): void {
   draft.round += 1;
-  const gain = draft.mode === "suddendeath" ? draft.bal.STAMINA_PER_ROUND - 1 : draft.bal.STAMINA_PER_ROUND;
+  const base = draft.mode === "suddendeath" ? draft.bal.STAMINA_PER_ROUND - 1 : draft.bal.STAMINA_PER_ROUND;
+  const gain = base + passiveSum(draft, "roundStamina");
   // unspent stamina carries over, capped (Dawncaster-style banking)
-  draft.stamina = Math.min(draft.bal.STAMINA_CARRY_CAP, draft.stamina + gain);
-  draft.block = 0;
+  draft.stamina = Math.min(staminaCap(draft), draft.stamina + gain);
   draft.pendingMult = 1;
   draft.pendingFlat = 0;
   draft.playedThisRound = [];
   events.push({ type: "ROUND_START", round: draft.round, mode: draft.mode });
-  const handSize = Math.max(2, draft.bal.HAND_SIZE - draft.handPenalty);
+  draft.block = passiveSum(draft, "blockPerRound");
+  if (draft.block > 0) events.push({ type: "BLOCK_GAINED", amount: draft.block, total: draft.block });
+  const handSize = Math.max(
+    2,
+    draft.bal.HAND_SIZE + passiveSum(draft, "drawBonus") - draft.handPenalty,
+  );
   draft.handPenalty = 0;
   drawCards(draft, handSize - draft.hand.length, events);
   const intent = rollIntent(draft);
@@ -283,9 +317,24 @@ function playCard(defs: CardDefMap, draft: MatchState, uid: string, events: Game
   if (!def) throw new Error(`unknown card def ${inst.defId}`);
   const cost = cardCost(def);
   if (draft.stamina < cost) throw new Error(`not enough stamina (${def.name} costs ${cost})`);
+  if (def.kind === "gameplan" && draft.gameplansPlayed.includes(def.id))
+    throw new Error(`${def.name} is already in effect`);
 
   draft.hand.splice(idx, 1);
   draft.stamina -= cost;
+
+  if (def.kind === "gameplan") {
+    // Dawncaster enchantment: spend the card now, keep the passive all match
+    if (def.passive) {
+      draft.activePassives.push(def.passive);
+      draft.gameplansPlayed.push(def.id);
+    }
+    events.push({ type: "CARD_PLAYED", uid, as: "attack", cost });
+    events.push({ type: "GAMEPLAN_SET", uid, defId: def.id });
+    draft.playedThisRound.push({ uid, position: def.position, isAttack: false });
+    draft.exile.push(inst);
+    return;
+  }
 
   const stats = levelStats(def, inst.level);
   const isDefender = (stats.defense ?? 0) > 0;
@@ -319,8 +368,14 @@ function playCard(defs: CardDefMap, draft: MatchState, uid: string, events: Game
     if (power > 0) {
       // attack card: buffs (its own + pending) multiply its shot points
       let mult = draft.pendingMult * (1 + ownAdd) * ownMul;
+      if (!draft.playedThisRound.some((p) => p.isAttack)) {
+        for (const p of draft.activePassives) {
+          if (p.kind === "firstAttackMult") mult *= p.amount;
+        }
+      }
       if (draft.multCap !== null) mult = Math.min(mult, draft.multCap);
-      const value = Math.floor((power + ownFlat + draft.pendingFlat) * mult);
+      const posBonus = positionPassiveSum(draft, "powerToPosition", def.position);
+      const value = Math.floor((power + ownFlat + posBonus + draft.pendingFlat) * mult);
       draft.pendingMult = 1;
       draft.pendingFlat = 0;
       events.push({
@@ -332,6 +387,8 @@ function playCard(defs: CardDefMap, draft: MatchState, uid: string, events: Game
       });
       const goals = addPlayerPoints(draft, value, events);
       if (goals > 0) {
+        const refund = passiveSum(draft, "staminaOnGoal") * goals;
+        if (refund > 0) draft.stamina = Math.min(staminaCap(draft), draft.stamina + refund);
         for (const eff of def.effects) {
           if (eff.trigger !== "onGoal") continue;
           const op = eff.op;
@@ -354,6 +411,13 @@ function playCard(defs: CardDefMap, draft: MatchState, uid: string, events: Game
     }
 
     if (draws > 0) drawCards(draft, draws, events);
+  }
+
+  // gameplan/staff passives keyed to the position just played (e.g. Gegenpress)
+  const posBlock = positionPassiveSum(draft, "blockOnPosition", def.position);
+  if (posBlock > 0) {
+    draft.block += posBlock;
+    events.push({ type: "BLOCK_GAINED", amount: posBlock, total: draft.block });
   }
 
   draft.playedThisRound.push({ uid, position: def.position, isAttack: !isDefender && power > 0 });
@@ -393,6 +457,9 @@ export function createMatch(_defs: CardDefMap, cfg: MatchConfig): MatchStep {
     intentStep: 0,
     playedThisRound: [],
     multCap: null,
+    activePassives: [...(cfg.passives ?? [])],
+    gameplansPlayed: [],
+    mulliganUsed: false,
     hand: [],
     drawPile: cfg.deck.map((c) => ({ ...c })),
     discardPile: [],
@@ -426,6 +493,20 @@ export function applyMatchAction(
     case "PLAY_CARD": {
       assertPhase(draft, "ROUND_ACTIVE");
       playCard(defs, draft, action.uid, events);
+      break;
+    }
+    case "MULLIGAN": {
+      assertPhase(draft, "ROUND_ACTIVE");
+      if (draft.mulliganUsed) throw new Error("warm-up shuffle already used this match");
+      if (draft.hand.length === 0) throw new Error("no hand to redraw");
+      const count = draft.hand.length;
+      const uids = draft.hand.map((c) => c.uid);
+      draft.discardPile.push(...draft.hand);
+      draft.hand = [];
+      events.push({ type: "CARDS_DISCARDED", uids, forced: false });
+      drawCards(draft, count, events);
+      draft.mulliganUsed = true;
+      events.push({ type: "MULLIGAN_USED", uids: draft.hand.map((c) => c.uid) });
       break;
     }
     case "END_ROUND": {

@@ -6,6 +6,7 @@ import type { BalanceConfig } from "../core/balance";
 import { ACTIVE_BALANCE } from "./balance";
 import { CARD_DEFS, CARD_DEF_MAP, STARTING_DECK_TEMPLATE } from "./cards";
 import { ACTIVE_PLAYS } from "./plays";
+import { STAFF_DEFS } from "./staff";
 import { STYLES } from "./styles";
 
 // Each playable nation starts with its real star in the squad.
@@ -20,6 +21,7 @@ export function makeContent(balance: BalanceConfig = ACTIVE_BALANCE): ContentBun
   return {
     defs: CARD_DEF_MAP,
     cardPool: [...CARD_DEFS],
+    staffPool: [...STAFF_DEFS],
     teams: [...TEAMS],
     styles: STYLES,
     plays: ACTIVE_PLAYS,

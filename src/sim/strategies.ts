@@ -24,7 +24,13 @@ function cost(content: ContentBundle, c: CardInstance): number {
 }
 
 function isTactic(content: ContentBundle, c: CardInstance): boolean {
-  return power(content, c) === 0 && defense(content, c) === 0;
+  const def = content.defs[c.defId]!;
+  return def.kind !== "gameplan" && power(content, c) === 0 && defense(content, c) === 0;
+}
+
+function isFreshGameplan(content: ContentBundle, m: MatchState, c: CardInstance): boolean {
+  const def = content.defs[c.defId]!;
+  return def.kind === "gameplan" && !m.gameplansPlayed.includes(def.id);
 }
 
 /** Incoming damage if we end the round now. */
@@ -53,7 +59,11 @@ function combatAction(
     return { type: "TAKE_WIN" };
   }
 
-  const affordable = m.hand.filter((c) => cost(content, c) <= m.stamina);
+  const affordable = m.hand.filter(
+    (c) =>
+      cost(content, c) <= m.stamina &&
+      !(content.defs[c.defId]!.kind === "gameplan" && !isFreshGameplan(content, m, c)),
+  );
   if (affordable.length === 0) return { type: "END_ROUND" };
 
   const threat = incomingThreat(m);
@@ -64,6 +74,12 @@ function combatAction(
       .filter((c) => defense(content, c) > 0)
       .sort((a, b) => defense(content, b) - defense(content, a))[0];
     if (blocker) return { type: "PLAY_CARD", uid: blocker.uid };
+  }
+
+  // set a gameplan early — front-loaded value, wasted in the final round
+  if (m.round < m.bal.MATCH_ROUNDS) {
+    const gameplan = affordable.find((c) => isFreshGameplan(content, m, c));
+    if (gameplan) return { type: "PLAY_CARD", uid: gameplan.uid };
   }
 
   // tactic first if an attack card can cash the buff afterwards
@@ -102,10 +118,27 @@ function rewardScore(content: ContentBundle, defId: string): number {
   const def = content.defs[defId]!;
   const rarityScore = def.rarity === "legendary" ? 40 : def.rarity === "rare" ? 20 : 0;
   const stats = levelStats(def, 0);
-  return rarityScore + (stats.power ?? 0) + (stats.defense ?? 0) * 1.2;
+  const gameplanScore = def.kind === "gameplan" ? 14 : 0; // statless but match-long value
+  return rarityScore + gameplanScore + (stats.power ?? 0) + (stats.defense ?? 0) * 1.2;
 }
 
 function greedyRunAction(content: ContentBundle, r: RunState): RunAction {
+  if (r.phase === "STAFF" && r.pendingStaff) {
+    // staff are free: take the rarest hire on offer
+    const rank = { legendary: 2, rare: 1, common: 0 } as const;
+    let bestIdx = 0;
+    let best = -1;
+    r.pendingStaff.staffIds.forEach((id, i) => {
+      const s = content.staffPool.find((x) => x.id === id);
+      const score = s ? rank[s.rarity] : 0;
+      if (score > best) {
+        best = score;
+        bestIdx = i;
+      }
+    });
+    return { type: "PICK_STAFF", index: bestIdx };
+  }
+
   if (r.phase === "REWARD" && r.pendingReward) {
     let bestIdx = 0;
     let bestScore = -1;
@@ -121,6 +154,18 @@ function greedyRunAction(content: ContentBundle, r: RunState): RunAction {
 
   if (r.phase === "IDLE") {
     const prices = content.balance.SHOP_PRICES;
+    // drill a gameplan in when flush: permanent passive + thinner deck
+    if (
+      r.shop &&
+      r.resources.budget >= prices.drill + 20 &&
+      r.deck.length > content.balance.MIN_DECK_SIZE
+    ) {
+      const drillable = r.deck.find((c) => {
+        const def = content.defs[c.defId]!;
+        return def.kind === "gameplan" && !r.drilled.includes(def.id);
+      });
+      if (drillable) return { type: "DRILL_CARD", uid: drillable.uid };
+    }
     if (r.shop && r.resources.budget >= prices.train + 10) {
       const trainable = r.deck
         .filter((c) => {
@@ -183,7 +228,11 @@ export function makeRandomBot(): Bot {
       if (m.phase === "PUSH_DECISION") {
         return (m.playerGoals + m.round) % 2 === 0 ? { type: "EXTRA_TIME" } : { type: "TAKE_WIN" };
       }
-      const affordable = m.hand.filter((c) => cost(content, c) <= m.stamina);
+      const affordable = m.hand.filter(
+        (c) =>
+          cost(content, c) <= m.stamina &&
+          !(content.defs[c.defId]!.kind === "gameplan" && !isFreshGameplan(content, m, c)),
+      );
       if (affordable.length === 0 || (m.round + m.hand.length) % 4 === 0) {
         return { type: "END_ROUND" };
       }
@@ -191,6 +240,9 @@ export function makeRandomBot(): Bot {
       return { type: "PLAY_CARD", uid: pick.uid };
     },
     runAction: (_content, r) => {
+      if (r.phase === "STAFF" && r.pendingStaff) {
+        return { type: "PICK_STAFF", index: r.deck.length % r.pendingStaff.staffIds.length };
+      }
       if (r.phase === "REWARD" && r.pendingReward) {
         return { type: "PICK_REWARD", index: r.deck.length % r.pendingReward.defIds.length };
       }

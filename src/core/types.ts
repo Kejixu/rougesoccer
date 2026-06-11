@@ -5,7 +5,7 @@ import type { BalanceConfig } from "./balance";
 
 export type Position = "GK" | "DF" | "MF" | "WG" | "ST";
 export type Rarity = "common" | "rare" | "legendary";
-export type CardKind = "player" | "tactic" | "moment";
+export type CardKind = "player" | "tactic" | "moment" | "gameplan";
 export type StyleId =
   | "possession"
   | "flair"
@@ -57,6 +57,37 @@ export interface EffectDef {
   scaling?: "perLevel"; // amount *= (level + 1)
 }
 
+// ---------- passives (gameplans & staff) ----------
+// One closed vocabulary shared by gameplan cards (active for the rest of the
+// match once played, Dawncaster enchantments) and staff hires (active for the
+// whole run, Slay-the-Spire relics). The match engine evaluates the first
+// group; the run layer evaluates the rest and the engine ignores them.
+
+export type PassiveEffect =
+  // match-level
+  | { kind: "blockOnPosition"; position: Position; amount: number } // playing that position grants block
+  | { kind: "powerToPosition"; position: Position; amount: number } // that position's attacks hit harder
+  | { kind: "firstAttackMult"; amount: number } // first attack card each round gets x mult
+  | { kind: "blockPerRound"; amount: number } // free block at round start
+  | { kind: "roundStamina"; amount: number } // extra stamina each round
+  | { kind: "drawBonus"; amount: number } // bigger hand each round
+  | { kind: "carryCapBonus"; amount: number } // bank more unspent stamina
+  | { kind: "staminaOnGoal"; amount: number } // scoring refunds stamina
+  // run-level (staff only)
+  | { kind: "budgetOnWin"; amount: number }
+  | { kind: "cutRefund"; amount: number } // cutting/releasing a card pays this back
+  | { kind: "scoutPerMatch"; amount: number };
+
+/** A backroom hire: a permanent run-wide passive, picked when you advance a stage. */
+export interface StaffDef {
+  id: string;
+  name: string; // parody name: "Pep Guardiola's Clipboard"
+  role: string; // "Set-Piece Coach" — shown as the card title
+  rarity: Rarity;
+  text: string;
+  passive: PassiveEffect;
+}
+
 // ---------- plays (the "poker hands" of an attack) ----------
 
 export type PlayPattern =
@@ -95,6 +126,7 @@ export interface CardDef {
   rarity: Rarity;
   levels: CardLevelStats[]; // index = upgrade level, length 1..3
   effects: EffectDef[];
+  passive?: PassiveEffect; // gameplan cards: persists for the match once played
   exileOnPlay?: boolean; // "moment" cards: one use per match
   portrait?: string; // asset slot; undefined = flag + silhouette placeholder
   nationality?: string; // teamId, for flag fallback
@@ -122,7 +154,7 @@ export function levelStats(def: CardDef, level: number): CardLevelStats {
 export function cardCost(def: CardDef): number {
   if (def.cost !== undefined) return def.cost;
   if (def.kind === "moment") return 0;
-  if (def.kind === "tactic") return 1;
+  if (def.kind === "tactic" || def.kind === "gameplan") return 1;
   return def.position === "ST" ? 2 : 1;
 }
 
@@ -185,6 +217,9 @@ export interface MatchState {
   intentStep: number;
   playedThisRound: { uid: string; position?: Position; isAttack: boolean }[];
   multCap: number | null; // fortress legacy cap on a single card's mult
+  activePassives: PassiveEffect[]; // staff (from match start) + gameplans played
+  gameplansPlayed: string[]; // defIds active this match (gameplans are unique)
+  mulliganUsed: boolean; // one free hand redraw per match
   hand: CardInstance[];
   drawPile: CardInstance[];
   discardPile: CardInstance[];
@@ -198,6 +233,7 @@ export interface MatchState {
 
 export type MatchAction =
   | { type: "PLAY_CARD"; uid: string }
+  | { type: "MULLIGAN" } // once per match: redraw the whole hand
   | { type: "END_ROUND" }
   | { type: "EXTRA_TIME" }
   | { type: "TAKE_WIN" };
@@ -222,6 +258,8 @@ export type GameEvent =
       oppGoals: number;
     }
   | { type: "FORM_GAINED"; uid: string; amount: number; formPower: number }
+  | { type: "GAMEPLAN_SET"; uid: string; defId: string } // persistent for the match
+  | { type: "MULLIGAN_USED"; uids: string[] } // the redrawn hand
   | { type: "CARD_FATIGUED"; uids: string[] }
   | { type: "CARDS_DISCARDED"; uids: string[]; forced: boolean }
   | { type: "PUSH_DECISION"; playerGoals: number; oppGoals: number }
@@ -279,6 +317,7 @@ export interface ShopState {
   cards: { defId: string; price: number; sold: boolean }[];
   trainPrice: number;
   releasePrice: number;
+  drillPrice: number; // make a gameplan permanent (removes the card)
   rerollScoutPrice: number;
 }
 
@@ -299,14 +338,18 @@ export interface PlayerMatchRecord {
   pushedRounds: number;
 }
 
-export type RunPhase = "IDLE" | "MATCH" | "REWARD" | "DONE";
+export type RunPhase = "IDLE" | "MATCH" | "STAFF" | "REWARD" | "DONE";
 
 export interface RewardOffer {
   defIds: string[];
 }
 
+export interface StaffOffer {
+  staffIds: string[]; // pick 1; offered when you advance a stage
+}
+
 export interface RunState {
-  version: 1;
+  version: 2;
   seed: string;
   playerTeamId: string;
   stage: Stage;
@@ -323,9 +366,12 @@ export interface RunState {
   scouted: boolean; // paid to reveal the next opponent's profile
   deck: CardInstance[];
   uidCounter: number;
+  staff: string[]; // hired StaffDef ids — permanent run passives
+  drilled: string[]; // gameplan defIds made permanent (card was removed)
   resources: { budget: number; scout: number };
   activeMatch: MatchState | null;
   pendingReward: RewardOffer | null;
+  pendingStaff: StaffOffer | null;
   shop: ShopState | null;
   usedTeamIds: string[]; // already faced; excluded from knockout draws
   result: "active" | "won" | "eliminated";
@@ -338,9 +384,12 @@ export type RunAction =
   | { type: "PICK_REWARD"; index: number }
   | { type: "SKIP_REWARD" }
   | { type: "CUT_CARD"; uid: string } // reward-screen alternative: trim the squad for free
+  | { type: "PICK_STAFF"; index: number }
+  | { type: "SKIP_STAFF" }
   | { type: "BUY_CARD"; index: number }
   | { type: "TRAIN_CARD"; uid: string }
   | { type: "RELEASE_CARD"; uid: string }
+  | { type: "DRILL_CARD"; uid: string } // imbue: gameplan becomes a run passive, card removed
   | { type: "REROLL_SHOP" }
   | { type: "SCOUT_OPPONENT" };
 
@@ -354,6 +403,7 @@ export interface RunStep {
 export interface ContentBundle {
   defs: CardDefMap;
   cardPool: CardDef[]; // cards that can appear in rewards/shops
+  staffPool: StaffDef[]; // hires offered on stage advance
   teams: TeamDef[];
   styles: Record<StyleId, StyleDef>;
   plays: PlayDef[];
