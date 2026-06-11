@@ -8,6 +8,7 @@ import {
   type RunAction,
   type RunState,
 } from "../../core/types";
+import { comboStatus } from "../../core/match/engine";
 import { useFlip } from "../anim/flip";
 import { ScorePopups } from "../components/ScorePopups";
 import { StickerCard } from "../components/StickerCard";
@@ -214,6 +215,7 @@ export function MatchScreen({
                     def={def}
                     inst={c}
                     cost={price}
+                    combo={comboStatus(content.defs, m, c)}
                     onClick={playable ? () => act({ type: "PLAY_CARD", uid: c.uid }) : undefined}
                   />
                 </div>

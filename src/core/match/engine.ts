@@ -461,3 +461,20 @@ function assertPhase(state: MatchState, phase: MatchState["phase"]): void {
 export function defenseRating(state: MatchState): number {
   return state.block;
 }
+
+/** Would this card's conditional bonus fire if played right now?
+ * "active" / "inactive" for conditional cards, null for unconditional ones.
+ * Drives the live combo badge in the UI. */
+export function comboStatus(
+  defs: CardDefMap,
+  state: MatchState,
+  inst: CardInstance,
+): "active" | "inactive" | null {
+  const def = defs[inst.defId];
+  if (!def) return null;
+  const conditionals = def.effects.filter((e) => e.trigger === "onPlay" && e.condition);
+  if (conditionals.length === 0) return null;
+  return conditionals.some((e) => evalCombatCondition(state, e.condition!))
+    ? "active"
+    : "inactive";
+}

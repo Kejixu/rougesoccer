@@ -26,14 +26,14 @@ export const CARD_DEFS = [
     position: "ST",
     rarity: "common",
     levels: [
-      { power: 12, text: "12 power. +4 power in attacks of 2 or fewer cards." },
-      { power: 14, text: "14 power. +8 power in attacks of 2 or fewer cards." },
-      { power: 17, text: "17 power. +12 power in attacks of 2 or fewer cards." },
+      { power: 12, text: "12 power. Opener: +4 power as your first card this round." },
+      { power: 14, text: "14 power. Opener: +8 power as your first card this round." },
+      { power: 17, text: "17 power. Opener: +12 power as your first card this round." },
     ],
     effects: [
       {
         trigger: "onPlay",
-        condition: { kind: "attackCardCount", cmp: "lte", value: 2 },
+        condition: { kind: "attackCardCount", cmp: "lte", value: 1 },
         op: { kind: "addPower", amount: 4 },
         scaling: "perLevel",
       },
@@ -46,9 +46,9 @@ export const CARD_DEFS = [
     position: "WG",
     rarity: "common",
     levels: [
-      { power: 8, text: "8 power. +0.25 mult if the attack includes a ST." },
-      { power: 10, text: "10 power. +0.5 mult if the attack includes a ST." },
-      { power: 12, text: "12 power. +0.75 mult if the attack includes a ST." },
+      { power: 8, text: "8 power. Combo (ST): +0.25 mult if you played a ST this round." },
+      { power: 10, text: "10 power. Combo (ST): +0.5 mult if you played a ST this round." },
+      { power: 12, text: "12 power. Combo (ST): +0.75 mult if you played a ST this round." },
     ],
     effects: [
       {
@@ -66,9 +66,9 @@ export const CARD_DEFS = [
     position: "MF",
     rarity: "common",
     levels: [
-      { power: 5, text: "5 power. +4 power if the attack includes another MF." },
-      { power: 6, text: "6 power. +8 power if the attack includes another MF." },
-      { power: 8, text: "8 power. +12 power if the attack includes another MF." },
+      { power: 5, text: "5 power. Combo (MF): +4 power if you played a MF this round." },
+      { power: 6, text: "6 power. Combo (MF): +8 power if you played a MF this round." },
+      { power: 8, text: "8 power. Combo (MF): +12 power if you played a MF this round." },
     ],
     effects: [
       {
@@ -201,15 +201,15 @@ export const CARD_DEFS = [
     nationality: "fra",
     flavor: "Blink and the net is already bulging.",
     levels: [
-      { power: 15, text: "15 power. x1.25 mult. +6 power in attacks of 2 or fewer cards." },
-      { power: 18, text: "18 power. x1.25 mult. +12 power in attacks of 2 or fewer cards." },
-      { power: 22, text: "22 power. x1.25 mult. +18 power in attacks of 2 or fewer cards." },
+      { power: 15, text: "15 power. x1.25 mult. Opener: +6 power as your first card this round." },
+      { power: 18, text: "18 power. x1.25 mult. Opener: +12 power as your first card this round." },
+      { power: 22, text: "22 power. x1.25 mult. Opener: +18 power as your first card this round." },
     ],
     effects: [
       { trigger: "onPlay", op: { kind: "mulMult", amount: 1.25 } },
       {
         trigger: "onPlay",
-        condition: { kind: "attackCardCount", cmp: "lte", value: 2 },
+        condition: { kind: "attackCardCount", cmp: "lte", value: 1 },
         op: { kind: "addPower", amount: 6 },
         scaling: "perLevel",
       },
@@ -224,9 +224,9 @@ export const CARD_DEFS = [
     nationality: "bra",
     flavor: "Dances past three, smiles at the fourth.",
     levels: [
-      { power: 12, text: "12 power. +0.5 mult if the attack includes a ST." },
-      { power: 14, text: "14 power. +1.0 mult if the attack includes a ST." },
-      { power: 17, text: "17 power. +1.5 mult if the attack includes a ST." },
+      { power: 12, text: "12 power. Combo (ST): +0.5 mult if you played a ST this round." },
+      { power: 14, text: "14 power. Combo (ST): +1.0 mult if you played a ST this round." },
+      { power: 17, text: "17 power. Combo (ST): +1.5 mult if you played a ST this round." },
     ],
     effects: [
       {
@@ -246,9 +246,9 @@ export const CARD_DEFS = [
     nationality: "por",
     flavor: "SIUUU.",
     levels: [
-      { power: 14, text: "14 power. +8 power while trailing." },
-      { power: 17, text: "17 power. +16 power while trailing." },
-      { power: 21, text: "21 power. +24 power while trailing." },
+      { power: 14, text: "14 power. Clutch: +8 power while trailing." },
+      { power: 17, text: "17 power. Clutch: +16 power while trailing." },
+      { power: 21, text: "21 power. Clutch: +24 power while trailing." },
     ],
     effects: [
       {
@@ -283,9 +283,9 @@ export const CARD_DEFS = [
     rarity: "rare",
     nationality: "esp",
     levels: [
-      { power: 9, text: "9 power. Draw 1. +0.25 mult if the attack includes a ST." },
-      { power: 11, text: "11 power. Draw 1. +0.5 mult if the attack includes a ST." },
-      { power: 14, text: "14 power. Draw 1. +0.75 mult if the attack includes a ST." },
+      { power: 9, text: "9 power. Draw 1. Combo (ST): +0.25 mult if you played a ST this round." },
+      { power: 11, text: "11 power. Draw 1. Combo (ST): +0.5 mult if you played a ST this round." },
+      { power: 14, text: "14 power. Draw 1. Combo (ST): +0.75 mult if you played a ST this round." },
     ],
     effects: [
       { trigger: "onPlay", op: { kind: "draw", amount: 1 } },
@@ -367,9 +367,9 @@ export const CARD_DEFS = [
     rarity: "rare",
     nationality: "mex",
     levels: [
-      { power: 10, text: "10 power. +5 power if your hand is nearly empty (≤2 cards left)." },
-      { power: 12, text: "12 power. +10 power if your hand is nearly empty (≤2 cards left)." },
-      { power: 15, text: "15 power. +15 power if your hand is nearly empty (≤2 cards left)." },
+      { power: 10, text: "10 power. Closer: +5 power with 2 or fewer cards left in hand." },
+      { power: 12, text: "12 power. Closer: +10 power with 2 or fewer cards left in hand." },
+      { power: 15, text: "15 power. Closer: +15 power with 2 or fewer cards left in hand." },
     ],
     effects: [
       {
@@ -432,9 +432,9 @@ export const CARD_DEFS = [
     rarity: "rare",
     nationality: "uru",
     levels: [
-      { power: 9, text: "9 power. +4 power while trailing." },
-      { power: 11, text: "11 power. +8 power while trailing." },
-      { power: 13, text: "13 power. +12 power while trailing." },
+      { power: 9, text: "9 power. Clutch: +4 power while trailing." },
+      { power: 11, text: "11 power. Clutch: +8 power while trailing." },
+      { power: 13, text: "13 power. Clutch: +12 power while trailing." },
     ],
     effects: [
       {
@@ -497,11 +497,11 @@ export const CARD_DEFS = [
     kind: "tactic",
     name: "Set Piece Routine",
     rarity: "common",
-    levels: [{ text: "+12 power in attacks of 2 or fewer cards." }],
+    levels: [{ text: "Opener: +12 power on your next shot if played first this round." }],
     effects: [
       {
         trigger: "onPlay",
-        condition: { kind: "attackCardCount", cmp: "lte", value: 2 },
+        condition: { kind: "attackCardCount", cmp: "lte", value: 1 },
         op: { kind: "addPower", amount: 12 },
       },
     ],

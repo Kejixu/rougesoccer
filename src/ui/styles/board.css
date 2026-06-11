@@ -209,6 +209,31 @@
   z-index: 2;
 }
 
+.combo-badge {
+  position: absolute;
+  top: -6px;
+  right: -4px;
+  font-size: 9px;
+  font-weight: 900;
+  letter-spacing: 0.06em;
+  padding: 2px 7px;
+  border-radius: 8px;
+  z-index: 2;
+  background: #233a2c;
+  color: var(--ink-dim);
+}
+
+.combo-badge.active {
+  background: var(--accent-2);
+  color: #0e1a12;
+  box-shadow: 0 0 10px rgba(77, 208, 122, 0.8);
+  animation: combo-pulse 1.2s ease infinite;
+}
+
+@keyframes combo-pulse {
+  50% { box-shadow: 0 0 16px rgba(77, 208, 122, 1); }
+}
+
 /* ---- attack preview (live play + score readout) ---- */
 
 .attack-preview {

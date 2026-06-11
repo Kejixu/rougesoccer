@@ -57,6 +57,7 @@ export function StickerCard({
   selected,
   disabled,
   cost,
+  combo,
   onClick,
 }: {
   def: CardDef;
@@ -64,6 +65,7 @@ export function StickerCard({
   selected?: boolean;
   disabled?: boolean;
   cost?: number;
+  combo?: "active" | "inactive" | null;
   onClick?: () => void;
 }) {
   const ref = useRef<HTMLButtonElement>(null);
@@ -113,6 +115,11 @@ export function StickerCard({
         {inst?.fatigued && <div className="fatigue-strip">Tired</div>}
       </div>
       {cost !== undefined && <div className="cost-badge">{cost}</div>}
+      {combo && (
+        <div className={`combo-badge ${combo}`} data-testid="combo-badge">
+          {combo === "active" ? "✓ COMBO" : "combo…"}
+        </div>
+      )}
       {def.rarity === "legendary" && <div className="legend-badge">★</div>}
       <div className="foil-layer" />
     </button>
