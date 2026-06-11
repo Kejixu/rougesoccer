@@ -87,7 +87,7 @@ describe("combat match", () => {
       DEFAULT_BALANCE.MATCH_ROUNDS,
     );
     expect(events.some((e) => e.type === "MATCH_END")).toBe(true);
-    expect(allCards(state)).toHaveLength(16);
+    expect(allCards(state)).toHaveLength(makeStartingDeck().length);
   });
 
   it("is deterministic: same seed + same policy = identical final state", () => {

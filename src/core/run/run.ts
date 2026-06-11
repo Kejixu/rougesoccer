@@ -101,6 +101,17 @@ export function createRun(content: ContentBundle, seed: string, playerTeamId: st
     fatigued: false,
   }));
 
+  const starDefId = content.nationStars?.[playerTeamId];
+  if (starDefId && content.defs[starDefId]) {
+    state.deck.push({
+      uid: `run-${state.uidCounter++}`,
+      defId: starDefId,
+      level: 0,
+      formPower: 0,
+      fatigued: false,
+    });
+  }
+
   state.groupTeamIds = pickGroupOpponents(state, content);
   state.groupTable = [playerTeamId, ...state.groupTeamIds].map(emptyRow);
   for (const id of [playerTeamId, ...state.groupTeamIds]) state.tiebreak[id] = rand(state);
@@ -307,6 +318,19 @@ export function applyRunAction(
         formPower: 0,
         fatigued: false,
       });
+      draft.pendingReward = null;
+      draft.phase = "IDLE";
+      draft.shop = generateShop(draft, content);
+      break;
+    }
+
+    case "CUT_CARD": {
+      if (draft.phase !== "REWARD" || !draft.pendingReward) throw new Error("no reward pending");
+      if (draft.deck.length <= content.balance.MIN_DECK_SIZE)
+        throw new Error("squad is at minimum size");
+      const idx = draft.deck.findIndex((c) => c.uid === action.uid);
+      if (idx === -1) throw new Error(`card ${action.uid} not in deck`);
+      draft.deck.splice(idx, 1);
       draft.pendingReward = null;
       draft.phase = "IDLE";
       draft.shop = generateShop(draft, content);

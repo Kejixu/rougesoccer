@@ -337,6 +337,7 @@ export type RunAction =
   | { type: "MATCH_ACTION"; action: MatchAction }
   | { type: "PICK_REWARD"; index: number }
   | { type: "SKIP_REWARD" }
+  | { type: "CUT_CARD"; uid: string } // reward-screen alternative: trim the squad for free
   | { type: "BUY_CARD"; index: number }
   | { type: "TRAIN_CARD"; uid: string }
   | { type: "RELEASE_CARD"; uid: string }
@@ -357,5 +358,6 @@ export interface ContentBundle {
   styles: Record<StyleId, StyleDef>;
   plays: PlayDef[];
   startingDeck: { defId: string; level: 0 | 1 | 2 }[];
+  nationStars?: Record<string, string>; // playable teamId -> star card defId
   balance: BalanceConfig;
 }

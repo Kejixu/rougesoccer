@@ -126,7 +126,9 @@ function scaled(amount: number, scaling: "perLevel" | undefined, level: number):
 
 function startRound(draft: MatchState, events: GameEvent[]): void {
   draft.round += 1;
-  draft.stamina = draft.mode === "suddendeath" ? draft.bal.STAMINA_PER_ROUND - 1 : draft.bal.STAMINA_PER_ROUND;
+  const gain = draft.mode === "suddendeath" ? draft.bal.STAMINA_PER_ROUND - 1 : draft.bal.STAMINA_PER_ROUND;
+  // unspent stamina carries over, capped (Dawncaster-style banking)
+  draft.stamina = Math.min(draft.bal.STAMINA_CARRY_CAP, draft.stamina + gain);
   draft.block = 0;
   draft.pendingMult = 1;
   draft.pendingFlat = 0;

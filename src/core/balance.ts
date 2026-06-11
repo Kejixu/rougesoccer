@@ -13,6 +13,7 @@ export interface BalanceConfig {
   GOAL_THRESHOLD: number; // shot-value points per goal
   HAND_SIZE: number;
   STAMINA_PER_ROUND: number;
+  STAMINA_CARRY_CAP: number; // unspent stamina banks up to this (Dawncaster carryover)
   PLAYS_PER_ROUND: number;
   DISCARDS_PER_ROUND: number;
   MAX_ATTACK_CARDS: number;
@@ -62,6 +63,7 @@ export const DEFAULT_BALANCE: BalanceConfig = {
   GOAL_THRESHOLD: 40,
   HAND_SIZE: 5,
   STAMINA_PER_ROUND: 4,
+  STAMINA_CARRY_CAP: 6,
   PLAYS_PER_ROUND: 2,
   DISCARDS_PER_ROUND: 2,
   MAX_ATTACK_CARDS: 4,
@@ -103,7 +105,7 @@ export const DEFAULT_BALANCE: BalanceConfig = {
     rare: 30,
     legendary: 60,
     train: 25,
-    release: 15,
+    release: 8,
     rerollScout: 1,
     scoutOpponent: 1,
   },

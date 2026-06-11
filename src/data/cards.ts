@@ -173,6 +173,20 @@ export const CARD_DEFS = [
     effects: [{ trigger: "onPlay", op: { kind: "mulMult", amount: 2 } }],
   },
 
+  {
+    id: "academy_prospect",
+    kind: "player",
+    name: "Academy Prospect",
+    position: "MF",
+    rarity: "common",
+    levels: [
+      { power: 3, text: "3 power. Every nation has them. Cut them when you can." },
+      { power: 4, text: "4 power. Improving, slowly." },
+      { power: 5, text: "5 power. A late bloomer." },
+    ],
+    effects: [],
+  },
+
   // ======================== parody legendaries ========================
   {
     id: "st_messy",
@@ -544,17 +558,18 @@ export const CARD_DEF_MAP: Record<string, CardDef> = Object.fromEntries(
   CARD_DEFS.map((d) => [d.id, d]),
 );
 
+// Deliberately scrappy: mostly filler worth cutting, a couple of real players.
+// The player's nation star (content.nationStars) is added on top at run start.
 const STARTING_DECK_LIST: { defId: string; count: number }[] = [
   { defId: "st_clinical", count: 1 },
   { defId: "st_poacher", count: 1 },
   { defId: "wg_flash", count: 1 },
-  { defId: "mf_engine", count: 2 },
-  { defId: "mf_metronome", count: 2 },
+  { defId: "mf_metronome", count: 1 },
+  { defId: "academy_prospect", count: 4 },
   { defId: "df_stopper", count: 2 },
-  { defId: "df_sweeper", count: 2 },
+  { defId: "df_sweeper", count: 1 },
   { defId: "gk_wall", count: 1 },
   { defId: "tac_through", count: 1 },
-  { defId: "tac_longball", count: 1 },
   { defId: "tac_switch", count: 1 },
   { defId: "mom_screamer", count: 1 },
 ];
