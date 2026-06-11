@@ -119,11 +119,11 @@ export const DEFAULT_BALANCE: BalanceConfig = {
   // The player now snowballs (staff hires + gameplans), so the ramp climbs
   // steeply after the group stage to keep knockouts honest.
   STAGE_CLOCK_MULT: {
-    GROUP: 1.1,
-    R32: 1.35,
-    R16: 1.55,
-    QF: 1.7,
-    SF: 1.8,
-    FINAL: 2.0,
+    GROUP: 1.2,
+    R32: 1.65,
+    R16: 1.9,
+    QF: 2.1,
+    SF: 2.3,
+    FINAL: 2.6,
   },
 };

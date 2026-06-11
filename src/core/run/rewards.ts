@@ -19,8 +19,12 @@ export function rollRarity(draft: RunState, content: ContentBundle): Rarity {
 }
 
 export function rollCardOfRarity(draft: RunState, content: ContentBundle, rarity: Rarity): string {
-  let pool = content.cardPool.filter((c) => c.rarity === rarity);
-  if (pool.length === 0) pool = content.cardPool;
+  // another nation's signature cards never appear in your rewards or shop
+  const eligible = content.cardPool.filter(
+    (c) => !c.exclusiveTo || c.exclusiveTo === draft.playerTeamId,
+  );
+  let pool = eligible.filter((c) => c.rarity === rarity);
+  if (pool.length === 0) pool = eligible;
   if (pool.length === 0) throw new Error("card pool is empty");
   return pool[Math.floor(rand(draft) * pool.length)]!.id;
 }

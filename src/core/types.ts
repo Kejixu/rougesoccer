@@ -31,7 +31,8 @@ export type Condition =
   | { kind: "attackCardCount"; cmp: Cmp; value: number }
   | { kind: "handSize"; cmp: Cmp; value: number }
   | { kind: "leading" }
-  | { kind: "trailing" };
+  | { kind: "trailing" }
+  | { kind: "oppIntent"; intent: "attack" | "sitDeep" | "press" | "counter" }; // their telegraphed move this round
 
 // Escape hatch for mechanics the data ops can't express. Keys are a closed
 // union so every script is statically known to the engine.
@@ -43,6 +44,7 @@ export type ScriptKey =
 
 export type EffectOp =
   | { kind: "addPower"; amount: number }
+  | { kind: "addPowerPerCardPlayed"; amount: number } // swarm scaling: x cards already played this round
   | { kind: "addMult"; amount: number } // additive: mult += amount
   | { kind: "mulMult"; amount: number } // multiplicative: mult *= amount
   | { kind: "draw"; amount: number }
@@ -88,6 +90,16 @@ export interface StaffDef {
   passive: PassiveEffect;
 }
 
+/** A playable nation's class kit (Slay-the-Spire characters): its own starting
+ * deck, a permanent identity passive, and exclusive cards in the pool. */
+export interface NationKit {
+  identity: string; // "The Press Machine"
+  blurb: string; // sales pitch on the title screen
+  passive: PassiveEffect;
+  passiveText: string;
+  startingDeck: { defId: string; level: 0 | 1 | 2 }[];
+}
+
 // ---------- plays (the "poker hands" of an attack) ----------
 
 export type PlayPattern =
@@ -127,6 +139,7 @@ export interface CardDef {
   levels: CardLevelStats[]; // index = upgrade level, length 1..3
   effects: EffectDef[];
   passive?: PassiveEffect; // gameplan cards: persists for the match once played
+  exclusiveTo?: string; // playable teamId: only that nation sees it in rewards/shops
   exileOnPlay?: boolean; // "moment" cards: one use per match
   portrait?: string; // asset slot; undefined = flag + silhouette placeholder
   nationality?: string; // teamId, for flag fallback
@@ -407,7 +420,8 @@ export interface ContentBundle {
   teams: TeamDef[];
   styles: Record<StyleId, StyleDef>;
   plays: PlayDef[];
-  startingDeck: { defId: string; level: 0 | 1 | 2 }[];
+  startingDeck: { defId: string; level: 0 | 1 | 2 }[]; // fallback when a nation has no kit
   nationStars?: Record<string, string>; // playable teamId -> star card defId
+  nationKits?: Record<string, NationKit>; // playable teamId -> class kit
   balance: BalanceConfig;
 }

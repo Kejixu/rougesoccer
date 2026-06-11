@@ -5,6 +5,7 @@ import type { ContentBundle } from "../core/types";
 import type { BalanceConfig } from "../core/balance";
 import { ACTIVE_BALANCE } from "./balance";
 import { CARD_DEFS, CARD_DEF_MAP, STARTING_DECK_TEMPLATE } from "./cards";
+import { NATION_KITS } from "./kits";
 import { ACTIVE_PLAYS } from "./plays";
 import { STAFF_DEFS } from "./staff";
 import { STYLES } from "./styles";
@@ -27,6 +28,7 @@ export function makeContent(balance: BalanceConfig = ACTIVE_BALANCE): ContentBun
     plays: ACTIVE_PLAYS,
     startingDeck: STARTING_DECK_TEMPLATE,
     nationStars: NATION_STARS,
+    nationKits: NATION_KITS,
     balance,
   };
 }

@@ -177,9 +177,16 @@ export function MatchScreen({
         </div>
       )}
 
-      {(m.gameplansPlayed.length > 0 || run.staff.length > 0 || run.drilled.length > 0) && (
-        <div className="passive-strip" data-testid="passives">
-          {run.staff.map((id) => {
+      <div className="passive-strip" data-testid="passives">
+        {content.nationKits?.[run.playerTeamId] && (
+          <span
+            className="passive-chip kit"
+            title={content.nationKits[run.playerTeamId]!.passiveText}
+          >
+            ★ {content.nationKits[run.playerTeamId]!.identity}
+          </span>
+        )}
+        {run.staff.map((id) => {
             const s = content.staffPool.find((x) => x.id === id);
             return s ? (
               <span key={id} className="passive-chip staff" title={s.text}>
@@ -192,13 +199,12 @@ export function MatchScreen({
               📋 {content.defs[defId]?.name ?? defId}
             </span>
           ))}
-          {m.gameplansPlayed.map((defId) => (
-            <span key={defId} className="passive-chip gameplan" title={content.defs[defId]?.levels[0]?.text}>
-              📋 {content.defs[defId]?.name ?? defId} — active
-            </span>
-          ))}
-        </div>
-      )}
+        {m.gameplansPlayed.map((defId) => (
+          <span key={defId} className="passive-chip gameplan" title={content.defs[defId]?.levels[0]?.text}>
+            📋 {content.defs[defId]?.name ?? defId} — active
+          </span>
+        ))}
+      </div>
 
       {m.phase === "ROUND_ACTIVE" && (
         <>

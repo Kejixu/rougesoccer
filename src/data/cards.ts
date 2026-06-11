@@ -521,6 +521,173 @@ export const CARD_DEFS = [
     ],
   },
 
+  // ======================== nation signature cards ========================
+  // exclusiveTo: only that nation ever sees them in rewards/shops — the class
+  // card pools of the three playable hosts.
+
+  // USA — The Press Machine: defense becomes attack
+  {
+    id: "usa_press_trap",
+    kind: "player",
+    name: "Press Trap",
+    position: "MF",
+    rarity: "rare",
+    exclusiveTo: "usa",
+    nationality: "usa",
+    levels: [
+      { power: 8, text: "8 power. Combo (DF): +0.5 mult if you played a DF this round." },
+      { power: 10, text: "10 power. Combo (DF): +1.0 mult if you played a DF this round." },
+      { power: 13, text: "13 power. Combo (DF): +1.5 mult if you played a DF this round." },
+    ],
+    effects: [
+      {
+        trigger: "onPlay",
+        condition: { kind: "attackIncludesPosition", position: "DF" },
+        op: { kind: "addMult", amount: 0.5 },
+        scaling: "perLevel",
+      },
+    ],
+  },
+  {
+    id: "usa_transition",
+    kind: "tactic",
+    name: "Turnover Transition",
+    rarity: "common",
+    exclusiveTo: "usa",
+    levels: [{ text: "+6 power on this attack. Draw 1." }],
+    effects: [
+      { trigger: "onPlay", op: { kind: "addPower", amount: 6 } },
+      { trigger: "onPlay", op: { kind: "draw", amount: 1 } },
+    ],
+  },
+  {
+    id: "usa_soccerball",
+    kind: "moment",
+    name: "It's Called Soccer",
+    rarity: "rare",
+    exclusiveTo: "usa",
+    exileOnPlay: true,
+    levels: [{ text: "x2 mult. Clutch: +12 power while trailing. Once per match." }],
+    effects: [
+      { trigger: "onPlay", op: { kind: "mulMult", amount: 2 } },
+      {
+        trigger: "onPlay",
+        condition: { kind: "trailing" },
+        op: { kind: "addPower", amount: 12 },
+      },
+    ],
+  },
+
+  // Mexico — La Ola: the more cards you play, the harder they hit
+  {
+    id: "mex_ola",
+    kind: "player",
+    name: "Ola Winger",
+    position: "WG",
+    rarity: "common",
+    exclusiveTo: "mex",
+    nationality: "mex",
+    levels: [
+      { power: 5, text: "5 power. La Ola: +2 power per card already played this round." },
+      { power: 6, text: "6 power. La Ola: +4 power per card already played this round." },
+      { power: 8, text: "8 power. La Ola: +6 power per card already played this round." },
+    ],
+    effects: [
+      {
+        trigger: "onPlay",
+        op: { kind: "addPowerPerCardPlayed", amount: 2 },
+        scaling: "perLevel",
+      },
+    ],
+  },
+  {
+    id: "mex_maestro",
+    kind: "player",
+    name: "Maestro de la Ola",
+    position: "MF",
+    rarity: "rare",
+    exclusiveTo: "mex",
+    nationality: "mex",
+    levels: [
+      { power: 7, text: "7 power. La Ola: +3 power per card already played this round." },
+      { power: 9, text: "9 power. La Ola: +3 power per card already played this round." },
+      { power: 11, text: "11 power. La Ola: +3 power per card already played this round." },
+    ],
+    effects: [{ trigger: "onPlay", op: { kind: "addPowerPerCardPlayed", amount: 3 } }],
+  },
+  {
+    id: "mex_fiesta",
+    kind: "tactic",
+    name: "Olé Olé Olé",
+    rarity: "common",
+    exclusiveTo: "mex",
+    levels: [{ text: "x1.3 mult on this attack. Draw 1." }],
+    effects: [
+      { trigger: "onPlay", op: { kind: "mulMult", amount: 1.3 } },
+      { trigger: "onPlay", op: { kind: "draw", amount: 1 } },
+    ],
+  },
+
+  // Canada — On the Break: punish them while they commit forward
+  {
+    id: "can_breakaway",
+    kind: "player",
+    name: "Breakaway Winger",
+    position: "WG",
+    rarity: "common",
+    exclusiveTo: "can",
+    nationality: "can",
+    levels: [
+      { power: 7, text: "7 power. Break: +6 power while they line up an attack." },
+      { power: 9, text: "9 power. Break: +12 power while they line up an attack." },
+      { power: 11, text: "11 power. Break: +18 power while they line up an attack." },
+    ],
+    effects: [
+      {
+        trigger: "onPlay",
+        condition: { kind: "oppIntent", intent: "attack" },
+        op: { kind: "addPower", amount: 6 },
+        scaling: "perLevel",
+      },
+    ],
+  },
+  {
+    id: "can_icebreaker",
+    kind: "player",
+    name: "Icebreaker",
+    position: "ST",
+    rarity: "rare",
+    exclusiveTo: "can",
+    nationality: "can",
+    levels: [
+      { power: 12, text: "12 power. Break: x1.5 mult while they line up an attack." },
+      { power: 14, text: "14 power. Break: x1.5 mult while they line up an attack." },
+      { power: 17, text: "17 power. Break: x1.5 mult while they line up an attack." },
+    ],
+    effects: [
+      {
+        trigger: "onPlay",
+        condition: { kind: "oppIntent", intent: "attack" },
+        op: { kind: "mulMult", amount: 1.5 },
+      },
+    ],
+  },
+  {
+    id: "can_freeze",
+    kind: "tactic",
+    name: "Freeze the Counter",
+    rarity: "common",
+    exclusiveTo: "can",
+    levels: [{ text: "Break: +10 power on your next shot while they line up an attack." }],
+    effects: [
+      {
+        trigger: "onPlay",
+        condition: { kind: "oppIntent", intent: "attack" },
+        op: { kind: "addPower", amount: 10 },
+      },
+    ],
+  },
+
   // ======================== gameplans (Dawncaster enchantments) ========================
   // Play one and its passive lasts the rest of the match; the card sits out.
   // Unique: one copy of each in effect at a time. Drill them in at the shop

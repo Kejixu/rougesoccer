@@ -97,7 +97,9 @@ export function createRun(content: ContentBundle, seed: string, playerTeamId: st
     rng: seedRng(seed),
   };
 
-  state.deck = content.startingDeck.map((c) => ({
+  // class kit: each playable nation has its own starting deck
+  const kitDeck = content.nationKits?.[playerTeamId]?.startingDeck ?? content.startingDeck;
+  state.deck = kitDeck.map((c) => ({
     uid: `run-${state.uidCounter++}`,
     defId: c.defId,
     level: c.level,

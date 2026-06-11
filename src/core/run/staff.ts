@@ -26,9 +26,12 @@ export function rollStaffOffer(draft: RunState, content: ContentBundle): StaffOf
   return { staffIds: picks };
 }
 
-/** Every passive active from kickoff: hired staff plus drilled gameplans. */
+/** Every passive active from kickoff: the nation's class identity, hired
+ * staff, and drilled gameplans. */
 export function runPassives(content: ContentBundle, state: RunState): PassiveEffect[] {
   const passives: PassiveEffect[] = [];
+  const kit = content.nationKits?.[state.playerTeamId];
+  if (kit) passives.push(kit.passive);
   for (const id of state.staff) {
     const def = content.staffPool.find((s) => s.id === id);
     if (def) passives.push(def.passive);

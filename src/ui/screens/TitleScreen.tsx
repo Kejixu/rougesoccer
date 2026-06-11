@@ -1,4 +1,5 @@
 import { useState } from "react";
+import { NATION_KITS } from "../../data/kits";
 import { PLAYABLE_TEAM_IDS, TEAM_MAP } from "../../data/teams";
 
 export function TitleScreen({
@@ -29,24 +30,36 @@ export function TitleScreen({
       )}
 
       <h2>New campaign</h2>
-      <fieldset style={{ border: "1px solid #444", borderRadius: 8 }}>
-        <legend>Pick your nation</legend>
+      <p style={{ color: "var(--ink-dim)", fontSize: 13 }}>
+        Each host nation plays its own game — different starting squad, identity, and
+        signature cards.
+      </p>
+      <div style={{ display: "flex", gap: 12, flexWrap: "wrap" }}>
         {PLAYABLE_TEAM_IDS.map((id) => {
           const t = TEAM_MAP[id]!;
+          const kit = NATION_KITS[id];
           return (
-            <label key={id} style={{ display: "block", padding: 4 }}>
-              <input
-                type="radio"
-                name="team"
-                checked={teamId === id}
-                onChange={() => setTeamId(id)}
-                data-testid={`pick-team-${id}`}
-              />{" "}
-              {t.name} — coach {t.coach}
-            </label>
+            <button
+              type="button"
+              key={id}
+              className="kit-card"
+              data-selected={teamId === id ? "true" : undefined}
+              data-testid={`pick-team-${id}`}
+              onClick={() => setTeamId(id)}
+            >
+              <div className="kit-nation">{t.name}</div>
+              {kit && (
+                <>
+                  <div className="kit-identity">“{kit.identity}”</div>
+                  <div className="kit-blurb">{kit.blurb}</div>
+                  <div className="kit-passive">★ {kit.passiveText}</div>
+                </>
+              )}
+              <div className="kit-coach">coach {t.coach}</div>
+            </button>
           );
         })}
-      </fieldset>
+      </div>
       <p>
         <label>
           Seed (optional):{" "}

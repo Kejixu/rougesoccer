@@ -117,6 +117,8 @@ function evalCombatCondition(draft: MatchState, cond: Condition): boolean {
       return draft.playerGoals > draft.oppGoals;
     case "trailing":
       return draft.playerGoals < draft.oppGoals;
+    case "oppIntent":
+      return draft.intent?.kind === cond.intent;
   }
 }
 
@@ -356,6 +358,8 @@ function playCard(defs: CardDefMap, draft: MatchState, uid: string, events: Game
       if (eff.condition && !evalCombatCondition(draft, eff.condition)) continue;
       const op = eff.op;
       if (op.kind === "addPower") ownFlat += scaled(op.amount, eff.scaling, inst.level);
+      else if (op.kind === "addPowerPerCardPlayed")
+        ownFlat += scaled(op.amount, eff.scaling, inst.level) * draft.playedThisRound.length;
       else if (op.kind === "addMult") ownAdd += scaled(op.amount, eff.scaling, inst.level);
       else if (op.kind === "mulMult") ownMul *= op.amount;
       else if (op.kind === "draw") draws += op.amount;

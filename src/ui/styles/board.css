@@ -530,3 +530,63 @@
   letter-spacing: 0.08em;
   color: var(--ink-dim);
 }
+
+/* ---- nation class kit picker ---- */
+
+.kit-card {
+  width: 230px;
+  text-align: left;
+  padding: 14px 16px;
+  border-radius: 12px;
+  border: 2px solid var(--line);
+  background: var(--surface);
+  color: var(--ink);
+  cursor: pointer;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  font: inherit;
+  transition: transform 0.12s ease, border-color 0.12s ease;
+}
+
+.kit-card:hover {
+  transform: translateY(-2px);
+}
+
+.kit-card[data-selected="true"] {
+  border-color: var(--accent);
+  box-shadow: 0 0 14px rgba(120, 200, 140, 0.25);
+}
+
+.kit-nation {
+  font-weight: 700;
+  font-size: 16px;
+}
+
+.kit-identity {
+  font-size: 13px;
+  color: var(--accent-2);
+  font-style: italic;
+}
+
+.kit-blurb {
+  font-size: 12px;
+  color: var(--ink-dim);
+  line-height: 1.45;
+}
+
+.kit-passive {
+  font-size: 12px;
+  color: #d9c178;
+}
+
+.kit-coach {
+  font-size: 11px;
+  color: var(--ink-dim);
+  margin-top: auto;
+}
+
+.passive-chip.kit {
+  border-color: #5a8a64;
+  color: #9fd4ab;
+}
