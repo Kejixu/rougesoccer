@@ -100,6 +100,60 @@ export interface NationKit {
   startingDeck: { defId: string; level: 0 | 1 | 2 }[];
 }
 
+// ---------- dice mode (Dicey-Dungeons-style) ----------
+// Each round you roll a pool of dice and slot them into cards. A card needs a
+// die matching its slot to activate. The randomness is the roll; the skill is
+// allocation. Pure data — the dice engine interprets it.
+
+export type DieSlot =
+  | { kind: "any" } // any die activates it
+  | { kind: "min"; value: number } // die >= value (attacking/finishing dice)
+  | { kind: "max"; value: number } // die <= value (defensive/control dice)
+  | { kind: "exact"; value: number }
+  | { kind: "parity"; even: boolean };
+
+export type DiceEffect =
+  | { kind: "progress"; amount: number } // advance the ball up the pitch
+  | { kind: "progressFromDie" } // progress equal to the slotted die's value
+  | { kind: "cover"; amount: number } // dice-mode block, absorbs the round's threat
+  | { kind: "coverFromDie" }
+  | { kind: "shotQuality"; amount: number; minZone?: number } // banked chance quality
+  | { kind: "shotQualityFromDie"; minZone?: number }
+  | { kind: "advance"; zones: number } // jump zones directly
+  | { kind: "draw"; amount: number };
+
+/** Does a rolled die value satisfy a card's slot requirement? */
+export function dieFitsSlot(value: number, slot: DieSlot): boolean {
+  switch (slot.kind) {
+    case "any":
+      return true;
+    case "min":
+      return value >= slot.value;
+    case "max":
+      return value <= slot.value;
+    case "exact":
+      return value === slot.value;
+    case "parity":
+      return value % 2 === 0 === slot.even;
+  }
+}
+
+/** Human-readable slot requirement, shown on the card. */
+export function slotLabel(slot: DieSlot): string {
+  switch (slot.kind) {
+    case "any":
+      return "any";
+    case "min":
+      return `${slot.value}+`;
+    case "max":
+      return `${slot.value}-`;
+    case "exact":
+      return `=${slot.value}`;
+    case "parity":
+      return slot.even ? "even" : "odd";
+  }
+}
+
 // ---------- plays (the "poker hands" of an attack) ----------
 
 export type PlayPattern =
@@ -140,6 +194,8 @@ export interface CardDef {
   effects: EffectDef[];
   passive?: PassiveEffect; // gameplan cards: persists for the match once played
   exclusiveTo?: string; // playable teamId: only that nation sees it in rewards/shops
+  slot?: DieSlot; // dice mode: the die this card needs to activate
+  diceEffects?: DiceEffect[]; // dice mode: what it does when a matching die is slotted
   exileOnPlay?: boolean; // "moment" cards: one use per match
   portrait?: string; // asset slot; undefined = flag + silhouette placeholder
   nationality?: string; // teamId, for flag fallback
@@ -273,6 +329,13 @@ export type GameEvent =
   | { type: "FORM_GAINED"; uid: string; amount: number; formPower: number }
   | { type: "GAMEPLAN_SET"; uid: string; defId: string } // persistent for the match
   | { type: "MULLIGAN_USED"; uids: string[] } // the redrawn hand
+  // ---- dice mode ----
+  | { type: "DICE_ROLLED"; dice: number[] }
+  | { type: "DIE_ASSIGNED"; uid: string; die: number }
+  | { type: "PROGRESS_GAINED"; amount: number; progress: number; zone: number }
+  | { type: "ZONE_ADVANCED"; zone: number }
+  | { type: "COVER_GAINED_D"; amount: number; total: number }
+  | { type: "SHOT_TAKEN"; roll: number; dc: number; quality: number; goal: boolean }
   | { type: "CARD_FATIGUED"; uids: string[] }
   | { type: "CARDS_DISCARDED"; uids: string[]; forced: boolean }
   | { type: "PUSH_DECISION"; playerGoals: number; oppGoals: number }
@@ -290,6 +353,69 @@ export type GameEvent =
 export interface MatchStep {
   state: MatchState;
   events: GameEvent[];
+}
+
+// ---------- dice match (the active match loop on this build) ----------
+
+export interface Die {
+  value: number;
+  used: boolean;
+}
+
+export interface DiceMatchState {
+  phase: MatchPhase;
+  mode: MatchMode;
+  context: MatchContext;
+  opp: OppInfo;
+  bal: BalanceConfig;
+  round: number;
+  zone: number; // 0 Build-up .. BOX_ZONE Box
+  progress: number;
+  shotQuality: number;
+  playerGoals: number;
+  oppGoals: number;
+  oppClockPoints: number;
+  keeperDC: number;
+  dice: Die[];
+  cover: number;
+  intent: Intent | null;
+  intentStep: number;
+  diePenalty: number;
+  handPenalty: number;
+  coverGainedThisRound: boolean;
+  hand: CardInstance[];
+  drawPile: CardInstance[];
+  discardPile: CardInstance[];
+  exile: CardInstance[];
+  activePassives: PassiveEffect[];
+  extraRoundsPlayed: number;
+  suddenDeathRoundsPlayed: number;
+  earned: { budget: number; scout: number };
+  result: MatchResult;
+  rng: RngState;
+}
+
+export type DiceMatchAction =
+  | { type: "ASSIGN_DIE"; uid: string; dieIndex: number }
+  | { type: "SHOOT" }
+  | { type: "END_ROUND" }
+  | { type: "EXTRA_TIME" }
+  | { type: "TAKE_WIN" };
+
+export interface DiceMatchStep {
+  state: DiceMatchState;
+  events: GameEvent[];
+}
+
+export interface DiceMatchConfig {
+  opp: OppInfo;
+  styleEffects: EffectDef[];
+  plays: PlayDef[];
+  context: MatchContext;
+  deck: CardInstance[];
+  passives?: PassiveEffect[];
+  rng: RngState;
+  balance: BalanceConfig;
 }
 
 // ---------- styles ----------
@@ -382,7 +508,7 @@ export interface RunState {
   staff: string[]; // hired StaffDef ids — permanent run passives
   drilled: string[]; // gameplan defIds made permanent (card was removed)
   resources: { budget: number; scout: number };
-  activeMatch: MatchState | null;
+  activeMatch: DiceMatchState | null;
   pendingReward: RewardOffer | null;
   pendingStaff: StaffOffer | null;
   shop: ShopState | null;
@@ -393,7 +519,7 @@ export interface RunState {
 
 export type RunAction =
   | { type: "START_MATCH" }
-  | { type: "MATCH_ACTION"; action: MatchAction }
+  | { type: "MATCH_ACTION"; action: DiceMatchAction }
   | { type: "PICK_REWARD"; index: number }
   | { type: "SKIP_REWARD" }
   | { type: "CUT_CARD"; uid: string } // reward-screen alternative: trim the squad for free

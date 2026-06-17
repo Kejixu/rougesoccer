@@ -114,42 +114,18 @@ describe("staff hires and drilling (run layer)", () => {
     run = applyRunAction(content, run, { type: "START_MATCH" }).state;
     const m = run.activeMatch!;
     expect(m.activePassives).toContainEqual({ kind: "roundStamina", amount: 1 });
-    expect(m.stamina).toBe(content.balance.STAMINA_PER_ROUND + 1);
+    // in dice mode roundStamina grants an extra die in the pool
+    expect(m.dice.length).toBe(content.balance.DICE.POOL_SIZE + 1);
   });
 
   it("a staff pick falls through to a queued card reward", () => {
     let run = structuredClone(createRun(content, "staff-reward", "usa"));
     run.phase = "STAFF";
     run.pendingStaff = { staffIds: ["staff_gkcoach"] };
-    run.pendingReward = { defIds: ["st_messy", "mf_engine"] };
+    run.pendingReward = { defIds: ["d_finish", "d_shortpass"] };
     run = applyRunAction(content, run, { type: "PICK_STAFF", index: 0 }).state;
     expect(run.phase).toBe("REWARD");
     expect(run.pendingStaff).toBeNull();
-  });
-
-  it("DRILL_CARD makes the gameplan permanent and removes the card", () => {
-    let run = structuredClone(createRun(content, "drill", "usa"));
-    run.resources.budget = 999;
-    const gp = run.deck.find((c) => c.defId === "gp_gegenpress")!;
-    run = applyRunAction(content, run, { type: "DRILL_CARD", uid: gp.uid }).state;
-    expect(run.drilled).toEqual(["gp_gegenpress"]);
-    expect(run.deck.some((c) => c.uid === gp.uid)).toBe(false);
-
-    run = applyRunAction(content, run, { type: "START_MATCH" }).state;
-    expect(run.activeMatch!.activePassives).toContainEqual({
-      kind: "blockOnPosition",
-      position: "MF",
-      amount: 3,
-    });
-  });
-
-  it("drilling a non-gameplan is rejected", () => {
-    let run = structuredClone(createRun(content, "drill-bad", "usa"));
-    run.resources.budget = 999;
-    const striker = run.deck.find((c) => c.defId === "st_clinical")!;
-    expect(() => applyRunAction(content, run, { type: "DRILL_CARD", uid: striker.uid })).toThrow(
-      /only gameplans/,
-    );
   });
 
   it("the Youth Scout refunds budget on a reward-screen cut", () => {

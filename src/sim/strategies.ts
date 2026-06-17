@@ -1,56 +1,59 @@
-// Bot strategies for the balance sim — combat mode (stamina / intents / block).
+// Bot strategies for the balance sim — DICE MODE (roll, slot, advance, shoot).
 
-import { cardCost, levelStats } from "../core/types";
+import { bestDieFor, playableCards } from "../core/match/dice";
 import type {
-  CardInstance,
+  CardDef,
   ContentBundle,
-  MatchAction,
-  MatchState,
+  DiceMatchAction,
+  DiceMatchState,
   RunAction,
   RunState,
 } from "../core/types";
 import type { Bot } from "./bot";
 
-function power(content: ContentBundle, c: CardInstance): number {
-  return (levelStats(content.defs[c.defId]!, c.level).power ?? 0) + c.formPower;
+type Role = "defend" | "finish" | "progress";
+
+function roleOf(def: CardDef): Role {
+  const effs = def.diceEffects ?? [];
+  if (effs.some((e) => e.kind === "cover" || e.kind === "coverFromDie")) return "defend";
+  if (effs.some((e) => e.kind === "shotQuality" || e.kind === "shotQualityFromDie")) return "finish";
+  return "progress";
 }
 
-function defense(content: ContentBundle, c: CardInstance): number {
-  return levelStats(content.defs[c.defId]!, c.level).defense ?? 0;
-}
-
-function cost(content: ContentBundle, c: CardInstance): number {
-  return cardCost(content.defs[c.defId]!);
-}
-
-function isTactic(content: ContentBundle, c: CardInstance): boolean {
-  const def = content.defs[c.defId]!;
-  return def.kind !== "gameplan" && power(content, c) === 0 && defense(content, c) === 0;
-}
-
-function isFreshGameplan(content: ContentBundle, m: MatchState, c: CardInstance): boolean {
-  const def = content.defs[c.defId]!;
-  return def.kind === "gameplan" && !m.gameplansPlayed.includes(def.id);
-}
-
-/** Incoming damage if we end the round now. */
-function incomingThreat(m: MatchState): number {
+/** Scaled incoming threat if the round ended now. */
+function incomingThreat(m: DiceMatchState): number {
   const i = m.intent;
   if (!i) return 0;
   const et = m.mode === "extratime" ? m.bal.EXTRA_TIME_CLOCK_MULT : 1;
-  if (i.kind === "attack") return Math.max(0, Math.round(i.points * et) - m.block);
-  if (i.kind === "counter") {
-    const attacks = m.playedThisRound.filter((p) => p.isAttack).length;
-    return attacks < 2 ? Math.max(0, Math.round(i.points * et) - m.block) : 0;
-  }
-  return 0;
+  let raw = 0;
+  if (i.kind === "attack") raw = i.points;
+  else if (i.kind === "counter") raw = m.coverGainedThisRound ? 0 : i.points;
+  raw = Math.round(raw * m.bal.DICE.THREAT_SCALE * et);
+  return Math.max(0, raw - m.cover);
 }
 
-function combatAction(
+/** First playable card of a role + its best fitting die. */
+function assignFor(
   content: ContentBundle,
-  m: MatchState,
-  opts: { blockBias: number; pushLead: number },
-): MatchAction {
+  m: DiceMatchState,
+  playable: Set<string>,
+  role: Role,
+): DiceMatchAction | null {
+  for (const c of m.hand) {
+    if (!playable.has(c.uid)) continue;
+    const def = content.defs[c.defId]!;
+    if (roleOf(def) !== role) continue;
+    const idx = bestDieFor(content.defs, m, c.uid);
+    if (idx >= 0) return { type: "ASSIGN_DIE", uid: c.uid, dieIndex: idx };
+  }
+  return null;
+}
+
+function diceAction(
+  content: ContentBundle,
+  m: DiceMatchState,
+  opts: { defendBias: number; shootFloor: number; pushLead: number },
+): DiceMatchAction {
   if (m.phase === "PUSH_DECISION") {
     const lead = m.playerGoals - m.oppGoals;
     if (lead >= opts.pushLead && m.extraRoundsPlayed < m.bal.MAX_EXTRA_ROUNDS) {
@@ -59,72 +62,54 @@ function combatAction(
     return { type: "TAKE_WIN" };
   }
 
-  const affordable = m.hand.filter(
-    (c) =>
-      cost(content, c) <= m.stamina &&
-      !(content.defs[c.defId]!.kind === "gameplan" && !isFreshGameplan(content, m, c)),
-  );
-  if (affordable.length === 0) return { type: "END_ROUND" };
-
+  const playable = playableCards(content.defs, m);
+  const inBox = m.zone >= m.bal.DICE.BOX_ZONE;
   const threat = incomingThreat(m);
+  const dc = m.keeperDC + (m.intent?.kind === "sitDeep" ? m.bal.DICE.SIT_DEEP_DC_BONUS : 0);
+  const shootThreshold = Math.max(opts.shootFloor, dc - 9);
 
-  // block a real threat first (threat worth ~blockBias of a goal)
-  if (threat >= m.bal.GOAL_THRESHOLD * opts.blockBias) {
-    const blocker = affordable
-      .filter((c) => defense(content, c) > 0)
-      .sort((a, b) => defense(content, b) - defense(content, a))[0];
-    if (blocker) return { type: "PLAY_CARD", uid: blocker.uid };
+  // 1) defend a real threat
+  if (threat >= m.bal.DICE.OPP_GOAL_THRESHOLD * opts.defendBias) {
+    const def = assignFor(content, m, playable, "defend");
+    if (def) return def;
   }
 
-  // set a gameplan early — front-loaded value, wasted in the final round
-  if (m.round < m.bal.MATCH_ROUNDS) {
-    const gameplan = affordable.find((c) => isFreshGameplan(content, m, c));
-    if (gameplan) return { type: "PLAY_CARD", uid: gameplan.uid };
+  // 2) in the box: bank quality, then shoot when it's worth it
+  if (inBox) {
+    if (m.shotQuality < shootThreshold) {
+      const fin = assignFor(content, m, playable, "finish");
+      if (fin) return fin;
+    }
+    if (m.shotQuality > 0) return { type: "SHOOT" };
   }
 
-  // tactic first if an attack card can cash the buff afterwards
-  const tactic = affordable.find((c) => isTactic(content, c));
-  if (tactic && m.pendingMult === 1 && m.pendingFlat === 0) {
-    const after = m.stamina - cost(content, tactic);
-    const cashable = m.hand.some(
-      (c) => c !== tactic && power(content, c) > 0 && cost(content, c) <= after,
-    );
-    if (cashable) return { type: "PLAY_CARD", uid: tactic.uid };
+  // 3) advance up the pitch
+  const adv = assignFor(content, m, playable, "progress");
+  if (adv) return adv;
+
+  // 4) anything still playable (finishers out of the box bank nothing — skip to defend/progress already tried)
+  for (const c of m.hand) {
+    if (!playable.has(c.uid)) continue;
+    const idx = bestDieFor(content.defs, m, c.uid);
+    if (idx >= 0) return { type: "ASSIGN_DIE", uid: c.uid, dieIndex: idx };
   }
 
-  // best attacker by points per stamina
-  const attacker = affordable
-    .filter((c) => power(content, c) > 0)
-    .sort(
-      (a, b) =>
-        power(content, b) / Math.max(1, cost(content, b)) -
-        power(content, a) / Math.max(1, cost(content, a)),
-    )[0];
-  if (attacker) return { type: "PLAY_CARD", uid: attacker.uid };
-
-  // nothing useful to attack with: bank block if threatened at all
-  if (threat > 0) {
-    const blocker = affordable
-      .filter((c) => defense(content, c) > 0)
-      .sort((a, b) => defense(content, b) - defense(content, a))[0];
-    if (blocker) return { type: "PLAY_CARD", uid: blocker.uid };
-  }
+  // 5) nothing useful left
+  if (inBox && m.shotQuality > 0) return { type: "SHOOT" };
   return { type: "END_ROUND" };
 }
 
-// ---------- run-policy (unchanged economy heuristics) ----------
+// ---------- run policy ----------
 
 function rewardScore(content: ContentBundle, defId: string): number {
   const def = content.defs[defId]!;
-  const rarityScore = def.rarity === "legendary" ? 40 : def.rarity === "rare" ? 20 : 0;
-  const stats = levelStats(def, 0);
-  const gameplanScore = def.kind === "gameplan" ? 14 : 0; // statless but match-long value
-  return rarityScore + gameplanScore + (stats.power ?? 0) + (stats.defense ?? 0) * 1.2;
+  const rarityScore = def.rarity === "legendary" ? 30 : def.rarity === "rare" ? 18 : 6;
+  const role = roleOf(def);
+  return rarityScore + (role === "finish" ? 4 : role === "progress" ? 3 : 2);
 }
 
 function greedyRunAction(content: ContentBundle, r: RunState): RunAction {
   if (r.phase === "STAFF" && r.pendingStaff) {
-    // staff are free: take the rarest hire on offer
     const rank = { legendary: 2, rare: 1, common: 0 } as const;
     let bestIdx = 0;
     let best = -1;
@@ -154,53 +139,25 @@ function greedyRunAction(content: ContentBundle, r: RunState): RunAction {
 
   if (r.phase === "IDLE") {
     const prices = content.balance.SHOP_PRICES;
-    // drill a gameplan in when flush: permanent passive + thinner deck
-    if (
-      r.shop &&
-      r.resources.budget >= prices.drill + 20 &&
-      r.deck.length > content.balance.MIN_DECK_SIZE
-    ) {
-      const drillable = r.deck.find((c) => {
-        const def = content.defs[c.defId]!;
-        return def.kind === "gameplan" && !r.drilled.includes(def.id);
-      });
-      if (drillable) return { type: "DRILL_CARD", uid: drillable.uid };
-    }
-    if (r.shop && r.resources.budget >= prices.train + 10) {
-      const trainable = r.deck
-        .filter((c) => {
-          const def = content.defs[c.defId]!;
-          const maxLevel = Math.min(content.balance.TRAIN_MAX_LEVEL, def.levels.length - 1);
-          return c.level < maxLevel && (levelStats(def, c.level).power ?? 0) >= 8;
-        })
-        .sort(
-          (a, b) =>
-            (levelStats(content.defs[b.defId]!, b.level).power ?? 0) -
-            (levelStats(content.defs[a.defId]!, a.level).power ?? 0),
-        )[0];
-      if (trainable) return { type: "TRAIN_CARD", uid: trainable.uid };
-    }
-    if (r.shop && r.deck.length < 24) {
+    if (r.shop && r.deck.length < 22) {
       const idx = r.shop.cards.findIndex(
-        (slot) =>
-          !slot.sold &&
-          r.resources.budget >= slot.price &&
-          rewardScore(content, slot.defId) >= 20,
+        (slot) => !slot.sold && r.resources.budget >= slot.price && rewardScore(content, slot.defId) >= 18,
       );
       if (idx !== -1) return { type: "BUY_CARD", index: idx };
     }
+    void prices;
     return { type: "START_MATCH" };
   }
 
   throw new Error(`bot has no action for phase ${r.phase}`);
 }
 
-// ---------- the strategies ----------
+// ---------- strategies ----------
 
 export function makeGreedyBot(): Bot {
   return {
     name: "greedy",
-    matchAction: (content, m) => combatAction(content, m, { blockBias: 0.35, pushLead: 2 }),
+    matchAction: (content, m) => diceAction(content, m, { defendBias: 0.6, shootFloor: 4, pushLead: 2 }),
     runAction: greedyRunAction,
   };
 }
@@ -208,7 +165,7 @@ export function makeGreedyBot(): Bot {
 export function makeDefensiveBot(): Bot {
   return {
     name: "defensive",
-    matchAction: (content, m) => combatAction(content, m, { blockBias: 0.15, pushLead: 99 }),
+    matchAction: (content, m) => diceAction(content, m, { defendBias: 0.25, shootFloor: 6, pushLead: 99 }),
     runAction: greedyRunAction,
   };
 }
@@ -216,7 +173,7 @@ export function makeDefensiveBot(): Bot {
 export function makePushLuckyBot(): Bot {
   return {
     name: "pushlucky",
-    matchAction: (content, m) => combatAction(content, m, { blockBias: 0.35, pushLead: 1 }),
+    matchAction: (content, m) => diceAction(content, m, { defendBias: 0.7, shootFloor: 2, pushLead: 1 }),
     runAction: greedyRunAction,
   };
 }
@@ -228,16 +185,15 @@ export function makeRandomBot(): Bot {
       if (m.phase === "PUSH_DECISION") {
         return (m.playerGoals + m.round) % 2 === 0 ? { type: "EXTRA_TIME" } : { type: "TAKE_WIN" };
       }
-      const affordable = m.hand.filter(
-        (c) =>
-          cost(content, c) <= m.stamina &&
-          !(content.defs[c.defId]!.kind === "gameplan" && !isFreshGameplan(content, m, c)),
-      );
-      if (affordable.length === 0 || (m.round + m.hand.length) % 4 === 0) {
-        return { type: "END_ROUND" };
+      const playable = [...playableCards(content.defs, m)];
+      if (m.zone >= m.bal.DICE.BOX_ZONE && m.shotQuality > 0 && (m.round + playable.length) % 3 === 0) {
+        return { type: "SHOOT" };
       }
-      const pick = affordable[(m.round * 7 + m.hand.length) % affordable.length]!;
-      return { type: "PLAY_CARD", uid: pick.uid };
+      if (playable.length === 0) return { type: "END_ROUND" };
+      const uid = playable[(m.round * 5 + playable.length) % playable.length]!;
+      const idx = bestDieFor(content.defs, m, uid);
+      if (idx < 0) return { type: "END_ROUND" };
+      return { type: "ASSIGN_DIE", uid, dieIndex: idx };
     },
     runAction: (_content, r) => {
       if (r.phase === "STAFF" && r.pendingStaff) {

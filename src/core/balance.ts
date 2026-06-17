@@ -59,6 +59,22 @@ export interface BalanceConfig {
   MIN_DECK_SIZE: number; // releases can't shrink the deck below this
   MIN_MATCH_DECK: number; // if fatigue would leave fewer cards, fatigued ones play anyway
   STAGE_CLOCK_MULT: Record<Stage, number>; // difficulty ramp on opponent ratings
+
+  // ---- dice mode (Dicey-Dungeons match loop) ----
+  DICE: {
+    POOL_SIZE: number; // dice rolled per round
+    DIE_FACES: number; // d6
+    HAND_SIZE: number;
+    ZONES: number; // pitch zones: Build-up(0) -> Midfield -> Final Third -> Box(ZONES-1)
+    PROGRESS_PER_ZONE: number; // progress needed to advance one zone
+    BOX_ZONE: number; // zone index you can shoot from
+    KEEPER_DC_BASE: number; // base goal-roll target
+    KEEPER_DC_PER_RATING: number; // + attackRating * this
+    SHOT_DIE: number; // d20 goal roll
+    OPP_GOAL_THRESHOLD: number; // opponent points per goal
+    THREAT_SCALE: number; // intent points are scaled down for the gentler dice meter
+    SIT_DEEP_DC_BONUS: number; // their "sit deep" raises the keeper DC
+  };
 }
 
 export const DEFAULT_BALANCE: BalanceConfig = {
@@ -118,12 +134,29 @@ export const DEFAULT_BALANCE: BalanceConfig = {
   MIN_MATCH_DECK: 10,
   // The player now snowballs (staff hires + gameplans), so the ramp climbs
   // steeply after the group stage to keep knockouts honest.
+  // Gentler than combat mode: in dice mode this ramp drives both the keeper DC
+  // and the opponent's threat, so it compounds. Tuned for ~15-25% greedy wins.
   STAGE_CLOCK_MULT: {
-    GROUP: 1.2,
-    R32: 1.65,
-    R16: 1.9,
-    QF: 2.1,
-    SF: 2.3,
-    FINAL: 2.6,
+    GROUP: 1.1,
+    R32: 1.4,
+    R16: 1.6,
+    QF: 1.85,
+    SF: 2.05,
+    FINAL: 2.3,
+  },
+
+  DICE: {
+    POOL_SIZE: 5,
+    DIE_FACES: 6,
+    HAND_SIZE: 5,
+    ZONES: 4,
+    PROGRESS_PER_ZONE: 4,
+    BOX_ZONE: 3,
+    KEEPER_DC_BASE: 9,
+    KEEPER_DC_PER_RATING: 0.14,
+    SHOT_DIE: 20,
+    OPP_GOAL_THRESHOLD: 26,
+    THREAT_SCALE: 0.3,
+    SIT_DEEP_DC_BONUS: 4,
   },
 };

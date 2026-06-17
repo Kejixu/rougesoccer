@@ -1,5 +1,4 @@
 import { useState } from "react";
-import { NATION_KITS } from "../../data/kits";
 import { PLAYABLE_TEAM_IDS, TEAM_MAP } from "../../data/teams";
 
 export function TitleScreen({
@@ -31,13 +30,13 @@ export function TitleScreen({
 
       <h2>New campaign</h2>
       <p style={{ color: "var(--ink-dim)", fontSize: 13 }}>
-        Each host nation plays its own game — different starting squad, identity, and
-        signature cards.
+        Dice mode: each round you roll a pool of dice and slot them into cards — low dice
+        defend, mid dice move the ball up the pitch, high dice finish. Reach the box, then
+        shoot.
       </p>
       <div style={{ display: "flex", gap: 12, flexWrap: "wrap" }}>
         {PLAYABLE_TEAM_IDS.map((id) => {
           const t = TEAM_MAP[id]!;
-          const kit = NATION_KITS[id];
           return (
             <button
               type="button"
@@ -48,13 +47,6 @@ export function TitleScreen({
               onClick={() => setTeamId(id)}
             >
               <div className="kit-nation">{t.name}</div>
-              {kit && (
-                <>
-                  <div className="kit-identity">“{kit.identity}”</div>
-                  <div className="kit-blurb">{kit.blurb}</div>
-                  <div className="kit-passive">★ {kit.passiveText}</div>
-                </>
-              )}
               <div className="kit-coach">coach {t.coach}</div>
             </button>
           );

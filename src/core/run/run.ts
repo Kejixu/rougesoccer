@@ -3,12 +3,12 @@
 // reward picks and the shop. Same reducer pattern as the match engine.
 
 import { seedRng, nextFloat } from "../rng";
-import { applyMatchAction, createMatch } from "../match/engine";
+import { applyDiceAction, createDiceMatch } from "../match/dice";
 import {
   STAGE_ORDER,
   type ContentBundle,
+  type DiceMatchState,
   type GameEvent,
-  type MatchState,
   type OppInfo,
   type RunAction,
   type RunState,
@@ -159,7 +159,7 @@ function startMatch(draft: RunState, content: ContentBundle): GameEvent[] {
 
   const opp = buildOpp(content, draft, draft.nextOppId);
   const style = content.styles[team(content, draft.nextOppId).style];
-  const step = createMatch(content.defs, {
+  const step = createDiceMatch(content.defs, {
     opp,
     styleEffects: style.effects,
     plays: content.plays,
@@ -179,7 +179,7 @@ function startMatch(draft: RunState, content: ContentBundle): GameEvent[] {
 
 // ---------- match resolution ----------
 
-function settleMatch(draft: RunState, content: ContentBundle, match: MatchState): void {
+function settleMatch(draft: RunState, content: ContentBundle, match: DiceMatchState): void {
   const result = match.result;
   if (result === "pending") throw new Error("match is not finished");
 
@@ -322,7 +322,7 @@ export function applyRunAction(
     case "MATCH_ACTION": {
       if (draft.phase !== "MATCH" || !draft.activeMatch)
         throw new Error("no match in progress");
-      const step = applyMatchAction(content.defs, draft.activeMatch, action.action);
+      const step = applyDiceAction(content.defs, draft.activeMatch, action.action);
       draft.activeMatch = step.state;
       events = step.events;
       if (step.state.phase === "DONE") settleMatch(draft, content, step.state);

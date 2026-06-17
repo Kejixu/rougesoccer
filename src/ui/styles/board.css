@@ -590,3 +590,225 @@
   border-color: #5a8a64;
   color: #9fd4ab;
 }
+
+/* ============ DICE MODE ============ */
+
+.pitch-track {
+  display: flex;
+  gap: 6px;
+  margin: 10px 0;
+}
+
+.pitch-zone {
+  flex: 1;
+  position: relative;
+  padding: 14px 8px;
+  border-radius: 10px;
+  border: 2px solid var(--line);
+  background: linear-gradient(180deg, #16241a, #102016);
+  text-align: center;
+  color: var(--ink-dim);
+  transition: border-color 0.2s ease, transform 0.2s ease;
+}
+
+.pitch-zone.passed {
+  border-color: #3d8a55;
+  color: #9fd4ab;
+}
+
+.pitch-zone.current {
+  border-color: var(--accent);
+  color: var(--ink);
+  transform: translateY(-3px);
+  box-shadow: 0 4px 18px rgba(120, 200, 140, 0.25);
+}
+
+.pitch-zone.box.current {
+  border-color: #d9b832;
+  box-shadow: 0 4px 18px rgba(217, 184, 50, 0.3);
+}
+
+.pitch-zone-name {
+  display: block;
+  font-size: 13px;
+  font-weight: 600;
+}
+
+.pitch-progress {
+  display: block;
+  font-size: 12px;
+  margin-top: 4px;
+  color: var(--accent-2);
+}
+
+.dice-stat-row {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin: 6px 0;
+}
+
+.shotq-badge {
+  font-size: 14px;
+  font-weight: 700;
+  padding: 4px 12px;
+  border-radius: 999px;
+  background: rgba(217, 184, 50, 0.15);
+  border: 1px solid #d9b832;
+  color: #e7c95a;
+}
+
+.cover-badge {
+  font-size: 13px;
+  padding: 4px 12px;
+  border-radius: 999px;
+  background: rgba(84, 112, 199, 0.18);
+  border: 1px solid #5470c7;
+  color: #9fb2e8;
+}
+
+.dice-tray {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  flex-wrap: wrap;
+  padding: 12px;
+  border-radius: 12px;
+  background: var(--surface);
+  border: 1px solid var(--line);
+  margin: 8px 0;
+}
+
+.dice-label {
+  font-size: 12px;
+  letter-spacing: 0.1em;
+  color: var(--ink-dim);
+}
+
+.die {
+  width: 52px;
+  height: 52px;
+  border-radius: 12px;
+  border: 2px solid #cdd4ce;
+  background: linear-gradient(160deg, #f6f3ea, #d9d3c4);
+  color: #1c2520;
+  cursor: pointer;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  font: inherit;
+  transition: transform 0.1s ease, box-shadow 0.1s ease;
+  animation: die-in 0.25s ease;
+}
+
+@keyframes die-in {
+  0% { transform: scale(0.4) rotate(-25deg); opacity: 0; }
+  100% { transform: scale(1) rotate(0deg); opacity: 1; }
+}
+
+.die:hover:not(:disabled) {
+  transform: translateY(-3px);
+}
+
+.die.selected {
+  border-color: var(--accent);
+  box-shadow: 0 0 0 3px rgba(120, 200, 140, 0.5);
+  transform: translateY(-4px);
+}
+
+.die.used {
+  opacity: 0.25;
+  cursor: default;
+  filter: grayscale(0.8);
+}
+
+.die-pip {
+  font-size: 24px;
+  line-height: 1;
+}
+
+.die-num {
+  font-size: 11px;
+  font-weight: 700;
+  margin-top: 1px;
+}
+
+.dice-hint {
+  margin-left: auto;
+  font-size: 12px;
+  color: var(--ink-dim);
+}
+
+.dice-hand {
+  display: flex;
+  gap: 10px;
+  flex-wrap: wrap;
+  margin: 10px 0;
+}
+
+.dice-card {
+  width: 150px;
+  min-height: 120px;
+  text-align: left;
+  padding: 10px 12px;
+  border-radius: 12px;
+  border: 2px solid var(--line);
+  background: var(--surface);
+  color: var(--ink);
+  cursor: pointer;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  font: inherit;
+  position: relative;
+  transition: transform 0.12s ease, border-color 0.12s ease;
+}
+
+.dice-card:hover:not(:disabled) {
+  transform: translateY(-4px);
+}
+
+.dice-card.unplayable {
+  opacity: 0.4;
+  cursor: default;
+}
+
+.dice-card.role-defend {
+  border-left: 4px solid #5470c7;
+}
+.dice-card.role-progress {
+  border-left: 4px solid #54a06b;
+}
+.dice-card.role-finish {
+  border-left: 4px solid #c75450;
+}
+
+.dice-card-slot {
+  position: absolute;
+  top: -10px;
+  right: -10px;
+  min-width: 26px;
+  height: 26px;
+  padding: 0 6px;
+  border-radius: 999px;
+  background: #1c2520;
+  border: 2px solid #cdd4ce;
+  color: #f6f3ea;
+  font-size: 12px;
+  font-weight: 700;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.dice-card-name {
+  font-weight: 700;
+  font-size: 14px;
+}
+
+.dice-card-text {
+  font-size: 12px;
+  line-height: 1.35;
+  color: var(--ink-dim);
+}

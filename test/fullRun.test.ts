@@ -25,7 +25,7 @@ describe("full campaign", () => {
     const state = playRun("fullrun-1");
     expect(state.phase).toBe("DONE");
     expect(["won", "eliminated"]).toContain(state.result);
-    expect(state.deck.length).toBeGreaterThanOrEqual(16);
+    expect(state.deck.length).toBeGreaterThanOrEqual(14);
     expect(state.resources.budget).toBeGreaterThanOrEqual(0);
     expect(state.resources.scout).toBeGreaterThanOrEqual(0);
     // every opponent faced exactly once
