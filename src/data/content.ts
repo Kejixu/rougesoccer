@@ -5,7 +5,7 @@
 // Slay-the-Spire combat bundle is still available as makeCombatContent() so the
 // combat engine's own tests keep a content source.
 
-import type { ContentBundle, StaffDef } from "../core/types";
+import type { ContentBundle, NationDiceKit, StaffDef } from "../core/types";
 import type { BalanceConfig } from "../core/balance";
 import { ACTIVE_BALANCE } from "./balance";
 import { CARD_DEFS, CARD_DEF_MAP, STARTING_DECK_TEMPLATE } from "./cards";
@@ -34,6 +34,41 @@ const DICE_PASSIVE_KINDS = new Set([
 ]);
 const DICE_STAFF: StaffDef[] = STAFF_DEFS.filter((s) => DICE_PASSIVE_KINDS.has(s.passive.kind));
 
+// Nation identities — the variety hook. Each bends a dice rule. Brazil is the
+// showcase (interactive reroll); the others differ at setup time.
+export const NATION_DICE_KITS: Record<string, NationDiceKit> = {
+  bra: {
+    identity: "Joga Bonito",
+    blurb: "Flair over volume: one fewer die, but reroll one die every round to make it count.",
+    mutators: [
+      { kind: "rerollDie", perRound: 1 },
+      { kind: "poolDelta", amount: -1 },
+      { kind: "keeperDcDelta", amount: 3 },
+    ],
+  },
+  mex: {
+    identity: "La Ola",
+    blurb: "An extra die every round. Win on sheer volume — the keeper braces for it.",
+    mutators: [
+      { kind: "poolDelta", amount: 1 },
+      { kind: "keeperDcDelta", amount: 2 },
+    ],
+  },
+  usa: {
+    identity: "The Press",
+    blurb: "Fully smother their attack and the turnover springs you forward next round.",
+    mutators: [{ kind: "turnoverProgress", amount: 4 }],
+  },
+  can: {
+    identity: "Resolute",
+    blurb: "Start every round with Cover. Soak the pressure and grind out low-scoring wins.",
+    mutators: [
+      { kind: "coverPerRound", amount: 2 },
+      { kind: "keeperDcDelta", amount: 1 },
+    ],
+  },
+};
+
 export function makeContent(balance: BalanceConfig = ACTIVE_BALANCE): ContentBundle {
   return {
     defs: DICE_CARD_MAP,
@@ -46,6 +81,7 @@ export function makeContent(balance: BalanceConfig = ACTIVE_BALANCE): ContentBun
     // dice mode uses one shared starting deck; nation identity comes later
     nationStars: undefined,
     nationKits: undefined,
+    nationDiceKits: NATION_DICE_KITS,
     balance,
   };
 }

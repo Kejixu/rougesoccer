@@ -62,6 +62,19 @@ function diceAction(
     return { type: "TAKE_WIN" };
   }
 
+  // Brazil: spend rerolls on the worst dead dice (a 1, or a 2 with no low-die card to use it)
+  if (m.rerollDieLeft > 0) {
+    const wantsLowDie = m.hand.some((c) => {
+      const slot = content.defs[c.defId]!.slot;
+      return slot?.kind === "max";
+    });
+    const worst = m.dice
+      .map((d, i) => ({ d, i }))
+      .filter((x) => !x.d.used && (x.d.value === 1 || (x.d.value === 2 && !wantsLowDie)))
+      .sort((a, b) => a.d.value - b.d.value)[0];
+    if (worst) return { type: "REROLL_DIE", dieIndex: worst.i };
+  }
+
   const playable = playableCards(content.defs, m);
   const inBox = m.zone >= m.bal.DICE.BOX_ZONE;
   const threat = incomingThreat(m);

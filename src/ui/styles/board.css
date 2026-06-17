@@ -812,3 +812,11 @@
   line-height: 1.35;
   color: var(--ink-dim);
 }
+
+.reroll-btn {
+  padding: 6px 12px;
+  font-size: 13px;
+  border-color: #3aa0a8;
+  color: #7fd4da;
+}
+.reroll-btn:disabled { opacity: 0.4; }

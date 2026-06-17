@@ -176,8 +176,26 @@ export function DiceMatchScreen({
                 <span className="die-num">{d.value}</span>
               </button>
             ))}
+            {m.rerollDieLeft > 0 && (
+              <button
+                type="button"
+                className="btn reroll-btn"
+                data-testid="reroll-die"
+                disabled={selectedDie === null || m.dice[selectedDie]?.used}
+                title="Joga Bonito: reroll the selected die"
+                onClick={() => {
+                  if (selectedDie !== null) act({ type: "REROLL_DIE", dieIndex: selectedDie });
+                }}
+              >
+                🎲 Reroll ({m.rerollDieLeft})
+              </button>
+            )}
             <span className="dice-hint">
-              {selectedDie !== null ? `die ${selVal} selected — click a card` : "click a die, then a card (or just click a card)"}
+              {m.rerollDieLeft > 0 && selectedDie === null
+                ? "select a die to reroll it, or click a card to play"
+                : selectedDie !== null
+                  ? `die ${selVal} selected — reroll it or click a card`
+                  : "click a die, then a card (or just click a card)"}
             </span>
           </div>
 

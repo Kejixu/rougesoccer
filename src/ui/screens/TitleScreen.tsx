@@ -1,4 +1,5 @@
 import { useState } from "react";
+import { NATION_DICE_KITS } from "../../data/content";
 import { PLAYABLE_TEAM_IDS, TEAM_MAP } from "../../data/teams";
 
 export function TitleScreen({
@@ -37,6 +38,7 @@ export function TitleScreen({
       <div style={{ display: "flex", gap: 12, flexWrap: "wrap" }}>
         {PLAYABLE_TEAM_IDS.map((id) => {
           const t = TEAM_MAP[id]!;
+          const kit = NATION_DICE_KITS[id];
           return (
             <button
               type="button"
@@ -47,6 +49,12 @@ export function TitleScreen({
               onClick={() => setTeamId(id)}
             >
               <div className="kit-nation">{t.name}</div>
+              {kit && (
+                <>
+                  <div className="kit-identity">“{kit.identity}”</div>
+                  <div className="kit-blurb">{kit.blurb}</div>
+                </>
+              )}
               <div className="kit-coach">coach {t.coach}</div>
             </button>
           );

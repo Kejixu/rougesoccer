@@ -20,6 +20,7 @@ import {
   type DiceMatchState,
   type DiceMatchStep,
   type DiceMatchAction,
+  type DiceMutator,
   type GameEvent,
   type MatchPhase,
   type MatchState,
@@ -74,6 +75,17 @@ function passiveSum(draft: DiceMatchState, kind: PassiveEffect["kind"]): number 
   return total;
 }
 
+function mutatorSum(mutators: DiceMutator[], kind: DiceMutator["kind"]): number {
+  let total = 0;
+  for (const m of mutators) {
+    if (m.kind === kind) {
+      if (m.kind === "rerollDie") total += m.perRound;
+      else total += m.amount;
+    }
+  }
+  return total;
+}
+
 // ---------- scoring helpers ----------
 
 function addOppPoints(draft: DiceMatchState, points: number): void {
@@ -108,13 +120,26 @@ function startRound(draft: DiceMatchState, events: GameEvent[]): void {
   draft.round += 1;
 
   const bonusDice =
-    passiveSum(draft, "roundStamina") + (draft.mode === "suddendeath" ? -1 : 0);
+    passiveSum(draft, "roundStamina") +
+    mutatorSum(draft.mutators, "poolDelta") +
+    (draft.mode === "suddendeath" ? -1 : 0);
   const poolSize = Math.max(2, draft.bal.DICE.POOL_SIZE + bonusDice - draft.diePenalty);
   draft.diePenalty = 0;
   draft.dice = Array.from({ length: poolSize }, () => ({ value: rollDie(draft), used: false }));
 
-  draft.cover = passiveSum(draft, "blockPerRound"); // a defensive nation/staff starts covered
+  // per-round mutator budgets (Brazil reroll)
+  draft.rerollDieLeft = mutatorSum(draft.mutators, "rerollDie");
+
+  draft.cover =
+    passiveSum(draft, "blockPerRound") + mutatorSum(draft.mutators, "coverPerRound");
   draft.coverGainedThisRound = draft.cover > 0;
+
+  // USA turnover: a fully-defended round pays Progress now
+  if (draft.turnoverPending) {
+    const gain = mutatorSum(draft.mutators, "turnoverProgress");
+    draft.turnoverPending = false;
+    if (gain > 0) gainProgress(draft, gain, events);
+  }
 
   const handSize = Math.max(
     2,
@@ -176,6 +201,8 @@ function resolveIntent(draft: DiceMatchState, events: GameEvent[]): void {
   const blocked = Math.min(draft.cover, raw);
   const through = raw - blocked;
   if (through > 0) addOppPoints(draft, through);
+  // USA turnover: stuffed a real attack with Cover -> counter next round
+  if (raw > 0 && through === 0 && draft.cover > 0) draft.turnoverPending = true;
   events.push({ type: "INTENT_EXECUTED", intent, blocked, points: through, oppGoals: draft.oppGoals });
   draft.intent = null;
 }
@@ -328,10 +355,14 @@ function shoot(draft: DiceMatchState, events: GameEvent[]): void {
 
 export function createDiceMatch(defs: CardDefMap, cfg: DiceMatchConfig): DiceMatchStep {
   void defs;
-  const dc = Math.min(
-    18,
-    cfg.balance.DICE.KEEPER_DC_BASE + Math.round(cfg.opp.attackRating * cfg.balance.DICE.KEEPER_DC_PER_RATING),
-  );
+  const mutators = cfg.mutators ?? [];
+  const dcDelta = mutatorSum(mutators, "keeperDcDelta");
+  const dc =
+    Math.min(
+      18,
+      cfg.balance.DICE.KEEPER_DC_BASE +
+        Math.round(cfg.opp.attackRating * cfg.balance.DICE.KEEPER_DC_PER_RATING),
+    ) + dcDelta;
   const state: DiceMatchState = {
     phase: "ROUND_ACTIVE",
     mode: "regulation",
@@ -353,6 +384,9 @@ export function createDiceMatch(defs: CardDefMap, cfg: DiceMatchConfig): DiceMat
     diePenalty: 0,
     handPenalty: 0,
     coverGainedThisRound: false,
+    mutators,
+    rerollDieLeft: 0,
+    turnoverPending: false,
     hand: [],
     drawPile: cfg.deck.map((c) => ({ ...c })),
     discardPile: [],
@@ -384,6 +418,18 @@ export function applyDiceAction(
       assertPhase(draft, "ROUND_ACTIVE");
       assignDie(defs, draft, action.uid, action.dieIndex, events);
       break;
+    case "REROLL_DIE": {
+      assertPhase(draft, "ROUND_ACTIVE");
+      if (draft.rerollDieLeft <= 0) throw new Error("no rerolls left this round");
+      const die = draft.dice[action.dieIndex];
+      if (!die) throw new Error(`no die at index ${action.dieIndex}`);
+      if (die.used) throw new Error("that die is already used");
+      const from = die.value;
+      die.value = rollDie(draft);
+      draft.rerollDieLeft -= 1;
+      events.push({ type: "DIE_REROLLED", dieIndex: action.dieIndex, from, to: die.value });
+      break;
+    }
     case "SHOOT":
       assertPhase(draft, "ROUND_ACTIVE");
       shoot(draft, events);

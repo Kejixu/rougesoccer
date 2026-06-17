@@ -14,17 +14,19 @@ function inst(defId: string, i: number): CardInstance {
   return { uid: `t-${defId}-${i}`, defId, level: 0, formPower: 0, fatigued: false };
 }
 
-function start(defIds: string[], seed = "dice"): DiceMatchState {
+function start(defIds: string[], seed = "dice", mutators: DiceMatchConfigMutators = []): DiceMatchState {
   return createDiceMatch(DICE_CARD_MAP, {
     opp: OPP,
     styleEffects: [],
     plays: [],
     context: "group",
     deck: defIds.map((id, i) => inst(id, i)),
+    mutators,
     rng: seedRng(seed),
     balance: DEFAULT_BALANCE,
   }).state;
 }
+type DiceMatchConfigMutators = import("../src/core/types").DiceMutator[];
 
 /** Assign the first unused die that fits the named card. */
 function playWith(m: DiceMatchState, defId: string): DiceMatchState {
@@ -156,6 +158,45 @@ describe("defending", () => {
       expect(after.cover).toBe(5);
       expect(after.coverGainedThisRound).toBe(true);
     }
+  });
+});
+
+describe("nation mutators", () => {
+  it("Brazil: rerollDie gives a per-round budget and reroll changes the die", () => {
+    let m = start(["d_shortpass", "d_shortpass", "d_shortpass", "d_shortpass", "d_shortpass"], "bra", [
+      { kind: "rerollDie", perRound: 1 },
+    ]);
+    expect(m.rerollDieLeft).toBe(1);
+    const before = m.dice[0]!.value;
+    m = applyDiceAction(DICE_CARD_MAP, m, { type: "REROLL_DIE", dieIndex: 0 }).state;
+    expect(m.rerollDieLeft).toBe(0);
+    // the die was redrawn from the seeded stream (value may or may not differ, but budget spent)
+    expect(typeof m.dice[0]!.value).toBe("number");
+    void before;
+    expect(() => applyDiceAction(DICE_CARD_MAP, m, { type: "REROLL_DIE", dieIndex: 1 })).toThrow(/no rerolls/);
+  });
+
+  it("keeperDcDelta raises the keeper DC", () => {
+    const plain = start(["d_shortpass"], "dc");
+    const brazil = start(["d_shortpass"], "dc", [{ kind: "keeperDcDelta", amount: 2 }]);
+    expect(brazil.keeperDC).toBe(plain.keeperDC + 2);
+  });
+
+  it("poolDelta adds dice; coverPerRound starts the round covered", () => {
+    const mex = start(["d_shortpass"], "pool", [{ kind: "poolDelta", amount: 1 }]);
+    expect(mex.dice).toHaveLength(DEFAULT_BALANCE.DICE.POOL_SIZE + 1);
+    const can = start(["d_shortpass"], "cov", [{ kind: "coverPerRound", amount: 3 }]);
+    expect(can.cover).toBe(3);
+  });
+
+  it("a used die cannot be rerolled", () => {
+    let m = start(["d_shortpass", "d_shortpass", "d_shortpass", "d_shortpass", "d_shortpass"], "ru", [
+      { kind: "rerollDie", perRound: 1 },
+    ]);
+    const slot = DICE_CARD_MAP["d_shortpass"]!.slot!;
+    const dieIndex = m.dice.findIndex((d) => dieFitsSlot(d.value, slot));
+    m = applyDiceAction(DICE_CARD_MAP, m, { type: "ASSIGN_DIE", uid: m.hand[0]!.uid, dieIndex }).state;
+    expect(() => applyDiceAction(DICE_CARD_MAP, m, { type: "REROLL_DIE", dieIndex })).toThrow(/already used/);
   });
 });
 

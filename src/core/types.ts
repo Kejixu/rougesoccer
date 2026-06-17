@@ -138,6 +138,25 @@ export function dieFitsSlot(value: number, slot: DieSlot): boolean {
   }
 }
 
+// ---------- nation dice mutators (the variety hook) ----------
+// Each playable nation bends a dice rule. Setup-time mutators (poolDelta,
+// keeperDcDelta, coverPerRound) apply once; rerollDie grants a per-round action;
+// turnoverProgress rewards fully defending a round. More kinds (rerollPool,
+// nudgeDie) land with Korea/Argentina later.
+
+export type DiceMutator =
+  | { kind: "rerollDie"; perRound: number } // Brazil: opt-in single-die reroll
+  | { kind: "keeperDcDelta"; amount: number } // Brazil/Mexico: harder keeper
+  | { kind: "poolDelta"; amount: number } // Mexico +1 die / Italy -1
+  | { kind: "coverPerRound"; amount: number } // defensive nations start covered
+  | { kind: "turnoverProgress"; amount: number }; // USA: fully defend -> Progress next round
+
+export interface NationDiceKit {
+  identity: string; // "Joga Bonito"
+  blurb: string; // shown on the title screen
+  mutators: DiceMutator[];
+}
+
 /** Human-readable slot requirement, shown on the card. */
 export function slotLabel(slot: DieSlot): string {
   switch (slot.kind) {
@@ -332,6 +351,7 @@ export type GameEvent =
   // ---- dice mode ----
   | { type: "DICE_ROLLED"; dice: number[] }
   | { type: "DIE_ASSIGNED"; uid: string; die: number }
+  | { type: "DIE_REROLLED"; dieIndex: number; from: number; to: number }
   | { type: "PROGRESS_GAINED"; amount: number; progress: number; zone: number }
   | { type: "ZONE_ADVANCED"; zone: number }
   | { type: "COVER_GAINED_D"; amount: number; total: number }
@@ -383,6 +403,9 @@ export interface DiceMatchState {
   diePenalty: number;
   handPenalty: number;
   coverGainedThisRound: boolean;
+  mutators: DiceMutator[]; // the nation's identity, active all match
+  rerollDieLeft: number; // per-round budget (Brazil)
+  turnoverPending: boolean; // last round fully defended -> Progress this round (USA)
   hand: CardInstance[];
   drawPile: CardInstance[];
   discardPile: CardInstance[];
@@ -397,6 +420,7 @@ export interface DiceMatchState {
 
 export type DiceMatchAction =
   | { type: "ASSIGN_DIE"; uid: string; dieIndex: number }
+  | { type: "REROLL_DIE"; dieIndex: number } // Brazil: opt-in single-die reroll
   | { type: "SHOOT" }
   | { type: "END_ROUND" }
   | { type: "EXTRA_TIME" }
@@ -414,6 +438,7 @@ export interface DiceMatchConfig {
   context: MatchContext;
   deck: CardInstance[];
   passives?: PassiveEffect[];
+  mutators?: DiceMutator[]; // nation identity
   rng: RngState;
   balance: BalanceConfig;
 }
@@ -548,6 +573,7 @@ export interface ContentBundle {
   plays: PlayDef[];
   startingDeck: { defId: string; level: 0 | 1 | 2 }[]; // fallback when a nation has no kit
   nationStars?: Record<string, string>; // playable teamId -> star card defId
-  nationKits?: Record<string, NationKit>; // playable teamId -> class kit
+  nationKits?: Record<string, NationKit>; // playable teamId -> class kit (combat mode)
+  nationDiceKits?: Record<string, NationDiceKit>; // playable teamId -> dice identity
   balance: BalanceConfig;
 }

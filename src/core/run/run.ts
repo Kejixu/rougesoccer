@@ -16,7 +16,7 @@ import {
   type Stage,
   type TeamDef,
 } from "../types";
-import { emptyRow, playerGroupRank, recordResult, simulateOtherFixture } from "./group";
+import { emptyRow, playerGroupRank, recordResult, simulateGroupDecider } from "./group";
 import { drawKnockoutOpponent } from "./bracket";
 import { rollRewardOffer } from "./rewards";
 import { buyCard, drillCard, generateShop, releaseCard, rerollShop, trainCard } from "./shop";
@@ -41,7 +41,8 @@ function nextStage(stage: Stage): Stage | null {
 
 // ---------- run creation ----------
 
-/** Pick 3 group opponents around the player's tier: one seed, one mid, one minnow. */
+/** Pick 2 group opponents around the player's tier: one seed, one mid.
+ * (3-team mini-group: the player plays both, keeping runs short.) */
 function pickGroupOpponents(draft: RunState, content: ContentBundle): string[] {
   const pool = content.teams.filter((t) => t.id !== draft.playerTeamId);
   const byTierBand = (tiers: number[]): TeamDef[] =>
@@ -49,7 +50,6 @@ function pickGroupOpponents(draft: RunState, content: ContentBundle): string[] {
   const bands: number[][] = [
     [1, 2], // a seed
     [2, 3], // a mid
-    [3, 4], // a minnow
   ];
   const picked: string[] = [];
   for (const band of bands) {
@@ -166,6 +166,7 @@ function startMatch(draft: RunState, content: ContentBundle): GameEvent[] {
     context: draft.stage === "GROUP" ? "group" : "knockout",
     deck: matchDeck.map((c) => ({ ...c, formPower: 0 })),
     passives: runPassives(content, draft),
+    mutators: content.nationDiceKits?.[draft.playerTeamId]?.mutators ?? [],
     rng: draft.rng,
     balance: content.balance,
   });
@@ -221,7 +222,6 @@ function settleMatch(draft: RunState, content: ContentBundle, match: DiceMatchSt
   if (draft.stage === "GROUP") {
     recordResult(draft.groupTable, draft.playerTeamId, match.playerGoals, match.oppGoals);
     recordResult(draft.groupTable, oppId, match.oppGoals, match.playerGoals);
-    simulateOtherFixture(draft, content.teams, draft.matchIndexInStage + 1);
     draft.matchIndexInStage += 1;
 
     if (result === "win") draft.resources.budget += rewards.groupWin;
@@ -231,8 +231,10 @@ function settleMatch(draft: RunState, content: ContentBundle, match: DiceMatchSt
     // beating a flair side pays a scouting bonus
     if (result === "win" && match.opp.style === "flair") draft.resources.scout += 1;
 
-    const groupDone = draft.matchIndexInStage >= 3;
+    const groupDone = draft.matchIndexInStage >= 2;
     if (groupDone) {
+      // the two AI opponents settle their head-to-head before the table is read
+      simulateGroupDecider(draft, content.teams);
       const rank = playerGroupRank(draft);
       if (rank <= 2) {
         draft.stage = "R32";
