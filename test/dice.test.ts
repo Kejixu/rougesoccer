@@ -66,24 +66,21 @@ describe("dice roll", () => {
 
   it("starts at midfield with no shot quality", () => {
     const m = start(["d_shortpass"]);
-    expect(m.zone).toBe(1);
+    expect(m.ball).toBe(DEFAULT_BALANCE.DICE.MIDFIELD);
+    expect(m.possession).toBe("you");
     expect(m.shotQuality).toBe(0);
   });
 });
 
 describe("slotting dice", () => {
-  it("Short Pass gains progress equal to the die's value and consumes it", () => {
+  it("Short Pass pushes the ball by the die's value and consumes the die", () => {
     let m = start(["d_shortpass", "d_shortpass", "d_shortpass", "d_shortpass", "d_shortpass"]);
     const die = m.dice.find((d) => !d.used)!;
-    const startProgress = m.progress;
-    const startZone = m.zone;
+    const before = m.ball;
     m = playWith(m, "d_shortpass");
     const used = m.dice.filter((d) => d.used).length;
     expect(used).toBe(1);
-    // progress advanced by the die value (modulo zone rollover)
-    const gained =
-      (m.zone - startZone) * DEFAULT_BALANCE.DICE.PROGRESS_PER_ZONE + (m.progress - startProgress);
-    expect(gained).toBe(die.value);
+    expect(m.ball).toBe(before + die.value);
   });
 
   it("a die that doesn't fit the slot is rejected", () => {
@@ -100,9 +97,35 @@ describe("slotting dice", () => {
   it("playableCards reflects which cards have a fitting die", () => {
     const m = start(["d_tackle", "d_finish", "d_shortpass", "d_clearance", "d_poacher"]);
     const playable = playableCards(DICE_CARD_MAP, m);
-    // Short Pass takes any die, so it is always playable while dice remain
+    // Short Pass needs a 2+; it's playable iff some unused die is 2 or more AND we have possession
     const sp = m.hand.find((c) => c.defId === "d_shortpass")!;
-    expect(playable.has(sp.uid)).toBe(true);
+    const hasMid = m.dice.some((d) => !d.used && d.value >= 2);
+    // We start with possession="you", shortpass is an attack card, so roleOk = true
+    expect(playable.has(sp.uid)).toBe(hasMid);
+  });
+});
+
+describe("tug-of-war", () => {
+  it("starts at midfield in your possession", () => {
+    const m = start(["d_shortpass"]);
+    expect(m.ball).toBe(DEFAULT_BALANCE.DICE.MIDFIELD);
+    expect(m.possession).toBe("you");
+    expect(m.shotQuality).toBe(0);
+  });
+
+  it("a progress play pushes the ball toward their goal", () => {
+    let m = start(Array.from({ length: 6 }, () => "d_shortpass"), "adv");
+    const before = m.ball;
+    const die = m.dice.find((d) => !d.used && d.value >= 2)!;
+    const idx = m.dice.indexOf(die);
+    m = applyDiceAction(DICE_CARD_MAP, m, { type: "ASSIGN_DIE", uid: m.hand.find((c) => c.defId === "d_shortpass")!.uid, dieIndex: idx }).state;
+    expect(m.ball).toBe(before + die.value);
+  });
+
+  it("you cannot shoot until the ball reaches their box", () => {
+    const m = start(["d_finish"]);
+    expect(m.ball).toBeLessThan(DEFAULT_BALANCE.DICE.THEIR_BOX);
+    expect(() => applyDiceAction(DICE_CARD_MAP, m, { type: "SHOOT" })).toThrow();
   });
 });
 
@@ -113,13 +136,16 @@ describe("advancing and shooting", () => {
     // burn rounds slotting every fitting die until we reach the box at least once
     let reachedBox = false;
     for (let guard = 0; guard < 40 && m.phase === "ROUND_ACTIVE"; guard++) {
-      if (m.zone >= DEFAULT_BALANCE.DICE.BOX_ZONE) {
+      if (m.ball >= DEFAULT_BALANCE.DICE.THEIR_BOX && m.possession === "you") {
         reachedBox = true;
         break;
       }
       const card = m.hand.find((c) => {
-        const slot = DICE_CARD_MAP[c.defId]!.slot!;
-        return m.dice.some((d) => !d.used && dieFitsSlot(d.value, slot));
+        const def = DICE_CARD_MAP[c.defId];
+        if (!def?.slot) return false;
+        // only play attack cards when we have possession
+        const slot = def.slot;
+        return m.possession === "you" && m.dice.some((d) => !d.used && dieFitsSlot(d.value, slot));
       });
       if (card) m = playWith(m, card.defId);
       else m = applyDiceAction(DICE_CARD_MAP, m, { type: "END_ROUND" }).state;
@@ -130,33 +156,18 @@ describe("advancing and shooting", () => {
   it("a shot with no quality is rejected", () => {
     let m = start(Array.from({ length: 12 }, () => "d_shortpass"), "noq");
     // advance to box without any shot quality
-    for (let guard = 0; guard < 40 && m.phase === "ROUND_ACTIVE" && m.zone < DEFAULT_BALANCE.DICE.BOX_ZONE; guard++) {
+    for (let guard = 0; guard < 40 && m.phase === "ROUND_ACTIVE" && (m.ball < DEFAULT_BALANCE.DICE.THEIR_BOX || m.possession !== "you"); guard++) {
       const card = m.hand.find((c) => {
-        const slot = DICE_CARD_MAP[c.defId]!.slot!;
-        return m.dice.some((d) => !d.used && dieFitsSlot(d.value, slot));
+        const def = DICE_CARD_MAP[c.defId];
+        if (!def?.slot) return false;
+        const slot = def.slot;
+        return m.possession === "you" && m.dice.some((d) => !d.used && dieFitsSlot(d.value, slot));
       });
       if (card) m = playWith(m, card.defId);
       else m = applyDiceAction(DICE_CARD_MAP, m, { type: "END_ROUND" }).state;
     }
-    if (m.zone >= DEFAULT_BALANCE.DICE.BOX_ZONE) {
+    if (m.ball >= DEFAULT_BALANCE.DICE.THEIR_BOX && m.possession === "you") {
       expect(() => applyDiceAction(DICE_CARD_MAP, m, { type: "SHOOT" })).toThrow(/shot quality/);
-    }
-  });
-});
-
-describe("defending", () => {
-  it("Clearance grants cover that the opponent's attack must get through", () => {
-    const m = start(["d_clearance", "d_clearance", "d_clearance", "d_clearance", "d_clearance"]);
-    const lowDie = m.dice.findIndex((d) => !d.used && d.value <= 3);
-    if (lowDie >= 0) {
-      const card = m.hand[0]!;
-      const after = applyDiceAction(DICE_CARD_MAP, m, {
-        type: "ASSIGN_DIE",
-        uid: card.uid,
-        dieIndex: lowDie,
-      }).state;
-      expect(after.cover).toBe(5);
-      expect(after.coverGainedThisRound).toBe(true);
     }
   });
 });
@@ -182,11 +193,9 @@ describe("nation mutators", () => {
     expect(brazil.keeperDC).toBe(plain.keeperDC + 2);
   });
 
-  it("poolDelta adds dice; coverPerRound starts the round covered", () => {
+  it("poolDelta adds dice", () => {
     const mex = start(["d_shortpass"], "pool", [{ kind: "poolDelta", amount: 1 }]);
     expect(mex.dice).toHaveLength(DEFAULT_BALANCE.DICE.POOL_SIZE + 1);
-    const can = start(["d_shortpass"], "cov", [{ kind: "coverPerRound", amount: 3 }]);
-    expect(can.cover).toBe(3);
   });
 
   it("a used die cannot be rerolled", () => {
@@ -208,13 +217,15 @@ describe("match terminates", () => {
         m = applyDiceAction(DICE_CARD_MAP, m, { type: "TAKE_WIN" }).state;
         continue;
       }
-      if (m.zone >= DEFAULT_BALANCE.DICE.BOX_ZONE && m.shotQuality > 0) {
+      if (m.ball >= DEFAULT_BALANCE.DICE.THEIR_BOX && m.possession === "you" && m.shotQuality > 0) {
         m = applyDiceAction(DICE_CARD_MAP, m, { type: "SHOOT" }).state;
         continue;
       }
       const card = m.hand.find((c) => {
-        const slot = DICE_CARD_MAP[c.defId]!.slot!;
-        return m.dice.some((d) => !d.used && dieFitsSlot(d.value, slot));
+        const def = DICE_CARD_MAP[c.defId];
+        if (!def?.slot) return false;
+        const slot = def.slot;
+        return m.possession === "you" && m.dice.some((d) => !d.used && dieFitsSlot(d.value, slot));
       });
       if (card) m = playWith(m, card.defId);
       else m = applyDiceAction(DICE_CARD_MAP, m, { type: "END_ROUND" }).state;

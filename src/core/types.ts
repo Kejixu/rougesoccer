@@ -113,13 +113,14 @@ export type DieSlot =
   | { kind: "parity"; even: boolean };
 
 export type DiceEffect =
-  | { kind: "progress"; amount: number } // advance the ball up the pitch
+  | { kind: "progress"; amount: number } // push the ball toward their goal
   | { kind: "progressFromDie" } // progress equal to the slotted die's value
-  | { kind: "cover"; amount: number } // dice-mode block, absorbs the round's threat
-  | { kind: "coverFromDie" }
+  | { kind: "advance"; zones: number } // jump zones directly
   | { kind: "shotQuality"; amount: number; minZone?: number } // banked chance quality
   | { kind: "shotQualityFromDie"; minZone?: number }
-  | { kind: "advance"; zones: number } // jump zones directly
+  | { kind: "winPossession" } // tackle: flip the ball to you where it is
+  | { kind: "pushBack"; steps: number } // shove the ball up-pitch, they keep it
+  | { kind: "clearance" } // boot the ball back to midfield, they keep it
   | { kind: "draw"; amount: number };
 
 /** Does a rolled die value satisfy a card's slot requirement? */
@@ -140,16 +141,15 @@ export function dieFitsSlot(value: number, slot: DieSlot): boolean {
 
 // ---------- nation dice mutators (the variety hook) ----------
 // Each playable nation bends a dice rule. Setup-time mutators (poolDelta,
-// keeperDcDelta, coverPerRound) apply once; rerollDie grants a per-round action;
-// turnoverProgress rewards fully defending a round. More kinds (rerollPool,
-// nudgeDie) land with Korea/Argentina later.
+// keeperDcDelta) apply once; rerollDie grants a per-round action;
+// oppAdvanceDelta slows their advance; counterSpring springs the ball forward on a tackle.
 
 export type DiceMutator =
   | { kind: "rerollDie"; perRound: number } // Brazil: opt-in single-die reroll
-  | { kind: "keeperDcDelta"; amount: number } // Brazil/Mexico: harder keeper
-  | { kind: "poolDelta"; amount: number } // Mexico +1 die / Italy -1
-  | { kind: "coverPerRound"; amount: number } // defensive nations start covered
-  | { kind: "turnoverProgress"; amount: number }; // USA: fully defend -> Progress next round
+  | { kind: "keeperDcDelta"; amount: number } // raises THEIR keeper (harder for you to score)
+  | { kind: "poolDelta"; amount: number } // Mexico +1 die / Brazil -1
+  | { kind: "oppAdvanceDelta"; amount: number } // Canada: negative = they advance fewer steps
+  | { kind: "counterSpring"; amount: number }; // USA: won tackle springs the ball forward
 
 export interface NationDiceKit {
   identity: string; // "Joga Bonito"
@@ -352,9 +352,11 @@ export type GameEvent =
   | { type: "DICE_ROLLED"; dice: number[] }
   | { type: "DIE_ASSIGNED"; uid: string; die: number }
   | { type: "DIE_REROLLED"; dieIndex: number; from: number; to: number }
-  | { type: "PROGRESS_GAINED"; amount: number; progress: number; zone: number }
-  | { type: "ZONE_ADVANCED"; zone: number }
-  | { type: "COVER_GAINED_D"; amount: number; total: number }
+  | { type: "POSSESSION_WON" }
+  | { type: "POSSESSION_LOST" }
+  | { type: "BALL_MOVED"; ball: number; toward: "yours" | "theirs" }
+  | { type: "BALL_CLEARED"; ball: number }
+  | { type: "OPP_SHOT"; roll: number; danger: number; dc: number; goal: boolean }
   | { type: "SHOT_TAKEN"; roll: number; dc: number; quality: number; goal: boolean }
   | { type: "CARD_FATIGUED"; uids: string[] }
   | { type: "CARDS_DISCARDED"; uids: string[]; forced: boolean }
@@ -389,23 +391,20 @@ export interface DiceMatchState {
   opp: OppInfo;
   bal: BalanceConfig;
   round: number;
-  zone: number; // 0 Build-up .. BOX_ZONE Box
-  progress: number;
+  ball: number; // 0 = your goal, bal.DICE.PITCH_LEN = their goal
+  possession: "you" | "them";
+  ownKeeperDC: number; // their shots roll vs this
   shotQuality: number;
   playerGoals: number;
   oppGoals: number;
-  oppClockPoints: number;
   keeperDC: number;
   dice: Die[];
-  cover: number;
   intent: Intent | null;
   intentStep: number;
   diePenalty: number;
   handPenalty: number;
-  coverGainedThisRound: boolean;
   mutators: DiceMutator[]; // the nation's identity, active all match
   rerollDieLeft: number; // per-round budget (Brazil)
-  turnoverPending: boolean; // last round fully defended -> Progress this round (USA)
   hand: CardInstance[];
   drawPile: CardInstance[];
   discardPile: CardInstance[];

@@ -1,6 +1,6 @@
 // DICE MODE (Dicey-Dungeons-style): each round you roll a pool of dice and slot
 // them into cards. A card needs a die matching its slot to fire. You advance the
-// ball up the pitch (Build-up -> Midfield -> Final Third -> Box); from the Box you
+// ball up the pitch (0 = your goal, PITCH_LEN = their goal); from the box you
 // SHOOT — a seeded d20 + shot quality vs the keeper's DC. The randomness is the
 // roll; the skill is allocation. Pure & deterministic: all randomness via state.rng.
 //
@@ -13,6 +13,7 @@ import { rollIntent } from "./intents";
 import {
   dieFitsSlot,
   levelStats,
+  type CardDef,
   type CardDefMap,
   type CardInstance,
   type DiceEffect,
@@ -86,32 +87,16 @@ function mutatorSum(mutators: DiceMutator[], kind: DiceMutator["kind"]): number 
   return total;
 }
 
-// ---------- scoring helpers ----------
+// ---------- ball movement ----------
 
-function addOppPoints(draft: DiceMatchState, points: number): void {
-  draft.oppClockPoints += points;
-  const goals = Math.floor(draft.oppClockPoints / draft.bal.DICE.OPP_GOAL_THRESHOLD);
-  if (goals > 0) {
-    draft.oppClockPoints -= goals * draft.bal.DICE.OPP_GOAL_THRESHOLD;
-    draft.oppGoals += goals;
-  }
+export function zoneOf(ball: number, bal: import("../balance").BalanceConfig): number {
+  return Math.max(0, Math.min(4, Math.floor(ball / bal.DICE.ZONE_WIDTH)));
 }
 
-function gainProgress(draft: DiceMatchState, amount: number, events: GameEvent[]): void {
-  draft.progress += amount;
-  events.push({ type: "PROGRESS_GAINED", amount, progress: draft.progress, zone: draft.zone });
-  while (draft.progress >= draft.bal.DICE.PROGRESS_PER_ZONE && draft.zone < draft.bal.DICE.BOX_ZONE) {
-    draft.progress -= draft.bal.DICE.PROGRESS_PER_ZONE;
-    draft.zone += 1;
-    events.push({ type: "ZONE_ADVANCED", zone: draft.zone });
-  }
-}
-
-function advanceZones(draft: DiceMatchState, zones: number, events: GameEvent[]): void {
-  for (let i = 0; i < zones && draft.zone < draft.bal.DICE.BOX_ZONE; i++) {
-    draft.zone += 1;
-    events.push({ type: "ZONE_ADVANCED", zone: draft.zone });
-  }
+function moveBall(draft: DiceMatchState, steps: number, events: GameEvent[]): void {
+  const next = Math.max(0, Math.min(draft.bal.DICE.PITCH_LEN, draft.ball + steps));
+  draft.ball = next;
+  events.push({ type: "BALL_MOVED", ball: next, toward: steps >= 0 ? "theirs" : "yours" });
 }
 
 // ---------- round flow ----------
@@ -129,17 +114,6 @@ function startRound(draft: DiceMatchState, events: GameEvent[]): void {
 
   // per-round mutator budgets (Brazil reroll)
   draft.rerollDieLeft = mutatorSum(draft.mutators, "rerollDie");
-
-  draft.cover =
-    passiveSum(draft, "blockPerRound") + mutatorSum(draft.mutators, "coverPerRound");
-  draft.coverGainedThisRound = draft.cover > 0;
-
-  // USA turnover: a fully-defended round pays Progress now
-  if (draft.turnoverPending) {
-    const gain = mutatorSum(draft.mutators, "turnoverProgress");
-    draft.turnoverPending = false;
-    if (gain > 0) gainProgress(draft, gain, events);
-  }
 
   const handSize = Math.max(
     2,
@@ -186,24 +160,43 @@ function enterSuddenDeath(draft: DiceMatchState, events: GameEvent[]): void {
   startRound(draft, events);
 }
 
+function oppShoot(draft: DiceMatchState, events: GameEvent[]): void {
+  const danger = Math.round(draft.opp.attackRating * draft.bal.DICE.OPP_DANGER_PER_RATING);
+  const roll = 1 + Math.floor(rand(draft) * draft.bal.DICE.SHOT_DIE);
+  const goal = roll + danger >= draft.ownKeeperDC;
+  events.push({ type: "OPP_SHOT", roll, danger, dc: draft.ownKeeperDC, goal });
+  if (goal) {
+    draft.oppGoals += 1;
+    events.push({ type: "GOAL_SCORED", goals: 0, total: draft.oppGoals }); // goals:0 marks a concede
+  }
+  draft.possession = "you"; // kickoff after a goal, or your keeper claims the save
+  draft.ball = draft.bal.DICE.MIDFIELD;
+}
+
 function resolveIntent(draft: DiceMatchState, events: GameEvent[]): void {
   const intent = draft.intent;
   if (!intent) return;
   const etMult = draft.mode === "extratime" ? draft.bal.EXTRA_TIME_CLOCK_MULT : 1;
-  let raw = 0;
-  if (intent.kind === "attack") raw = intent.points;
-  else if (intent.kind === "counter") raw = draft.coverGainedThisRound ? 0 : intent.points;
-  else if (intent.kind === "press") {
-    draft.handPenalty = 1;
-    draft.diePenalty = 1;
+
+  if (draft.possession === "you") {
+    // they contest: a press/attack wins the ball back unless you got it deep
+    if ((intent.kind === "attack" || intent.kind === "counter") && draft.ball < draft.bal.DICE.STEAL_LINE) {
+      draft.possession = "them";
+      events.push({ type: "POSSESSION_LOST" });
+    }
+    if (intent.kind === "press") {
+      draft.handPenalty = 1;
+      draft.diePenalty = 1;
+    }
+  } else {
+    // they have it: advance toward your goal, shoot if they reach your box
+    const points = intent.kind === "attack" || intent.kind === "counter" ? intent.points : 4;
+    const base = Math.round(points * draft.bal.DICE.OPP_ADVANCE_SCALE * etMult);
+    const steps = Math.max(1, base + mutatorSum(draft.mutators, "oppAdvanceDelta"));
+    moveBall(draft, -steps, events);
+    if (draft.ball <= draft.bal.DICE.YOUR_BOX) oppShoot(draft, events);
   }
-  raw = Math.round(raw * draft.bal.DICE.THREAT_SCALE * etMult);
-  const blocked = Math.min(draft.cover, raw);
-  const through = raw - blocked;
-  if (through > 0) addOppPoints(draft, through);
-  // USA turnover: stuffed a real attack with Cover -> counter next round
-  if (raw > 0 && through === 0 && draft.cover > 0) draft.turnoverPending = true;
-  events.push({ type: "INTENT_EXECUTED", intent, blocked, points: through, oppGoals: draft.oppGoals });
+  events.push({ type: "INTENT_EXECUTED", intent, blocked: 0, points: 0, oppGoals: draft.oppGoals });
   draft.intent = null;
 }
 
@@ -272,34 +265,42 @@ function applyDiceEffect(
 ): void {
   switch (eff.kind) {
     case "progress":
-      gainProgress(draft, eff.amount, events);
+      moveBall(draft, eff.amount, events);
       break;
     case "progressFromDie":
-      gainProgress(draft, dieValue, events);
+      moveBall(draft, dieValue, events);
       break;
     case "advance":
-      advanceZones(draft, eff.zones, events);
-      break;
-    case "cover":
-      draft.cover += eff.amount;
-      draft.coverGainedThisRound = true;
-      events.push({ type: "COVER_GAINED_D", amount: eff.amount, total: draft.cover });
-      break;
-    case "coverFromDie":
-      draft.cover += dieValue;
-      draft.coverGainedThisRound = true;
-      events.push({ type: "COVER_GAINED_D", amount: dieValue, total: draft.cover });
+      moveBall(draft, eff.zones * draft.bal.DICE.ZONE_WIDTH, events);
       break;
     case "shotQuality":
-      if (draft.zone >= (eff.minZone ?? 0)) draft.shotQuality += eff.amount;
+      if (zoneOf(draft.ball, draft.bal) >= (eff.minZone ?? 0)) draft.shotQuality += eff.amount;
       break;
     case "shotQualityFromDie":
-      if (draft.zone >= (eff.minZone ?? 0)) draft.shotQuality += dieValue;
+      if (zoneOf(draft.ball, draft.bal) >= (eff.minZone ?? 0)) draft.shotQuality += dieValue;
+      break;
+    case "winPossession":
+      draft.possession = "you";
+      moveBall(draft, mutatorSum(draft.mutators, "counterSpring"), events); // USA spring
+      events.push({ type: "POSSESSION_WON" });
+      break;
+    case "pushBack":
+      moveBall(draft, eff.steps, events);
+      break;
+    case "clearance":
+      draft.ball = draft.bal.DICE.MIDFIELD;
+      events.push({ type: "BALL_CLEARED", ball: draft.ball });
       break;
     case "draw":
       drawCards(draft, eff.amount, events);
       break;
   }
+}
+
+function isDefenseCard(def: CardDef | undefined): boolean {
+  return (def?.diceEffects ?? []).some(
+    (e) => e.kind === "winPossession" || e.kind === "pushBack" || e.kind === "clearance",
+  );
 }
 
 function assignDie(
@@ -319,6 +320,9 @@ function assignDie(
   if (!def || !def.slot) throw new Error(`card ${inst.defId} has no dice slot`);
   if (!dieFitsSlot(die.value, def.slot)) throw new Error(`die ${die.value} doesn't fit this card`);
 
+  const roleOk = isDefenseCard(def) ? draft.possession === "them" : draft.possession === "you";
+  if (!roleOk) throw new Error("that card can't be played right now");
+
   die.used = true;
   draft.hand.splice(cardIdx, 1);
   events.push({ type: "DIE_ASSIGNED", uid, die: die.value });
@@ -331,7 +335,8 @@ function assignDie(
 }
 
 function shoot(draft: DiceMatchState, events: GameEvent[]): void {
-  if (draft.zone < draft.bal.DICE.BOX_ZONE) throw new Error("you must reach the box to shoot");
+  if (draft.possession !== "you") throw new Error("you don't have the ball");
+  if (draft.ball < draft.bal.DICE.THEIR_BOX) throw new Error("you must reach the box to shoot");
   if (draft.shotQuality <= 0) throw new Error("no shot quality — work a chance first");
   const dc = draft.keeperDC + (draft.intent?.kind === "sitDeep" ? draft.bal.DICE.SIT_DEEP_DC_BONUS : 0);
   const roll = 1 + Math.floor(rand(draft) * draft.bal.DICE.SHOT_DIE);
@@ -341,14 +346,18 @@ function shoot(draft: DiceMatchState, events: GameEvent[]): void {
   if (goal) {
     draft.playerGoals += 1;
     events.push({ type: "GOAL_SCORED", goals: 1, total: draft.playerGoals });
-    draft.zone = 1; // kickoff restart from midfield
-    draft.progress = 0;
-    draft.shotQuality = 0;
-  } else {
-    draft.shotQuality = 0;
-    draft.zone = Math.min(draft.zone, draft.bal.DICE.BOX_ZONE - 1); // cleared to the edge
-    draft.progress = 0;
   }
+  draft.shotQuality = 0;
+  draft.possession = "them";
+  draft.ball = draft.bal.DICE.MIDFIELD; // their kickoff / goal kick
+}
+
+// ---------- init helpers ----------
+
+function passiveSumPlain(passives: PassiveEffect[], kind: PassiveEffect["kind"]): number {
+  let total = 0;
+  for (const p of passives) if (p.kind === kind && "amount" in p) total += p.amount;
+  return total;
 }
 
 // ---------- public API ----------
@@ -370,23 +379,20 @@ export function createDiceMatch(defs: CardDefMap, cfg: DiceMatchConfig): DiceMat
     opp: cfg.opp,
     bal: cfg.balance,
     round: 0,
-    zone: 1, // start at midfield
-    progress: 0,
+    ball: cfg.balance.DICE.MIDFIELD,
+    possession: "you",
+    ownKeeperDC: cfg.balance.DICE.OWN_KEEPER_DC_BASE + passiveSumPlain(cfg.passives ?? [], "blockPerRound"),
     shotQuality: 0,
     playerGoals: 0,
     oppGoals: 0,
-    oppClockPoints: 0,
     keeperDC: dc,
     dice: [],
-    cover: 0,
     intent: null,
     intentStep: 0,
     diePenalty: 0,
     handPenalty: 0,
-    coverGainedThisRound: false,
     mutators,
     rerollDieLeft: 0,
-    turnoverPending: false,
     hand: [],
     drawPile: cfg.deck.map((c) => ({ ...c })),
     discardPile: [],
@@ -465,20 +471,30 @@ export function playableCards(defs: CardDefMap, state: DiceMatchState): Set<stri
   const free = state.dice.filter((d) => !d.used).map((d) => d.value);
   const out = new Set<string>();
   for (const c of state.hand) {
-    const slot = defs[c.defId]?.slot;
-    if (slot && free.some((v) => dieFitsSlot(v, slot))) out.add(c.uid);
+    const def = defs[c.defId];
+    const slot = def?.slot;
+    if (!slot) continue;
+    const roleOk = isDefenseCard(def) ? state.possession === "them" : state.possession === "you";
+    if (roleOk && free.some((v) => dieFitsSlot(v, slot))) out.add(c.uid);
   }
   return out;
 }
 
-/** Best unused die index that fits a card's slot (for click-to-auto-assign). */
+/** Best unused die index that fits a card's slot (for click-to-auto-assign).
+ * Cards whose effect scales with the die value want the HIGHEST fitting die;
+ * flat-value cards take the LOWEST fitting die so high dice stay free for
+ * finishing (a 6 is precious — don't waste it on a flat +4). */
 export function bestDieFor(defs: CardDefMap, state: DiceMatchState, uid: string): number {
-  const slot = defs[state.hand.find((c) => c.uid === uid)?.defId ?? ""]?.slot;
+  const def = defs[state.hand.find((c) => c.uid === uid)?.defId ?? ""];
+  const slot = def?.slot;
   if (!slot) return -1;
+  const scales = (def?.diceEffects ?? []).some(
+    (e) => e.kind === "progressFromDie" || e.kind === "shotQualityFromDie",
+  );
   let best = -1;
-  let bestVal = -1;
+  let bestVal = scales ? -1 : 99;
   state.dice.forEach((d, i) => {
-    if (!d.used && dieFitsSlot(d.value, slot) && d.value > bestVal) {
+    if (!d.used && dieFitsSlot(d.value, slot) && (scales ? d.value > bestVal : d.value < bestVal)) {
       bestVal = d.value;
       best = i;
     }

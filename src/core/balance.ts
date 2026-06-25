@@ -62,18 +62,22 @@ export interface BalanceConfig {
 
   // ---- dice mode (Dicey-Dungeons match loop) ----
   DICE: {
-    POOL_SIZE: number; // dice rolled per round
-    DIE_FACES: number; // d6
+    POOL_SIZE: number;
+    DIE_FACES: number;
     HAND_SIZE: number;
-    ZONES: number; // pitch zones: Build-up(0) -> Midfield -> Final Third -> Box(ZONES-1)
-    PROGRESS_PER_ZONE: number; // progress needed to advance one zone
-    BOX_ZONE: number; // zone index you can shoot from
-    KEEPER_DC_BASE: number; // base goal-roll target
-    KEEPER_DC_PER_RATING: number; // + attackRating * this
-    SHOT_DIE: number; // d20 goal roll
-    OPP_GOAL_THRESHOLD: number; // opponent points per goal
-    THREAT_SCALE: number; // intent points are scaled down for the gentler dice meter
-    SIT_DEEP_DC_BONUS: number; // their "sit deep" raises the keeper DC
+    PITCH_LEN: number;        // 0 = your goal, PITCH_LEN = their goal
+    MIDFIELD: number;         // kickoff / neutral center
+    ZONE_WIDTH: number;       // 5 zones of this width, for UI + finish gating
+    THEIR_BOX: number;        // ball >= this in your possession -> you may shoot
+    YOUR_BOX: number;         // ball <= this in their possession -> they shoot
+    STEAL_LINE: number;       // hold the ball when pressed only if ball >= this
+    KEEPER_DC_BASE: number;   // their keeper, your shots roll vs it
+    KEEPER_DC_PER_RATING: number;
+    OWN_KEEPER_DC_BASE: number; // your keeper, their shots roll vs it
+    SHOT_DIE: number;         // d20
+    OPP_ADVANCE_SCALE: number; // intent points -> ball steps toward your goal
+    OPP_DANGER_PER_RATING: number; // their shot quality vs your keeper
+    SIT_DEEP_DC_BONUS: number;
   };
 }
 
@@ -148,15 +152,19 @@ export const DEFAULT_BALANCE: BalanceConfig = {
   DICE: {
     POOL_SIZE: 5,
     DIE_FACES: 6,
-    HAND_SIZE: 5,
-    ZONES: 4,
-    PROGRESS_PER_ZONE: 4,
-    BOX_ZONE: 3,
+    HAND_SIZE: 4,
+    PITCH_LEN: 20,
+    MIDFIELD: 10,
+    ZONE_WIDTH: 4,
+    THEIR_BOX: 16,
+    YOUR_BOX: 4,
+    STEAL_LINE: 12,
     KEEPER_DC_BASE: 9,
     KEEPER_DC_PER_RATING: 0.14,
+    OWN_KEEPER_DC_BASE: 10,
     SHOT_DIE: 20,
-    OPP_GOAL_THRESHOLD: 26,
-    THREAT_SCALE: 0.3,
+    OPP_ADVANCE_SCALE: 0.35,
+    OPP_DANGER_PER_RATING: 0.5,
     SIT_DEEP_DC_BONUS: 4,
   },
 };

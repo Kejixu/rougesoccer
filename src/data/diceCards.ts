@@ -12,9 +12,9 @@ export const DICE_CARD_DEFS = [
     name: "Short Pass",
     position: "MF",
     rarity: "common",
-    slot: { kind: "any" },
+    slot: { kind: "min", value: 2 },
     diceEffects: [{ kind: "progressFromDie" }],
-    levels: [{ text: "Slot any die: Progress = the die's value." }],
+    levels: [{ text: "Slot 2+: Progress = the die's value." }],
     effects: [],
   },
   {
@@ -48,12 +48,12 @@ export const DICE_CARD_DEFS = [
     name: "Quick Combo",
     position: "MF",
     rarity: "common",
-    slot: { kind: "any" },
+    slot: { kind: "min", value: 4 },
     diceEffects: [
       { kind: "progress", amount: 2 },
       { kind: "draw", amount: 1 },
     ],
-    levels: [{ text: "Slot any die: +2 Progress, draw 1." }],
+    levels: [{ text: "Slot 4+: +2 Progress, draw 1." }],
     effects: [],
   },
   {
@@ -85,7 +85,7 @@ export const DICE_CARD_DEFS = [
     effects: [],
   },
 
-  // ---- defend: turn low dice into cover ----
+  // ---- defend: win possession or shove the ball back ----
   {
     id: "d_tackle",
     kind: "player",
@@ -93,8 +93,8 @@ export const DICE_CARD_DEFS = [
     position: "DF",
     rarity: "common",
     slot: { kind: "max", value: 2 },
-    diceEffects: [{ kind: "coverFromDie" }, { kind: "progress", amount: 1 }],
-    levels: [{ text: "Slot 2 or less: Cover = die, +1 Progress." }],
+    diceEffects: [{ kind: "winPossession" }],
+    levels: [{ text: "Slot 2 or less: Win possession (tackle)." }],
     effects: [],
   },
   {
@@ -104,8 +104,8 @@ export const DICE_CARD_DEFS = [
     position: "DF",
     rarity: "common",
     slot: { kind: "max", value: 3 },
-    diceEffects: [{ kind: "cover", amount: 5 }],
-    levels: [{ text: "Slot 3 or less: +5 Cover." }],
+    diceEffects: [{ kind: "clearance" }],
+    levels: [{ text: "Slot 3 or less: Boot the ball back to midfield." }],
     effects: [],
   },
   {
@@ -116,10 +116,10 @@ export const DICE_CARD_DEFS = [
     rarity: "rare",
     slot: { kind: "any" },
     diceEffects: [
-      { kind: "cover", amount: 4 },
+      { kind: "pushBack", steps: 4 },
       { kind: "draw", amount: 1 },
     ],
-    levels: [{ text: "Slot any die: +4 Cover, draw 1." }],
+    levels: [{ text: "Slot any die: Push the ball back 4 steps, draw 1." }],
     effects: [],
   },
 
