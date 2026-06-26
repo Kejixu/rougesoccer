@@ -131,7 +131,7 @@ export function ScorePopups({ events }: { events: GameEvent[] }) {
         delay += 900;
         staged.push({
           delay,
-          popup: { id: nextId++, kind: e.goal ? "concede" : "goal", text: e.goal ? "⚽ CONCEDED" : "🧤 SAVED!" },
+          popup: { id: nextId++, kind: e.goal ? "concede" : "info", text: e.goal ? "⚽ CONCEDED" : "🧤 SAVED!" },
         });
         delay += 600;
       } else if (e.type === "GOAL_SCORED" && e.goals > 0) {

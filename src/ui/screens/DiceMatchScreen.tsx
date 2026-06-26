@@ -24,7 +24,7 @@ function intentText(intent: Intent, scale: number): { icon: string; text: string
     case "press":
       return { icon: "✋", text: "High Press — fewer dice and cards next round" };
     case "counter":
-      return { icon: "⚡", text: `Counter — ${t(intent.points)} threat unless you take Cover` };
+      return { icon: "⚡", text: `Counter — ${t(intent.points)} threat if they win it back` };
   }
 }
 
