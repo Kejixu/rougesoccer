@@ -56,16 +56,13 @@ export const NATION_DICE_KITS: Record<string, NationDiceKit> = {
   },
   usa: {
     identity: "The Press",
-    blurb: "Fully smother their attack and the turnover springs you forward next round.",
-    mutators: [{ kind: "turnoverProgress", amount: 4 }],
+    blurb: "Hunt the ball high. Win a tackle and you spring straight into the counter.",
+    mutators: [{ kind: "counterSpring", amount: 4 }],
   },
   can: {
     identity: "Resolute",
-    blurb: "Start every round with Cover. Soak the pressure and grind out low-scoring wins.",
-    mutators: [
-      { kind: "coverPerRound", amount: 2 },
-      { kind: "keeperDcDelta", amount: 1 },
-    ],
+    blurb: "Hard to break down. Opponents claw forward a step at a time against you.",
+    mutators: [{ kind: "oppAdvanceDelta", amount: -2 }],
   },
 };
 

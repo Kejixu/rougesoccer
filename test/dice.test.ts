@@ -198,6 +198,28 @@ describe("nation mutators", () => {
     expect(mex.dice).toHaveLength(DEFAULT_BALANCE.DICE.POOL_SIZE + 1);
   });
 
+  it("USA counterSpring: a won tackle springs the ball forward", () => {
+    let m = start(["d_tackle", "d_tackle", "d_tackle", "d_tackle"], "def", [{ kind: "counterSpring", amount: 4 }]);
+    m = { ...m, possession: "them", ball: 6 };
+    const idx = m.dice.findIndex((d) => !d.used && d.value <= 2);
+    expect(idx).toBeGreaterThanOrEqual(0); // seed must roll a qualifying die or the test is vacuous
+    if (idx >= 0) {
+      m = applyDiceAction(DICE_CARD_MAP, m, { type: "ASSIGN_DIE", uid: m.hand[0]!.uid, dieIndex: idx }).state;
+      expect(m.possession).toBe("you");
+      expect(m.ball).toBe(10); // 6 + 4 spring
+    }
+  });
+
+  it("Canada oppAdvanceDelta: opponents advance fewer steps", () => {
+    const plainSteps = (delta: number) => {
+      let m = start(["d_clearance"], "can", delta ? [{ kind: "oppAdvanceDelta", amount: delta }] : []);
+      m = { ...m, possession: "them", ball: 12, intent: { kind: "attack", points: 12 } };
+      const after = applyDiceAction(DICE_CARD_MAP, m, { type: "END_ROUND" }).state;
+      return 12 - after.ball;
+    };
+    expect(plainSteps(-2)).toBeLessThan(plainSteps(0));
+  });
+
   it("a used die cannot be rerolled", () => {
     let m = start(["d_shortpass", "d_shortpass", "d_shortpass", "d_shortpass", "d_shortpass"], "ru", [
       { kind: "rerollDie", perRound: 1 },
