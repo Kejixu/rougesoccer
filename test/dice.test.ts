@@ -219,6 +219,7 @@ describe("defending", () => {
   it("a Tackle wins possession back where the ball is", () => {
     let m = defendingState(["d_tackle", "d_tackle", "d_tackle", "d_tackle"]);
     const idx = m.dice.findIndex((d) => !d.used && d.value <= 2);
+    expect(idx).toBeGreaterThanOrEqual(0); // seed must roll a qualifying die or the test is vacuous
     if (idx >= 0) {
       const before = m.ball;
       m = applyDiceAction(DICE_CARD_MAP, m, { type: "ASSIGN_DIE", uid: m.hand[0]!.uid, dieIndex: idx }).state;
@@ -230,6 +231,7 @@ describe("defending", () => {
   it("a Clearance boots the ball to midfield, they keep it", () => {
     let m = defendingState(["d_clearance", "d_clearance", "d_clearance", "d_clearance"]);
     const idx = m.dice.findIndex((d) => !d.used && d.value <= 3);
+    expect(idx).toBeGreaterThanOrEqual(0); // seed must roll a qualifying die or the test is vacuous
     if (idx >= 0) {
       m = applyDiceAction(DICE_CARD_MAP, m, { type: "ASSIGN_DIE", uid: m.hand[0]!.uid, dieIndex: idx }).state;
       expect(m.ball).toBe(DEFAULT_BALANCE.DICE.MIDFIELD);
