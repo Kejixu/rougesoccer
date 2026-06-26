@@ -89,6 +89,7 @@ function diceAction(
     const idx = bestDieFor(content.defs, m, c.uid);
     if (idx >= 0) return { type: "ASSIGN_DIE", uid: c.uid, dieIndex: idx };
   }
+  // a finisher assigned in the fallback loop above may have just created quality
   if (inBox && m.shotQuality > 0) return { type: "SHOOT" };
   return { type: "END_ROUND" };
 }
