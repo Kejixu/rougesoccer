@@ -20,7 +20,7 @@ export function loadRun(): RunState | null {
     const raw = localStorage.getItem(RUN_KEY);
     if (!raw) return null;
     const parsed = JSON.parse(raw) as RunState;
-    if (parsed.version !== 2 || parsed.phase === undefined) return null;
+    if (parsed.version !== 3 || parsed.phase === undefined) return null;
     if (parsed.phase === "DONE") return null; // finished runs don't resume
     return parsed;
   } catch {

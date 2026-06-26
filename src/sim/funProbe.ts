@@ -17,6 +17,7 @@ interface MatchStats {
   deadRounds: number; // 0 playable, had to end round
   shots: number;
   goalsFor: number;
+  goalsAgainst: number;
   shotRolls: { roll: number; quality: number; dc: number; goal: boolean }[];
   rerolls: number;
   // bite metrics
@@ -73,6 +74,7 @@ function probe(team: string, seed: string): { matches: MatchStats[]; result: str
         deadRounds: 0,
         shots: 0,
         goalsFor: 0,
+        goalsAgainst: 0,
         shotRolls: [],
         rerolls: 0,
         rolesSum: 0,
@@ -134,7 +136,10 @@ function probe(team: string, seed: string): { matches: MatchStats[]; result: str
           c.shots++;
           c.shotRolls.push({ roll: e.roll, quality: e.quality, dc: e.dc, goal: e.goal });
         }
-        if (e.type === "GOAL_SCORED") c.goalsFor += e.goals;
+        if (e.type === "GOAL_SCORED") {
+          if (e.goals >= 1) c.goalsFor += e.goals;
+          else c.goalsAgainst += 1; // goals:0 marks a concede
+        }
         if (e.type === "DIE_REROLLED") c.rerolls++;
         if (e.type === "MATCH_END") {
           matches.push(c);
@@ -154,6 +159,7 @@ function summarize(team: string) {
     dead = 0,
     shots = 0,
     goals = 0,
+    goalsAg = 0,
     rerolls = 0,
     matchCount = 0;
   let nearMiss = 0,
@@ -176,6 +182,7 @@ function summarize(team: string) {
       dead += m.deadRounds;
       shots += m.shots;
       goals += m.goalsFor;
+      goalsAg += m.goalsAgainst;
       rerolls += m.rerolls;
       rolesSum += m.rolesSum;
       oneRole += m.oneRoleRounds;
@@ -206,6 +213,7 @@ function summarize(team: string) {
     pctDead: `${Math.round((dead / decisions) * 100)}%`,
     shotsPerMatch: (shots / matchCount).toFixed(1),
     goalsPerMatch: (goals / matchCount).toFixed(1),
+    oppGoalsPerMatch: (goalsAg / matchCount).toFixed(1),
     nearMissPerMatch: (nearMiss / matchCount).toFixed(2),
   };
 }

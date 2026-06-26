@@ -161,7 +161,10 @@ function enterSuddenDeath(draft: DiceMatchState, events: GameEvent[]): void {
 }
 
 function oppShoot(draft: DiceMatchState, events: GameEvent[]): void {
-  const danger = Math.round(draft.opp.attackRating * draft.bal.DICE.OPP_DANGER_PER_RATING);
+  const danger = Math.min(
+    draft.bal.DICE.DANGER_CAP,
+    Math.round(draft.opp.attackRating * draft.bal.DICE.OPP_DANGER_PER_RATING),
+  );
   const roll = 1 + Math.floor(rand(draft) * draft.bal.DICE.SHOT_DIE);
   const goal = roll + danger >= draft.ownKeeperDC;
   events.push({ type: "OPP_SHOT", roll, danger, dc: draft.ownKeeperDC, goal });
