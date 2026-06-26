@@ -15,21 +15,9 @@ type Role = "defend" | "finish" | "progress";
 
 function roleOf(def: CardDef): Role {
   const effs = def.diceEffects ?? [];
-  if (effs.some((e) => e.kind === "cover" || e.kind === "coverFromDie")) return "defend";
+  if (effs.some((e) => e.kind === "winPossession" || e.kind === "pushBack" || e.kind === "clearance")) return "defend";
   if (effs.some((e) => e.kind === "shotQuality" || e.kind === "shotQualityFromDie")) return "finish";
   return "progress";
-}
-
-/** Scaled incoming threat if the round ended now. */
-function incomingThreat(m: DiceMatchState): number {
-  const i = m.intent;
-  if (!i) return 0;
-  const et = m.mode === "extratime" ? m.bal.EXTRA_TIME_CLOCK_MULT : 1;
-  let raw = 0;
-  if (i.kind === "attack") raw = i.points;
-  else if (i.kind === "counter") raw = m.coverGainedThisRound ? 0 : i.points;
-  raw = Math.round(raw * m.bal.DICE.THREAT_SCALE * et);
-  return Math.max(0, raw - m.cover);
 }
 
 /** First playable card of a role + its best fitting die. */
@@ -76,18 +64,17 @@ function diceAction(
   }
 
   const playable = playableCards(content.defs, m);
-  const inBox = m.zone >= m.bal.DICE.BOX_ZONE;
-  const threat = incomingThreat(m);
-  const dc = m.keeperDC + (m.intent?.kind === "sitDeep" ? m.bal.DICE.SIT_DEEP_DC_BONUS : 0);
-  const shootThreshold = Math.max(opts.shootFloor, dc - 9);
 
-  // 1) defend a real threat
-  if (threat >= m.bal.DICE.OPP_GOAL_THRESHOLD * opts.defendBias) {
-    const def = assignFor(content, m, playable, "defend");
-    if (def) return def;
+  if (m.possession === "them") {
+    // win it back if we can; else clear/push when the ball is near our box
+    const tackle = assignFor(content, m, playable, "defend");
+    if (tackle) return tackle;
+    return { type: "END_ROUND" };
   }
 
-  // 2) in the box: bank quality, then shoot when it's worth it
+  const inBox = m.ball >= m.bal.DICE.THEIR_BOX;
+  const dc = m.keeperDC + (m.intent?.kind === "sitDeep" ? m.bal.DICE.SIT_DEEP_DC_BONUS : 0);
+  const shootThreshold = Math.max(opts.shootFloor, dc - 9);
   if (inBox) {
     if (m.shotQuality < shootThreshold) {
       const fin = assignFor(content, m, playable, "finish");
@@ -95,19 +82,13 @@ function diceAction(
     }
     if (m.shotQuality > 0) return { type: "SHOOT" };
   }
-
-  // 3) advance up the pitch
   const adv = assignFor(content, m, playable, "progress");
   if (adv) return adv;
-
-  // 4) anything still playable (finishers out of the box bank nothing — skip to defend/progress already tried)
   for (const c of m.hand) {
     if (!playable.has(c.uid)) continue;
     const idx = bestDieFor(content.defs, m, c.uid);
     if (idx >= 0) return { type: "ASSIGN_DIE", uid: c.uid, dieIndex: idx };
   }
-
-  // 5) nothing useful left
   if (inBox && m.shotQuality > 0) return { type: "SHOOT" };
   return { type: "END_ROUND" };
 }
@@ -199,7 +180,7 @@ export function makeRandomBot(): Bot {
         return (m.playerGoals + m.round) % 2 === 0 ? { type: "EXTRA_TIME" } : { type: "TAKE_WIN" };
       }
       const playable = [...playableCards(content.defs, m)];
-      if (m.zone >= m.bal.DICE.BOX_ZONE && m.shotQuality > 0 && (m.round + playable.length) % 3 === 0) {
+      if (m.possession === "you" && m.ball >= m.bal.DICE.THEIR_BOX && m.shotQuality > 0 && (m.round + playable.length) % 3 === 0) {
         return { type: "SHOOT" };
       }
       if (playable.length === 0) return { type: "END_ROUND" };
