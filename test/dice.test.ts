@@ -209,6 +209,41 @@ describe("nation mutators", () => {
   });
 });
 
+describe("defending", () => {
+  function defendingState(defIds: string[], seed = "def") {
+    let m = start(defIds, seed);
+    m = { ...m, possession: "them", ball: 6 }; // they have it, near your third
+    return m;
+  }
+
+  it("a Tackle wins possession back where the ball is", () => {
+    let m = defendingState(["d_tackle", "d_tackle", "d_tackle", "d_tackle"]);
+    const idx = m.dice.findIndex((d) => !d.used && d.value <= 2);
+    if (idx >= 0) {
+      const before = m.ball;
+      m = applyDiceAction(DICE_CARD_MAP, m, { type: "ASSIGN_DIE", uid: m.hand[0]!.uid, dieIndex: idx }).state;
+      expect(m.possession).toBe("you");
+      expect(m.ball).toBe(before); // no nation spring by default
+    }
+  });
+
+  it("a Clearance boots the ball to midfield, they keep it", () => {
+    let m = defendingState(["d_clearance", "d_clearance", "d_clearance", "d_clearance"]);
+    const idx = m.dice.findIndex((d) => !d.used && d.value <= 3);
+    if (idx >= 0) {
+      m = applyDiceAction(DICE_CARD_MAP, m, { type: "ASSIGN_DIE", uid: m.hand[0]!.uid, dieIndex: idx }).state;
+      expect(m.ball).toBe(DEFAULT_BALANCE.DICE.MIDFIELD);
+      expect(m.possession).toBe("them");
+    }
+  });
+
+  it("attack cards can't be played while defending", () => {
+    const m = defendingState(["d_shortpass", "d_shortpass", "d_shortpass", "d_shortpass"]);
+    const playable = playableCards(DICE_CARD_MAP, m);
+    expect(playable.size).toBe(0);
+  });
+});
+
 describe("match terminates", () => {
   it("a full dice match reaches DONE", () => {
     let m = start(Array.from({ length: 14 }, (_, i) => (i % 3 === 0 ? "d_finish" : "d_shortpass")), "term");
