@@ -28,7 +28,7 @@ import {
   type PassiveEffect,
 } from "../types";
 
-export const ZONE_NAMES = ["Build-up", "Midfield", "Final Third", "Box"];
+export const ZONE_NAMES = ["Your Box", "Your Third", "Midfield", "Their Third", "Their Box"];
 
 // ---------- rng / pile helpers ----------
 

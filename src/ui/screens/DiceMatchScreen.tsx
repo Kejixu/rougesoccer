@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import {
   dieFitsSlot,
   slotLabel,
@@ -9,7 +9,7 @@ import {
   type RunAction,
   type RunState,
 } from "../../core/types";
-import { ZONE_NAMES } from "../../core/match/dice";
+import { ZONE_NAMES, bestDieFor, zoneOf } from "../../core/match/dice";
 import { ScorePopups } from "../components/ScorePopups";
 
 const PIPS: Record<number, string> = { 1: "⚀", 2: "⚁", 3: "⚂", 4: "⚃", 5: "⚄", 6: "⚅" };
@@ -28,20 +28,33 @@ function intentText(intent: Intent, scale: number): { icon: string; text: string
   }
 }
 
-function PitchTrack({ zone, progress, perZone, boxZone }: { zone: number; progress: number; perZone: number; boxZone: number }) {
+function PitchTrack({
+  ball,
+  possession,
+  bal,
+}: {
+  ball: number;
+  possession: "you" | "them";
+  bal: import("../../core/types").DiceMatchState["bal"];
+}) {
+  const ballZone = zoneOf(ball, bal);
   return (
     <div className="pitch-track" data-testid="pitch">
+      <div className="goal-end goal-end--yours">🥅</div>
       {ZONE_NAMES.map((name, i) => (
-        <div key={name} className={`pitch-zone${i === zone ? " current" : ""}${i < zone ? " passed" : ""}${i === boxZone ? " box" : ""}`}>
+        <div
+          key={name}
+          className={`pitch-zone${i === ballZone ? " current" : ""}${i === ballZone && possession === "them" ? " theirs" : ""}`}
+        >
           <span className="pitch-zone-name">{name}</span>
-          {i === zone && i < boxZone && (
-            <span className="pitch-progress" data-testid="progress">
-              {progress}/{perZone}
+          {i === ballZone && (
+            <span className={`ball-token${possession === "them" ? " theirs" : ""}`} data-testid="ball-token">
+              ⚽
             </span>
           )}
-          {i === zone && i === boxZone && <span className="pitch-progress">⚽ box</span>}
         </div>
       ))}
+      <div className="goal-end goal-end--theirs">🥅</div>
     </div>
   );
 }
@@ -61,12 +74,29 @@ export function DiceMatchScreen({
   const [selectedDie, setSelectedDie] = useState<number | null>(null);
   const act = (action: DiceMatchAction) => dispatch({ type: "MATCH_ACTION", action });
 
+  // A fresh roll remounts the dice so they cascade in; a reroll spins the one die.
+  const [rollKey, setRollKey] = useState(0);
+  const [rerollFx, setRerollFx] = useState<{ i: number; lucky: boolean; n: number } | null>(null);
+  const fxNonce = useRef(0);
+  useEffect(() => {
+    if (events.some((e) => e.type === "DICE_ROLLED")) {
+      fxNonce.current += 1;
+      setRollKey(fxNonce.current);
+      setSelectedDie(null);
+    }
+    const re = [...events].reverse().find((e) => e.type === "DIE_REROLLED");
+    if (re && re.type === "DIE_REROLLED") {
+      fxNonce.current += 1;
+      setRerollFx({ i: re.dieIndex, lucky: re.to >= 5, n: fxNonce.current });
+    }
+  }, [events]);
+
   const style = content.styles[m.opp.style];
   const coach = content.teams.find((t) => t.id === m.opp.teamId)?.coach;
   const playerName = content.teams.find((t) => t.id === run.playerTeamId)?.name ?? "You";
-  const scale = (m.mode === "extratime" ? m.bal.EXTRA_TIME_CLOCK_MULT : 1) * m.bal.DICE.THREAT_SCALE;
+  const scale = (m.mode === "extratime" ? m.bal.EXTRA_TIME_CLOCK_MULT : 1);
   const intent = m.intent ? intentText(m.intent, scale) : null;
-  const inBox = m.zone >= m.bal.DICE.BOX_ZONE;
+  const inBox = m.possession === "you" && m.ball >= m.bal.DICE.THEIR_BOX;
   const dcNow = m.keeperDC + (m.intent?.kind === "sitDeep" ? m.bal.DICE.SIT_DEEP_DC_BONUS : 0);
 
   const freeDice = m.dice.map((d, i) => ({ ...d, i })).filter((d) => !d.used);
@@ -83,10 +113,10 @@ export function DiceMatchScreen({
     const slot = content.defs[defId]!.slot!;
     let dieIndex = selectedDie;
     if (dieIndex === null || m.dice[dieIndex]?.used || !dieFitsSlot(m.dice[dieIndex]!.value, slot)) {
-      // auto-pick the highest fitting die
-      const fit = freeDice.filter((d) => dieFitsSlot(d.value, slot)).sort((a, b) => b.value - a.value)[0];
-      if (!fit) return;
-      dieIndex = fit.i;
+      // auto-pick the smart die: scaling cards take the highest, flat cards the
+      // lowest fitting die so your 5s and 6s stay free for finishing
+      dieIndex = bestDieFor(content.defs, m, uid);
+      if (dieIndex < 0) return;
     }
     act({ type: "ASSIGN_DIE", uid, dieIndex });
     setSelectedDie(null);
@@ -114,13 +144,18 @@ export function DiceMatchScreen({
         </div>
       </div>
 
-      <PitchTrack zone={m.zone} progress={m.progress} perZone={m.bal.DICE.PROGRESS_PER_ZONE} boxZone={m.bal.DICE.BOX_ZONE} />
+      <PitchTrack ball={m.ball} possession={m.possession} bal={m.bal} />
 
       <div className="dice-stat-row">
         <span className="shotq-badge" data-testid="shot-quality">
           ⚽ Shot Quality {m.shotQuality}
         </span>
-        {m.cover > 0 && <span className="cover-badge" data-testid="cover">🛡 Cover {m.cover}</span>}
+        <span className={`possession-badge${m.possession === "them" ? " defending" : ""}`} data-testid="possession-badge">
+          {m.possession === "you" ? "● You on the ball" : "○ Defending"}
+        </span>
+        <span className="pitch-arrow" data-testid="pitch-arrow">
+          {m.possession === "you" ? "→" : "←"}
+        </span>
         <span style={{ marginLeft: "auto", fontSize: 12, color: "var(--ink-dim)" }}>
           draw {m.drawPile.length} · discard {m.discardPile.length}
         </span>
@@ -161,11 +196,14 @@ export function DiceMatchScreen({
         <>
           <div className="dice-tray" data-testid="dice-tray">
             <span className="dice-label">YOUR ROLL</span>
-            {m.dice.map((d, i) => (
+            {m.dice.map((d, i) => {
+              const rerolled = rerollFx?.i === i;
+              return (
               <button
-                key={i}
+                key={`${i}-${rollKey}-${rerolled ? rerollFx.n : 0}`}
                 type="button"
-                className={`die${d.used ? " used" : ""}${selectedDie === i ? " selected" : ""}`}
+                className={`die${d.used ? " used" : ""}${selectedDie === i ? " selected" : ""}${rerolled ? " rerolled" : ""}${rerolled && rerollFx.lucky ? " lucky" : ""}`}
+                style={{ animationDelay: rerolled ? "0ms" : `${i * 55}ms` }}
                 data-testid={`die-${i}`}
                 data-value={d.value}
                 data-used={d.used ? "true" : "false"}
@@ -175,7 +213,8 @@ export function DiceMatchScreen({
                 <span className="die-pip">{PIPS[d.value]}</span>
                 <span className="die-num">{d.value}</span>
               </button>
-            ))}
+              );
+            })}
             {m.rerollDieLeft > 0 && (
               <button
                 type="button"
@@ -203,7 +242,7 @@ export function DiceMatchScreen({
             {m.hand.map((c) => {
               const def = content.defs[c.defId]!;
               const playable = canPlay(c.defId);
-              const role = (def.diceEffects ?? []).some((e) => e.kind === "cover" || e.kind === "coverFromDie")
+              const role = (def.diceEffects ?? []).some((e) => e.kind === "winPossession" || e.kind === "pushBack" || e.kind === "clearance")
                 ? "defend"
                 : (def.diceEffects ?? []).some((e) => e.kind.startsWith("shotQuality"))
                   ? "finish"
@@ -239,7 +278,11 @@ export function DiceMatchScreen({
               ⚽ Shoot ({m.shotQuality} + d20 ≥ {dcNow})
             </button>
             <button type="button" className="btn btn--danger" data-testid="end-round" onClick={() => act({ type: "END_ROUND" })}>
-              End round — they {m.intent ? intentVerb(m.intent) : "act"}
+              {m.possession === "them"
+                ? m.ball <= m.bal.DICE.YOUR_BOX
+                  ? "End round — they shoot"
+                  : "End round — they advance"
+                : `End round — they ${m.intent ? intentVerb(m.intent) : "act"}`}
             </button>
           </div>
         </>

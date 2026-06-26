@@ -364,6 +364,19 @@
   color: var(--ink);
 }
 
+.popup .shot-spin {
+  color: var(--ink);
+  opacity: 0.85;
+}
+
+.popup .shot-hit {
+  color: var(--accent);
+}
+
+.popup .shot-miss {
+  color: var(--danger);
+}
+
 .popup.goal {
   font-size: 64px;
   color: var(--accent);
@@ -723,6 +736,26 @@
   filter: grayscale(0.8);
 }
 
+/* Joga Bonito: the reroll spins the die; a 5 or 6 flashes gold (the chase pays off). */
+.die.rerolled {
+  animation: die-reroll 0.5s cubic-bezier(0.2, 0.9, 0.3, 1.1);
+}
+
+.die.rerolled.lucky {
+  animation: die-reroll 0.5s cubic-bezier(0.2, 0.9, 0.3, 1.1), die-lucky 0.9s ease;
+}
+
+@keyframes die-reroll {
+  0% { transform: rotate(0deg) scale(1); }
+  35% { transform: rotate(380deg) scale(1.28); }
+  100% { transform: rotate(720deg) scale(1); }
+}
+
+@keyframes die-lucky {
+  0%, 100% { box-shadow: 0 0 0 0 rgba(245, 200, 70, 0); border-color: #cdd4ce; }
+  30% { box-shadow: 0 0 18px 6px rgba(245, 200, 70, 0.95); border-color: #f5c846; }
+}
+
 .die-pip {
   font-size: 24px;
   line-height: 1;
@@ -820,3 +853,66 @@
   color: #7fd4da;
 }
 .reroll-btn:disabled { opacity: 0.4; }
+
+/* ---- pitch: goal ends + ball token + possession badge + direction arrow ---- */
+
+.goal-end {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 22px;
+  padding: 0 4px;
+  color: var(--ink-dim);
+  flex-shrink: 0;
+}
+
+.goal-end--yours {
+  transform: scaleX(-1); /* face toward pitch */
+}
+
+.ball-token {
+  display: block;
+  font-size: 18px;
+  margin-top: 4px;
+  animation: ball-pulse 1.2s ease infinite;
+}
+
+.ball-token.theirs {
+  filter: hue-rotate(200deg) brightness(0.85);
+  animation: ball-pulse-theirs 1.2s ease infinite;
+}
+
+@keyframes ball-pulse {
+  50% { transform: scale(1.2); }
+}
+
+@keyframes ball-pulse-theirs {
+  50% { transform: scale(1.2); filter: hue-rotate(200deg) brightness(1.1); }
+}
+
+.pitch-zone.theirs.current {
+  border-color: var(--danger);
+  box-shadow: 0 4px 18px rgba(163, 61, 61, 0.3);
+}
+
+.possession-badge {
+  font-size: 13px;
+  font-weight: 700;
+  padding: 4px 12px;
+  border-radius: 999px;
+  background: rgba(120, 200, 140, 0.15);
+  border: 1px solid var(--accent);
+  color: var(--accent-2);
+}
+
+.possession-badge.defending {
+  background: rgba(163, 61, 61, 0.15);
+  border-color: var(--danger);
+  color: #e88585;
+}
+
+.pitch-arrow {
+  font-size: 18px;
+  font-weight: 900;
+  color: var(--accent-2);
+}
