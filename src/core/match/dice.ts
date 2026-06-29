@@ -203,9 +203,9 @@ function resolveIntent(draft: DiceMatchState, events: GameEvent[]): void {
   draft.intent = null;
 }
 
-function endRound(defs: CardDefMap, draft: DiceMatchState, events: GameEvent[]): void {
-  resolveIntent(draft, events);
-
+// Close out the current possession: clear the hand and dice, then advance to
+// the next round (a fresh roll + kickoff), the push decision, or the result.
+function concludeRound(defs: CardDefMap, draft: DiceMatchState, events: GameEvent[]): void {
   if (draft.hand.length > 0) {
     const uids = draft.hand.map((c) => c.uid);
     draft.discardPile.push(...draft.hand);
@@ -256,6 +256,13 @@ function endRound(defs: CardDefMap, draft: DiceMatchState, events: GameEvent[]):
       else shootout(defs, draft, events);
       return;
   }
+}
+
+// Ending a round with the ball still in play: the opponent acts on their
+// telegraphed intent (advance / shoot / steal), then the round concludes.
+function endRound(defs: CardDefMap, draft: DiceMatchState, events: GameEvent[]): void {
+  resolveIntent(draft, events);
+  concludeRound(defs, draft, events);
 }
 
 // ---------- actions ----------
@@ -442,6 +449,8 @@ export function applyDiceAction(
     case "SHOOT":
       assertPhase(draft, "ROUND_ACTIVE");
       shoot(draft, events);
+      // a shot ends your possession — whistle, then a fresh roll and kickoff
+      concludeRound(defs, draft, events);
       break;
     case "END_ROUND":
       assertPhase(draft, "ROUND_ACTIVE");

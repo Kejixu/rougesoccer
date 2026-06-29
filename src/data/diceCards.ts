@@ -188,16 +188,21 @@ export const DICE_CARD_MAP: Record<string, CardDef> = Object.fromEntries(
   DICE_CARD_DEFS.map((d) => [d.id, d]),
 );
 
+// You now spend roughly half a match defending, so the deck carries a real
+// defensive presence (~40%) — otherwise a defend possession with no defensive
+// card in hand is a dead round. Keeper takes any die, guaranteeing an option.
 const DICE_STARTING_LIST: { defId: string; count: number }[] = [
+  // attack (progress + finish)
   { defId: "d_shortpass", count: 3 },
   { defId: "d_drivingrun", count: 2 },
   { defId: "d_flankrun", count: 1 },
-  { defId: "d_quickcombo", count: 1 },
   { defId: "d_throughball", count: 1 },
-  { defId: "d_tackle", count: 2 },
-  { defId: "d_clearance", count: 1 },
   { defId: "d_finish", count: 2 },
   { defId: "d_poacher", count: 1 },
+  // defense (tackle / clear / keeper)
+  { defId: "d_tackle", count: 3 },
+  { defId: "d_clearance", count: 2 },
+  { defId: "d_keeper", count: 1 },
 ];
 
 export const DICE_STARTING_TEMPLATE: { defId: string; level: 0 | 1 | 2 }[] =
