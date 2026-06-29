@@ -291,7 +291,14 @@ function endRound(defs: CardDefMap, draft: DiceMatchState, events: GameEvent[]):
   const gotThrough = Math.max(0, pressure - cover);
   const shotQualityGained = resolvePlayerLanes(draft, events);
   const ballAfterBuildUp = draft.ball;
-  resolveIntent(draft, events);
+
+  // If build-up carried the ball into the box with a chance banked, that IS the
+  // shot — it fires now, before the opponent's pressure, so attacking chances and
+  // defensive territory stop fighting over the same step. On rounds you don't reach
+  // the box, the opponent's intent still resolves (and can push into your third/box).
+  const duelShot = draft.ball >= draft.bal.DICE.THEIR_BOX && draft.shotQuality > 0;
+  if (!duelShot) resolveIntent(draft, events);
+
   events.push({
     type: "DUEL_RESOLVED",
     buildUp,
@@ -305,6 +312,8 @@ function endRound(defs: CardDefMap, draft: DiceMatchState, events: GameEvent[]):
     gotThrough,
     shotQualityGained,
   });
+
+  if (duelShot) shoot(draft, events);
   concludeRound(defs, draft, events);
 }
 

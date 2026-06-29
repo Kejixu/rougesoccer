@@ -90,18 +90,28 @@ When you press **Resolve duel**:
 
 1. Build-Up converts into pitch steps and moves the ball forward.
 2. Chance becomes banked **Shot Quality** if the ball is in the Final Third or Box.
-3. The opponent intent resolves. Cover subtracts from attack/counter pressure before
-   pressure is converted into backward ball movement. This pressure can push the ball
-   toward your goal even if you started the round with initiative.
-4. If the opponent reaches your box, they shoot.
-5. The hand and dice clear, and the next round starts unless the match result is due.
+3. **If the ball is now in their box with Shot Quality, you shoot.** Reaching the box
+   with a chance IS the shot — it fires immediately, before the opponent can react.
+   The shot resets the ball to midfield, and the opponent's pressure is skipped this
+   round (you were on the attack).
+4. Otherwise the opponent intent resolves: Cover subtracts from attack/counter
+   pressure, then the remaining pressure pushes the ball toward your goal. This can
+   reach your third or box even if you started the round with initiative.
+5. If the opponent reaches your box, they shoot.
+6. The hand and dice clear, and the next round starts unless the match result is due.
+
+This is the key balance lever: your shot resolving *before* opponent pressure means
+attacking chances and defensive territory no longer fight over the same step, so
+opponent pressure can be strong (real defensive territory) without starving shots.
 
 ---
 
 ## 4. Shooting and conceding
 
-- **You shoot:** if the ball is in their box (`ball >= 16`) and Shot Quality > 0,
-  `d20 + Shot Quality >= their keeper DC` is a goal. The shot ends the round.
+- **You shoot:** when the duel leaves the ball in their box (`ball >= 16`) with Shot
+  Quality > 0, the shot fires automatically as the duel resolves —
+  `d20 + Shot Quality >= their keeper DC` is a goal. It happens before opponent
+  pressure and ends the round.
 - **They shoot:** if opponent pressure pushes the ball into your box (`ball <= 4`),
   `d20 + their danger >= your keeper DC` is a goal.
 - Any shot resets the ball to midfield and flips initiative.
@@ -163,7 +173,7 @@ Through Ball, Clinical Finish x2, Poacher, Tackle x3, Clearance x2, Keeper.
 Pool 5 dice · d6 · hand 4 · 5 regulation rounds · pitch 0-20 · midfield 10 · Build-Up
 scale 0.65 · their
 box 16 · your box 4 · their keeper DC 9 + rating x 0.14 (cap 18) · your keeper DC 14 ·
-shot d20 · opponent danger rating x 0.08 (cap 6) · opponent pressure scale 0.20.
+shot d20 · opponent danger rating x 0.08 (cap 6) · opponent pressure scale 0.34.
 
 ---
 

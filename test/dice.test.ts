@@ -205,7 +205,7 @@ describe("tug-of-war", () => {
 });
 
 describe("advancing and shooting", () => {
-  it("reaching the box lets you shoot; a goal resets to midfield", () => {
+  it("build-up into the box with a banked chance fires the shot during the duel", () => {
     let m = start(["d_shortpass"], "advance");
     m = {
       ...m,
@@ -214,9 +214,12 @@ describe("advancing and shooting", () => {
       chance: 4,
       intent: { kind: "sitDeep", amount: 1 },
     };
-    m = applyDiceAction(DICE_CARD_MAP, m, { type: "END_ROUND" }).state;
-    expect(m.ball).toBeGreaterThanOrEqual(DEFAULT_BALANCE.DICE.THEIR_BOX);
-    expect(m.shotQuality).toBe(4);
+    const step = applyDiceAction(DICE_CARD_MAP, m, { type: "END_ROUND" });
+    // reaching the box with a chance IS the shot opportunity — it fires before any
+    // opponent pushback, then the ball restarts from midfield with no leftover quality
+    expect(step.events.some((e) => e.type === "SHOT_TAKEN")).toBe(true);
+    expect(step.state.ball).toBe(DEFAULT_BALANCE.DICE.MIDFIELD);
+    expect(step.state.shotQuality).toBe(0);
   });
 
   it("a shot with no quality is rejected", () => {

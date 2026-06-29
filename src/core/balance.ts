@@ -166,7 +166,10 @@ export const DEFAULT_BALANCE: BalanceConfig = {
     OWN_KEEPER_DC_BASE: 14,
     SHOT_DIE: 20,
     BUILD_UP_SCALE: 0.65,
-    OPP_ADVANCE_SCALE: 0.2,
+    // Opponent pressure is strong enough to reach your third/box and force concedes
+    // (real defensive territory). Safe to be this high because your shot now fires at
+    // duel resolution BEFORE pressure, so pushback no longer pre-empts your chances.
+    OPP_ADVANCE_SCALE: 0.34,
     OPP_DANGER_PER_RATING: 0.08,
     DANGER_CAP: 6,
     SIT_DEEP_DC_BONUS: 4,

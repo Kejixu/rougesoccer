@@ -43,7 +43,9 @@ export const NATION_DICE_KITS: Record<string, NationDiceKit> = {
     mutators: [
       { kind: "rerollDie", perRound: 1 },
       { kind: "poolDelta", amount: -1 },
-      { kind: "keeperDcDelta", amount: 3 },
+      // only a slight keeper bump: with one fewer die Brazil is already fragile under
+      // the stronger opponent pressure, so its shots shouldn't be much harder too.
+      { kind: "keeperDcDelta", amount: 1 },
     ],
   },
   mex: {
@@ -57,7 +59,7 @@ export const NATION_DICE_KITS: Record<string, NationDiceKit> = {
   usa: {
     identity: "The Press",
     blurb: "Hunt the ball high. Win a tackle and you spring straight into the counter.",
-    mutators: [{ kind: "counterSpring", amount: 4 }],
+    mutators: [{ kind: "counterSpring", amount: 2 }],
   },
   can: {
     identity: "Resolute",
