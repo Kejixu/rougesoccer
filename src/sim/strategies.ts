@@ -65,25 +65,35 @@ function diceAction(
 
   const playable = playableCards(content.defs, m);
 
-  if (m.possession === "them") {
-    // win it back if we can; else clear/push when the ball is near our box
-    const tackle = assignFor(content, m, playable, "defend");
-    if (tackle) return tackle;
-    return { type: "END_ROUND" };
-  }
-
   const inBox = m.ball >= m.bal.DICE.THEIR_BOX;
   const dc = m.keeperDC + (m.intent?.kind === "sitDeep" ? m.bal.DICE.SIT_DEEP_DC_BONUS : 0);
   const shootThreshold = Math.max(opts.shootFloor, dc - 9);
-  if (inBox) {
-    if (m.shotQuality < shootThreshold) {
-      const fin = assignFor(content, m, playable, "finish");
-      if (fin) return fin;
-    }
-    if (m.shotQuality > 0) return { type: "SHOOT" };
+  if (inBox && m.shotQuality >= shootThreshold) return { type: "SHOOT" };
+
+  const projectedBall = Math.min(m.bal.DICE.PITCH_LEN, m.ball + Math.round(m.buildUp * m.bal.DICE.BUILD_UP_SCALE));
+  const intentPoints = m.intent?.kind === "attack" || m.intent?.kind === "counter" ? m.intent.points : 4;
+  const projectedPressure = Math.max(0, intentPoints - m.cover);
+  const projectedDangerBall = m.ball - Math.round(projectedPressure * m.bal.DICE.OPP_ADVANCE_SCALE);
+
+  if ((m.possession === "them" || projectedDangerBall <= m.bal.DICE.YOUR_BOX + 1) && m.cover < intentPoints) {
+    const cover = assignFor(content, m, playable, "defend");
+    if (cover) return cover;
   }
-  const adv = assignFor(content, m, playable, "progress");
-  if (adv) return adv;
+
+  if (projectedBall >= m.bal.DICE.THEIR_BOX || inBox) {
+    const fin = assignFor(content, m, playable, "finish");
+    if (fin) return fin;
+  }
+
+  if (projectedBall < m.bal.DICE.THEIR_BOX) {
+    const adv = assignFor(content, m, playable, "progress");
+    if (adv) return adv;
+  }
+
+  const cover = assignFor(content, m, playable, "defend");
+  if (cover) return cover;
+
+  if (inBox && m.shotQuality > 0) return { type: "SHOOT" };
   for (const c of m.hand) {
     if (!playable.has(c.uid)) continue;
     const idx = bestDieFor(content.defs, m, c.uid);
@@ -181,7 +191,7 @@ export function makeRandomBot(): Bot {
         return (m.playerGoals + m.round) % 2 === 0 ? { type: "EXTRA_TIME" } : { type: "TAKE_WIN" };
       }
       const playable = [...playableCards(content.defs, m)];
-      if (m.possession === "you" && m.ball >= m.bal.DICE.THEIR_BOX && m.shotQuality > 0 && (m.round + playable.length) % 3 === 0) {
+      if (m.ball >= m.bal.DICE.THEIR_BOX && m.shotQuality > 0 && (m.round + playable.length) % 3 === 0) {
         return { type: "SHOOT" };
       }
       if (playable.length === 0) return { type: "END_ROUND" };

@@ -73,14 +73,39 @@ describe("dice roll", () => {
 });
 
 describe("slotting dice", () => {
-  it("Short Pass pushes the ball by the die's value and consumes the die", () => {
+  it("Short Pass puts the die value into build-up instead of moving immediately", () => {
     let m = start(["d_shortpass", "d_shortpass", "d_shortpass", "d_shortpass", "d_shortpass"]);
-    const die = m.dice.find((d) => !d.used)!;
+    m = {
+      ...m,
+      ball: DEFAULT_BALANCE.DICE.MIDFIELD,
+      dice: [{ value: 5, used: false }],
+      hand: [inst("d_shortpass", 0)],
+    };
     const before = m.ball;
     m = playWith(m, "d_shortpass");
     const used = m.dice.filter((d) => d.used).length;
     expect(used).toBe(1);
-    expect(m.ball).toBe(before + die.value);
+    expect(m.ball).toBe(before);
+    expect(m.buildUp).toBe(5);
+  });
+
+  it("emits a lane commit event explaining what the played card changed", () => {
+    let m = start(["d_shortpass"]);
+    m = {
+      ...m,
+      dice: [{ value: 5, used: false }],
+      hand: [inst("d_shortpass", 0)],
+    };
+    const step = applyDiceAction(DICE_CARD_MAP, m, { type: "ASSIGN_DIE", uid: m.hand[0]!.uid, dieIndex: 0 });
+    const commit = step.events.find((e) => e.type === "LANE_COMMITTED");
+    expect(commit).toMatchObject({
+      type: "LANE_COMMITTED",
+      cardName: "Short Pass",
+      die: 5,
+      buildUp: 5,
+      chance: 0,
+      cover: 0,
+    });
   });
 
   it("a die that doesn't fit the slot is rejected", () => {
@@ -113,13 +138,63 @@ describe("tug-of-war", () => {
     expect(m.shotQuality).toBe(0);
   });
 
-  it("a progress play pushes the ball toward their goal", () => {
+  it("end round converts build-up score into scaled pitch position and chance into shot quality", () => {
     let m = start(Array.from({ length: 6 }, () => "d_shortpass"), "adv");
-    const before = m.ball;
-    const die = m.dice.find((d) => !d.used && d.value >= 2)!;
-    const idx = m.dice.indexOf(die);
-    m = applyDiceAction(DICE_CARD_MAP, m, { type: "ASSIGN_DIE", uid: m.hand.find((c) => c.defId === "d_shortpass")!.uid, dieIndex: idx }).state;
-    expect(m.ball).toBe(before + die.value);
+    m = {
+      ...m,
+      ball: DEFAULT_BALANCE.DICE.MIDFIELD,
+      dice: [
+        { value: 6, used: false },
+        { value: 4, used: false },
+      ],
+      hand: [inst("d_shortpass", 0), inst("d_cross", 1)],
+      intent: { kind: "sitDeep", amount: 1 },
+    };
+    m = applyDiceAction(DICE_CARD_MAP, m, { type: "ASSIGN_DIE", uid: m.hand[0]!.uid, dieIndex: 0 }).state;
+    m = applyDiceAction(DICE_CARD_MAP, m, { type: "ASSIGN_DIE", uid: m.hand[0]!.uid, dieIndex: 1 }).state;
+    m = applyDiceAction(DICE_CARD_MAP, m, { type: "END_ROUND" }).state;
+    expect(m.ball).toBe(14);
+    expect(m.shotQuality).toBe(4);
+  });
+
+  it("emits a duel resolution event explaining movement, chance, and absorbed pressure", () => {
+    let m = start(["d_shortpass"], "duel-log");
+    m = {
+      ...m,
+      ball: DEFAULT_BALANCE.DICE.MIDFIELD,
+      buildUp: 6,
+      chance: 4,
+      cover: 5,
+      intent: { kind: "attack", points: 12 },
+    };
+    const step = applyDiceAction(DICE_CARD_MAP, m, { type: "END_ROUND" });
+    const resolved = step.events.find((e) => e.type === "DUEL_RESOLVED");
+    expect(resolved).toMatchObject({
+      type: "DUEL_RESOLVED",
+      buildUp: 6,
+      chance: 4,
+      cover: 5,
+      ballFrom: 10,
+      ballAfterBuildUp: 14,
+      pressure: 12,
+      absorbed: 5,
+      gotThrough: 7,
+    });
+  });
+
+  it("opponent pressure can move the ball toward your goal even when you start with initiative", () => {
+    let m = start(["d_shortpass"], "initiative-pressure");
+    m = {
+      ...m,
+      ball: DEFAULT_BALANCE.DICE.MIDFIELD,
+      possession: "you",
+      buildUp: 0,
+      cover: 0,
+      intent: { kind: "attack", points: 12 },
+    };
+    m = applyDiceAction(DICE_CARD_MAP, m, { type: "END_ROUND" }).state;
+    expect(m.ball).toBeLessThan(DEFAULT_BALANCE.DICE.MIDFIELD);
+    expect(m.possession).toBe("them");
   });
 
   it("you cannot shoot until the ball reaches their box", () => {
@@ -131,26 +206,17 @@ describe("tug-of-war", () => {
 
 describe("advancing and shooting", () => {
   it("reaching the box lets you shoot; a goal resets to midfield", () => {
-    // force a deck of advancers + a finisher, drive forward, then shoot
-    let m = start(Array.from({ length: 12 }, () => "d_shortpass"), "advance");
-    // burn rounds slotting every fitting die until we reach the box at least once
-    let reachedBox = false;
-    for (let guard = 0; guard < 40 && m.phase === "ROUND_ACTIVE"; guard++) {
-      if (m.ball >= DEFAULT_BALANCE.DICE.THEIR_BOX && m.possession === "you") {
-        reachedBox = true;
-        break;
-      }
-      const card = m.hand.find((c) => {
-        const def = DICE_CARD_MAP[c.defId];
-        if (!def?.slot) return false;
-        // only play attack cards when we have possession
-        const slot = def.slot;
-        return m.possession === "you" && m.dice.some((d) => !d.used && dieFitsSlot(d.value, slot));
-      });
-      if (card) m = playWith(m, card.defId);
-      else m = applyDiceAction(DICE_CARD_MAP, m, { type: "END_ROUND" }).state;
-    }
-    expect(reachedBox).toBe(true);
+    let m = start(["d_shortpass"], "advance");
+    m = {
+      ...m,
+      ball: 15,
+      buildUp: 3,
+      chance: 4,
+      intent: { kind: "sitDeep", amount: 1 },
+    };
+    m = applyDiceAction(DICE_CARD_MAP, m, { type: "END_ROUND" }).state;
+    expect(m.ball).toBeGreaterThanOrEqual(DEFAULT_BALANCE.DICE.THEIR_BOX);
+    expect(m.shotQuality).toBe(4);
   });
 
   it("a shot with no quality is rejected", () => {
@@ -198,15 +264,16 @@ describe("nation mutators", () => {
     expect(mex.dice).toHaveLength(DEFAULT_BALANCE.DICE.POOL_SIZE + 1);
   });
 
-  it("USA counterSpring: a won tackle springs the ball forward", () => {
+  it("USA counterSpring adds build-up when a tackle is committed", () => {
     let m = start(["d_tackle", "d_tackle", "d_tackle", "d_tackle"], "def", [{ kind: "counterSpring", amount: 4 }]);
     m = { ...m, possession: "them", ball: 6 };
     const idx = m.dice.findIndex((d) => !d.used && d.value <= 2);
     expect(idx).toBeGreaterThanOrEqual(0); // seed must roll a qualifying die or the test is vacuous
     if (idx >= 0) {
       m = applyDiceAction(DICE_CARD_MAP, m, { type: "ASSIGN_DIE", uid: m.hand[0]!.uid, dieIndex: idx }).state;
-      expect(m.possession).toBe("you");
-      expect(m.ball).toBe(10); // 6 + 4 spring
+      expect(m.buildUp).toBe(4);
+      expect(m.cover).toBeGreaterThan(0);
+      expect(m.ball).toBe(6);
     }
   });
 
@@ -238,33 +305,37 @@ describe("defending", () => {
     return m;
   }
 
-  it("a Tackle wins possession back where the ball is", () => {
+  it("defensive cover reduces opponent pressure when the round resolves", () => {
     let m = defendingState(["d_tackle", "d_tackle", "d_tackle", "d_tackle"]);
-    const idx = m.dice.findIndex((d) => !d.used && d.value <= 2);
-    expect(idx).toBeGreaterThanOrEqual(0); // seed must roll a qualifying die or the test is vacuous
-    if (idx >= 0) {
-      const before = m.ball;
-      m = applyDiceAction(DICE_CARD_MAP, m, { type: "ASSIGN_DIE", uid: m.hand[0]!.uid, dieIndex: idx }).state;
-      expect(m.possession).toBe("you");
-      expect(m.ball).toBe(before); // no nation spring by default
-    }
+    m = {
+      ...m,
+      ball: 5,
+      dice: [{ value: 2, used: false }],
+      hand: [inst("d_tackle", 0)],
+      intent: { kind: "attack", points: 12 },
+    };
+    m = applyDiceAction(DICE_CARD_MAP, m, { type: "ASSIGN_DIE", uid: m.hand[0]!.uid, dieIndex: 0 }).state;
+    m = applyDiceAction(DICE_CARD_MAP, m, { type: "END_ROUND" }).state;
+    expect(m.oppGoals).toBe(0);
+    expect(m.ball).toBeGreaterThan(DEFAULT_BALANCE.DICE.YOUR_BOX);
   });
 
-  it("a Clearance boots the ball to midfield, they keep it", () => {
+  it("a Clearance commits cover without moving the ball immediately", () => {
     let m = defendingState(["d_clearance", "d_clearance", "d_clearance", "d_clearance"]);
     const idx = m.dice.findIndex((d) => !d.used && d.value <= 3);
     expect(idx).toBeGreaterThanOrEqual(0); // seed must roll a qualifying die or the test is vacuous
     if (idx >= 0) {
       m = applyDiceAction(DICE_CARD_MAP, m, { type: "ASSIGN_DIE", uid: m.hand[0]!.uid, dieIndex: idx }).state;
-      expect(m.ball).toBe(DEFAULT_BALANCE.DICE.MIDFIELD);
+      expect(m.cover).toBeGreaterThan(0);
+      expect(m.ball).toBe(6);
       expect(m.possession).toBe("them");
     }
   });
 
-  it("attack cards can't be played while defending", () => {
+  it("attack and defense cards are both playable while defending", () => {
     const m = defendingState(["d_shortpass", "d_shortpass", "d_shortpass", "d_shortpass"]);
     const playable = playableCards(DICE_CARD_MAP, m);
-    expect(playable.size).toBe(0);
+    expect(playable.size).toBeGreaterThan(0);
   });
 });
 

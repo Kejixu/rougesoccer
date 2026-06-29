@@ -13,7 +13,6 @@ import { rollIntent } from "./intents";
 import {
   dieFitsSlot,
   levelStats,
-  type CardDef,
   type CardDefMap,
   type CardInstance,
   type DiceEffect,
@@ -103,6 +102,9 @@ function moveBall(draft: DiceMatchState, steps: number, events: GameEvent[]): vo
 
 function startRound(draft: DiceMatchState, events: GameEvent[]): void {
   draft.round += 1;
+  draft.buildUp = 0;
+  draft.chance = 0;
+  draft.cover = 0;
 
   const bonusDice =
     passiveSum(draft, "roundStamina") +
@@ -176,14 +178,23 @@ function oppShoot(draft: DiceMatchState, events: GameEvent[]): void {
   draft.ball = draft.bal.DICE.MIDFIELD;
 }
 
+function intentPressure(draft: DiceMatchState): number {
+  const intent = draft.intent;
+  if (!intent) return 0;
+  return intent.kind === "attack" || intent.kind === "counter" ? intent.points : 4;
+}
+
 function resolveIntent(draft: DiceMatchState, events: GameEvent[]): void {
   const intent = draft.intent;
   if (!intent) return;
   const etMult = draft.mode === "extratime" ? draft.bal.EXTRA_TIME_CLOCK_MULT : 1;
+  const pressure = Math.max(0, intentPressure(draft) - draft.cover);
+  const base = Math.round(pressure * draft.bal.DICE.OPP_ADVANCE_SCALE * etMult);
+  const steps = Math.max(0, base + mutatorSum(draft.mutators, "oppAdvanceDelta"));
 
   if (draft.possession === "you") {
-    // they contest: a press/attack wins the ball back unless you got it deep
-    if ((intent.kind === "attack" || intent.kind === "counter") && draft.ball < draft.bal.DICE.STEAL_LINE) {
+    if ((intent.kind === "attack" || intent.kind === "counter") && pressure > 0) {
+      moveBall(draft, -steps, events);
       draft.possession = "them";
       events.push({ type: "POSSESSION_LOST" });
     }
@@ -193,14 +204,24 @@ function resolveIntent(draft: DiceMatchState, events: GameEvent[]): void {
     }
   } else {
     // they have it: advance toward your goal, shoot if they reach your box
-    const points = intent.kind === "attack" || intent.kind === "counter" ? intent.points : 4;
-    const base = Math.round(points * draft.bal.DICE.OPP_ADVANCE_SCALE * etMult);
-    const steps = Math.max(1, base + mutatorSum(draft.mutators, "oppAdvanceDelta"));
     moveBall(draft, -steps, events);
     if (draft.ball <= draft.bal.DICE.YOUR_BOX) oppShoot(draft, events);
   }
   events.push({ type: "INTENT_EXECUTED", intent, blocked: 0, points: 0, oppGoals: draft.oppGoals });
   draft.intent = null;
+}
+
+function projectedZone(draft: DiceMatchState): number {
+  const buildUpSteps = Math.round(draft.buildUp * draft.bal.DICE.BUILD_UP_SCALE);
+  return zoneOf(Math.min(draft.bal.DICE.PITCH_LEN, draft.ball + buildUpSteps), draft.bal);
+}
+
+function resolvePlayerLanes(draft: DiceMatchState, events: GameEvent[]): number {
+  const before = draft.shotQuality;
+  const buildUpSteps = Math.round(draft.buildUp * draft.bal.DICE.BUILD_UP_SCALE);
+  if (buildUpSteps > 0) moveBall(draft, buildUpSteps, events);
+  if (draft.chance > 0 && zoneOf(draft.ball, draft.bal) >= 3) draft.shotQuality += draft.chance;
+  return draft.shotQuality - before;
 }
 
 // Close out the current possession: clear the hand and dice, then advance to
@@ -261,7 +282,29 @@ function concludeRound(defs: CardDefMap, draft: DiceMatchState, events: GameEven
 // Ending a round with the ball still in play: the opponent acts on their
 // telegraphed intent (advance / shoot / steal), then the round concludes.
 function endRound(defs: CardDefMap, draft: DiceMatchState, events: GameEvent[]): void {
+  const buildUp = draft.buildUp;
+  const chance = draft.chance;
+  const cover = draft.cover;
+  const ballFrom = draft.ball;
+  const pressure = intentPressure(draft);
+  const absorbed = Math.min(cover, pressure);
+  const gotThrough = Math.max(0, pressure - cover);
+  const shotQualityGained = resolvePlayerLanes(draft, events);
+  const ballAfterBuildUp = draft.ball;
   resolveIntent(draft, events);
+  events.push({
+    type: "DUEL_RESOLVED",
+    buildUp,
+    chance,
+    cover,
+    ballFrom,
+    ballAfterBuildUp,
+    ballAfterOpponent: draft.ball,
+    pressure,
+    absorbed,
+    gotThrough,
+    shotQualityGained,
+  });
   concludeRound(defs, draft, events);
 }
 
@@ -275,42 +318,35 @@ function applyDiceEffect(
 ): void {
   switch (eff.kind) {
     case "progress":
-      moveBall(draft, eff.amount, events);
+      draft.buildUp += eff.amount;
       break;
     case "progressFromDie":
-      moveBall(draft, dieValue, events);
+      draft.buildUp += dieValue;
       break;
     case "advance":
-      moveBall(draft, eff.zones * draft.bal.DICE.ZONE_WIDTH, events);
+      draft.buildUp += eff.zones * draft.bal.DICE.ZONE_WIDTH;
       break;
     case "shotQuality":
-      if (zoneOf(draft.ball, draft.bal) >= (eff.minZone ?? 0)) draft.shotQuality += eff.amount;
+      if (projectedZone(draft) >= (eff.minZone ?? 0)) draft.chance += eff.amount;
       break;
     case "shotQualityFromDie":
-      if (zoneOf(draft.ball, draft.bal) >= (eff.minZone ?? 0)) draft.shotQuality += dieValue;
+      if (projectedZone(draft) >= (eff.minZone ?? 0)) draft.chance += dieValue;
       break;
     case "winPossession":
-      draft.possession = "you";
-      moveBall(draft, mutatorSum(draft.mutators, "counterSpring"), events); // USA spring
+      draft.cover += 10 + dieValue;
+      draft.buildUp += mutatorSum(draft.mutators, "counterSpring"); // USA spring
       events.push({ type: "POSSESSION_WON" });
       break;
     case "pushBack":
-      moveBall(draft, eff.steps, events);
+      draft.cover += eff.steps;
       break;
     case "clearance":
-      draft.ball = draft.bal.DICE.MIDFIELD;
-      events.push({ type: "BALL_CLEARED", ball: draft.ball });
+      draft.cover += 6;
       break;
     case "draw":
       drawCards(draft, eff.amount, events);
       break;
   }
-}
-
-function isDefenseCard(def: CardDef | undefined): boolean {
-  return (def?.diceEffects ?? []).some(
-    (e) => e.kind === "winPossession" || e.kind === "pushBack" || e.kind === "clearance",
-  );
 }
 
 function assignDie(
@@ -330,22 +366,28 @@ function assignDie(
   if (!def || !def.slot) throw new Error(`card ${inst.defId} has no dice slot`);
   if (!dieFitsSlot(die.value, def.slot)) throw new Error(`die ${die.value} doesn't fit this card`);
 
-  const roleOk = isDefenseCard(def) ? draft.possession === "them" : draft.possession === "you";
-  if (!roleOk) throw new Error("that card can't be played right now");
-
   die.used = true;
   draft.hand.splice(cardIdx, 1);
   events.push({ type: "DIE_ASSIGNED", uid, die: die.value });
   events.push({ type: "CARD_PLAYED", uid, as: "attack", cost: 0 });
 
+  const before = { buildUp: draft.buildUp, chance: draft.chance, cover: draft.cover };
   for (const eff of def.diceEffects ?? []) applyDiceEffect(draft, eff, die.value, events);
+  events.push({
+    type: "LANE_COMMITTED",
+    uid,
+    cardName: def.name,
+    die: die.value,
+    buildUp: draft.buildUp - before.buildUp,
+    chance: draft.chance - before.chance,
+    cover: draft.cover - before.cover,
+  });
 
   if (def.exileOnPlay) draft.exile.push(inst);
   else draft.discardPile.push(inst);
 }
 
 function shoot(draft: DiceMatchState, events: GameEvent[]): void {
-  if (draft.possession !== "you") throw new Error("you don't have the ball");
   if (draft.ball < draft.bal.DICE.THEIR_BOX) throw new Error("you must reach the box to shoot");
   if (draft.shotQuality <= 0) throw new Error("no shot quality — work a chance first");
   const dc = draft.keeperDC + (draft.intent?.kind === "sitDeep" ? draft.bal.DICE.SIT_DEEP_DC_BONUS : 0);
@@ -392,6 +434,9 @@ export function createDiceMatch(defs: CardDefMap, cfg: DiceMatchConfig): DiceMat
     ball: cfg.balance.DICE.MIDFIELD,
     possession: "you",
     ownKeeperDC: cfg.balance.DICE.OWN_KEEPER_DC_BASE + passiveSumPlain(cfg.passives ?? [], "blockPerRound"),
+    buildUp: 0,
+    chance: 0,
+    cover: 0,
     shotQuality: 0,
     playerGoals: 0,
     oppGoals: 0,
@@ -486,8 +531,7 @@ export function playableCards(defs: CardDefMap, state: DiceMatchState): Set<stri
     const def = defs[c.defId];
     const slot = def?.slot;
     if (!slot) continue;
-    const roleOk = isDefenseCard(def) ? state.possession === "them" : state.possession === "you";
-    if (roleOk && free.some((v) => dieFitsSlot(v, slot))) out.add(c.uid);
+    if (free.some((v) => dieFitsSlot(v, slot))) out.add(c.uid);
   }
   return out;
 }

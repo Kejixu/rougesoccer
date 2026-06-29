@@ -137,6 +137,140 @@
   font-size: 24px;
 }
 
+.decision-coach {
+  display: grid;
+  grid-template-columns: auto auto 1fr;
+  gap: 10px;
+  align-items: center;
+  padding: 10px 12px;
+  border-color: rgba(245, 241, 227, 0.18);
+}
+
+.decision-state,
+.decision-priority {
+  font-family: var(--font-display);
+  font-weight: 900;
+}
+
+.decision-state {
+  min-width: 76px;
+  color: var(--ink-dim);
+}
+
+.decision-priority {
+  color: var(--accent);
+}
+
+.decision-reason {
+  font-size: 13px;
+  color: var(--ink-dim);
+}
+
+.decision-coach.state-danger {
+  border-color: rgba(199, 84, 80, 0.6);
+  background: rgba(199, 84, 80, 0.1);
+}
+
+.decision-coach.state-danger .decision-priority {
+  color: #f0a19e;
+}
+
+.decision-coach.state-ready .decision-priority {
+  color: #f0d76c;
+}
+
+.duel-preview {
+  display: flex;
+  gap: 8px;
+  flex-wrap: wrap;
+  align-items: center;
+  padding: 10px 12px;
+}
+
+.duel-preview-step {
+  font-size: 13px;
+  font-weight: 800;
+  padding: 4px 10px;
+  border-radius: 999px;
+  background: rgba(245, 241, 227, 0.08);
+  border: 1px solid rgba(245, 241, 227, 0.18);
+  color: var(--ink);
+}
+
+.duel-preview-step.danger {
+  color: #f0a19e;
+  border-color: rgba(199, 84, 80, 0.5);
+  background: rgba(199, 84, 80, 0.12);
+}
+
+.duel-preview-note {
+  flex-basis: 100%;
+  font-size: 13px;
+  color: var(--ink-dim);
+}
+
+.duel-preview-note.danger {
+  color: #f0b6b4;
+  font-weight: 700;
+}
+
+.pending-commit {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 10px 12px;
+  border-color: rgba(217, 184, 50, 0.65);
+  background: rgba(217, 184, 50, 0.1);
+}
+
+.pending-commit span {
+  flex: 1;
+  font-size: 14px;
+  font-weight: 800;
+  color: #f0d76c;
+}
+
+.match-log {
+  display: grid;
+  gap: 4px;
+  padding: 10px 12px;
+  border-color: rgba(120, 200, 140, 0.35);
+}
+
+.match-log-line {
+  font-size: 13px;
+  line-height: 1.35;
+  color: var(--ink-dim);
+}
+
+.match-log-line:first-child {
+  color: var(--ink);
+  font-weight: 700;
+}
+
+.lane-glossary {
+  display: grid;
+  grid-template-columns: repeat(5, minmax(130px, 1fr));
+  gap: 8px;
+  padding: 10px 12px;
+}
+
+.lane-glossary div {
+  display: grid;
+  gap: 3px;
+}
+
+.lane-glossary strong {
+  font-size: 12px;
+  color: var(--ink);
+}
+
+.lane-glossary span {
+  font-size: 11px;
+  line-height: 1.3;
+  color: var(--ink-dim);
+}
+
 .intent-threat {
   margin-left: auto;
   color: var(--danger);
@@ -800,6 +934,11 @@
 
 .dice-card:hover:not(:disabled) {
   transform: translateY(-4px);
+}
+
+.dice-card.pending {
+  border-color: var(--accent);
+  box-shadow: 0 0 0 3px rgba(120, 200, 140, 0.28);
 }
 
 .dice-card.unplayable {

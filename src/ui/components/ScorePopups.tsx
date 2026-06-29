@@ -140,6 +140,37 @@ export function ScorePopups({ events }: { events: GameEvent[] }) {
           popup: { id: nextId++, kind: "goal", text: e.goals > 1 ? `⚽ ${e.goals} GOALS!` : "⚽ GOAL!" },
         });
         delay += 650;
+      } else if (e.type === "LANE_COMMITTED") {
+        const parts = [];
+        if (e.buildUp) parts.push(`+${e.buildUp} build`);
+        if (e.chance) parts.push(`+${e.chance} chance`);
+        if (e.cover) parts.push(`+${e.cover} cover`);
+        if (parts.length > 0) {
+          staged.push({
+            delay,
+            popup: { id: nextId++, kind: "info", text: parts.join(" · ") },
+          });
+          delay += 350;
+        }
+      } else if (e.type === "DUEL_RESOLVED") {
+        if (e.shotQualityGained > 0) {
+          staged.push({
+            delay,
+            popup: { id: nextId++, kind: "shot", text: `+${e.shotQualityGained} Shot Quality` },
+          });
+          delay += 450;
+        }
+        if (e.pressure > 0) {
+          staged.push({
+            delay,
+            popup: {
+              id: nextId++,
+              kind: e.gotThrough > 0 ? "concede" : "info",
+              text: e.gotThrough > 0 ? `Cover ${e.absorbed}/${e.pressure} · ${e.gotThrough} through` : `Covered ${e.absorbed}/${e.pressure}`,
+            },
+          });
+          delay += 450;
+        }
       } else if (e.type === "INTENT_EXECUTED") {
         if (e.blocked > 0 && e.points === 0) {
           staged.push({

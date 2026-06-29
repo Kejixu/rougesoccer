@@ -31,9 +31,8 @@ export function TitleScreen({
 
       <h2>New campaign</h2>
       <p style={{ color: "var(--ink-dim)", fontSize: 13 }}>
-        Dice mode: each round you roll a pool of dice and slot them into cards — low dice
-        defend, mid dice move the ball up the pitch, high dice finish. Reach the box, then
-        shoot.
+        Momentum Duel: each round you slot dice into Build-Up, Chance, and Cover.
+        Resolve the duel, reach the box, then shoot.
       </p>
       <div style={{ display: "flex", gap: 12, flexWrap: "wrap" }}>
         {PLAYABLE_TEAM_IDS.map((id) => {

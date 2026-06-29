@@ -351,6 +351,20 @@ export type GameEvent =
   // ---- dice mode ----
   | { type: "DICE_ROLLED"; dice: number[] }
   | { type: "DIE_ASSIGNED"; uid: string; die: number }
+  | { type: "LANE_COMMITTED"; uid: string; cardName: string; die: number; buildUp: number; chance: number; cover: number }
+  | {
+      type: "DUEL_RESOLVED";
+      buildUp: number;
+      chance: number;
+      cover: number;
+      ballFrom: number;
+      ballAfterBuildUp: number;
+      ballAfterOpponent: number;
+      pressure: number;
+      absorbed: number;
+      gotThrough: number;
+      shotQualityGained: number;
+    }
   | { type: "DIE_REROLLED"; dieIndex: number; from: number; to: number }
   | { type: "POSSESSION_WON" }
   | { type: "POSSESSION_LOST" }
@@ -394,6 +408,9 @@ export interface DiceMatchState {
   ball: number; // 0 = your goal, bal.DICE.PITCH_LEN = their goal
   possession: "you" | "them";
   ownKeeperDC: number; // their shots roll vs this
+  buildUp: number; // current-round lane total that moves the ball on resolution
+  chance: number; // current-round lane total that becomes shot quality on resolution
+  cover: number; // current-round lane total that reduces opponent pressure
   shotQuality: number;
   playerGoals: number;
   oppGoals: number;

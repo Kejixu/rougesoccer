@@ -75,6 +75,7 @@ export interface BalanceConfig {
     KEEPER_DC_PER_RATING: number;
     OWN_KEEPER_DC_BASE: number; // your keeper, their shots roll vs it
     SHOT_DIE: number;         // d20
+    BUILD_UP_SCALE: number;   // build-up lane points -> pitch steps
     OPP_ADVANCE_SCALE: number; // intent points -> ball steps toward your goal
     OPP_DANGER_PER_RATING: number; // their shot quality vs your keeper
     DANGER_CAP: number; // max opp danger bonus, so d20+danger stays a contest vs ownKeeperDC
@@ -164,7 +165,8 @@ export const DEFAULT_BALANCE: BalanceConfig = {
     KEEPER_DC_PER_RATING: 0.14,
     OWN_KEEPER_DC_BASE: 14,
     SHOT_DIE: 20,
-    OPP_ADVANCE_SCALE: 0.35,
+    BUILD_UP_SCALE: 0.65,
+    OPP_ADVANCE_SCALE: 0.2,
     OPP_DANGER_PER_RATING: 0.08,
     DANGER_CAP: 6,
     SIT_DEEP_DC_BONUS: 4,

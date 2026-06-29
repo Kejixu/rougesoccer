@@ -5,7 +5,7 @@
 import type { CardDef, CardInstance } from "../core/types";
 
 export const DICE_CARD_DEFS = [
-  // ---- progress: move the ball up the pitch (mid dice) ----
+  // ---- build-up: commit territory for round resolution (mid dice) ----
   {
     id: "d_shortpass",
     kind: "player",
@@ -14,7 +14,7 @@ export const DICE_CARD_DEFS = [
     rarity: "common",
     slot: { kind: "min", value: 2 },
     diceEffects: [{ kind: "progressFromDie" }],
-    levels: [{ text: "Slot 2+: Progress = the die's value." }],
+    levels: [{ text: "Slot 2+: Build-Up = the die's value." }],
     effects: [],
   },
   {
@@ -25,7 +25,7 @@ export const DICE_CARD_DEFS = [
     rarity: "common",
     slot: { kind: "min", value: 3 },
     diceEffects: [{ kind: "progress", amount: 4 }],
-    levels: [{ text: "Slot 3+: +4 Progress (one zone)." }],
+    levels: [{ text: "Slot 3+: +4 Build-Up (one zone)." }],
     effects: [],
   },
   {
@@ -39,7 +39,7 @@ export const DICE_CARD_DEFS = [
       { kind: "progress", amount: 3 },
       { kind: "draw", amount: 1 },
     ],
-    levels: [{ text: "Slot 4+: +3 Progress, draw 1." }],
+    levels: [{ text: "Slot 4+: +3 Build-Up, draw 1." }],
     effects: [],
   },
   {
@@ -53,7 +53,7 @@ export const DICE_CARD_DEFS = [
       { kind: "progress", amount: 2 },
       { kind: "draw", amount: 1 },
     ],
-    levels: [{ text: "Slot 4+: +2 Progress, draw 1." }],
+    levels: [{ text: "Slot 4+: +2 Build-Up, draw 1." }],
     effects: [],
   },
   {
@@ -67,7 +67,7 @@ export const DICE_CARD_DEFS = [
       { kind: "advance", zones: 1 },
       { kind: "shotQuality", amount: 2, minZone: 3 },
     ],
-    levels: [{ text: "Slot 5+: jump a zone; +2 Shot Quality in the Final Third or Box." }],
+    levels: [{ text: "Slot 5+: +1 zone Build-Up; +2 Chance in the Final Third or Box." }],
     effects: [],
   },
   {
@@ -81,11 +81,11 @@ export const DICE_CARD_DEFS = [
       { kind: "progress", amount: 4 },
       { kind: "draw", amount: 1 },
     ],
-    levels: [{ text: "Slot exactly 4: +4 Progress, draw 1." }],
+    levels: [{ text: "Slot exactly 4: +4 Build-Up, draw 1." }],
     effects: [],
   },
 
-  // ---- defend: win possession or shove the ball back ----
+  // ---- cover: reduce opponent pressure when the duel resolves ----
   {
     id: "d_tackle",
     kind: "player",
@@ -94,7 +94,7 @@ export const DICE_CARD_DEFS = [
     rarity: "common",
     slot: { kind: "max", value: 2 },
     diceEffects: [{ kind: "winPossession" }],
-    levels: [{ text: "Slot 2 or less: Win possession (tackle)." }],
+    levels: [{ text: "Slot 2 or less: strong Cover; USA adds counter Build-Up." }],
     effects: [],
   },
   {
@@ -105,7 +105,7 @@ export const DICE_CARD_DEFS = [
     rarity: "common",
     slot: { kind: "max", value: 3 },
     diceEffects: [{ kind: "clearance" }],
-    levels: [{ text: "Slot 3 or less: Boot the ball back to midfield." }],
+    levels: [{ text: "Slot 3 or less: +6 Cover." }],
     effects: [],
   },
   {
@@ -119,11 +119,11 @@ export const DICE_CARD_DEFS = [
       { kind: "pushBack", steps: 4 },
       { kind: "draw", amount: 1 },
     ],
-    levels: [{ text: "Slot any die: Push the ball back 4 steps, draw 1." }],
+    levels: [{ text: "Slot any die: +4 Cover, draw 1." }],
     effects: [],
   },
 
-  // ---- finish: high dice into shot quality (in the box) ----
+  // ---- chance: high dice into shot quality once the ball is deep ----
   {
     id: "d_finish",
     kind: "player",
@@ -132,7 +132,7 @@ export const DICE_CARD_DEFS = [
     rarity: "common",
     slot: { kind: "min", value: 5 },
     diceEffects: [{ kind: "shotQualityFromDie", minZone: 4 }],
-    levels: [{ text: "In the Box, slot 5+: Shot Quality = the die's value." }],
+    levels: [{ text: "In the Box, slot 5+: Chance = the die's value." }],
     effects: [],
   },
   {
@@ -143,7 +143,7 @@ export const DICE_CARD_DEFS = [
     rarity: "common",
     slot: { kind: "parity", even: true },
     diceEffects: [{ kind: "shotQuality", amount: 5, minZone: 4 }],
-    levels: [{ text: "In the Box, slot an even die: +5 Shot Quality." }],
+    levels: [{ text: "In the Box, slot an even die: +5 Chance." }],
     effects: [],
   },
   {
@@ -154,7 +154,7 @@ export const DICE_CARD_DEFS = [
     rarity: "common",
     slot: { kind: "min", value: 4 },
     diceEffects: [{ kind: "shotQuality", amount: 4, minZone: 3 }],
-    levels: [{ text: "In the Final Third or Box, slot 4+: +4 Shot Quality." }],
+    levels: [{ text: "In the Final Third or Box, slot 4+: +4 Chance." }],
     effects: [],
   },
   {
@@ -165,7 +165,7 @@ export const DICE_CARD_DEFS = [
     rarity: "rare",
     slot: { kind: "min", value: 6 },
     diceEffects: [{ kind: "shotQuality", amount: 8, minZone: 3 }],
-    levels: [{ text: "Slot a 6 in the Final Third or Box: +8 Shot Quality." }],
+    levels: [{ text: "Slot a 6 in the Final Third or Box: +8 Chance." }],
     effects: [],
   },
   {
@@ -179,7 +179,7 @@ export const DICE_CARD_DEFS = [
       { kind: "advance", zones: 1 },
       { kind: "shotQuality", amount: 3, minZone: 4 },
     ],
-    levels: [{ text: "Slot 3+: jump a zone; +3 Shot Quality in the Box." }],
+    levels: [{ text: "Slot 3+: +1 zone Build-Up; +3 Chance in the Box." }],
     effects: [],
   },
 ] as const satisfies readonly CardDef[];
@@ -188,9 +188,8 @@ export const DICE_CARD_MAP: Record<string, CardDef> = Object.fromEntries(
   DICE_CARD_DEFS.map((d) => [d.id, d]),
 );
 
-// You now spend roughly half a match defending, so the deck carries a real
-// defensive presence (~40%) — otherwise a defend possession with no defensive
-// card in hand is a dead round. Keeper takes any die, guaranteeing an option.
+// The deck carries real cover (~40%) so pressure is always a live lane choice.
+// Keeper takes any die, guaranteeing a safety valve.
 const DICE_STARTING_LIST: { defId: string; count: number }[] = [
   // attack (progress + finish)
   { defId: "d_shortpass", count: 3 },
