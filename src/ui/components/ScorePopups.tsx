@@ -74,6 +74,44 @@ function ShotRoll({ roll, quality, dc }: { roll: number; quality: number; dc: nu
   );
 }
 
+function PressureRoll({ roll, pressure, survived }: { roll: number; pressure: number; survived: boolean }) {
+  const [shown, setShown] = useState(1);
+  const [settled, setSettled] = useState(false);
+  useEffect(() => {
+    let raf = 0;
+    const t0 = performance.now();
+    const D = 450;
+    let lastSwap = 0;
+    const tick = (t: number) => {
+      const k = Math.min(1, (t - t0) / D);
+      if (k < 1) {
+        const gap = 35 + 80 * k * k;
+        if (t - lastSwap >= gap) {
+          setShown(1 + Math.floor((t * 9301 + 49297) % 20));
+          lastSwap = t;
+        }
+        raf = requestAnimationFrame(tick);
+      } else {
+        setShown(roll);
+        setSettled(true);
+      }
+    };
+    raf = requestAnimationFrame(tick);
+    return () => cancelAnimationFrame(raf);
+  }, [roll]);
+  return (
+    <span className={settled ? (survived ? "shot-hit" : "shot-miss") : "shot-spin"}>
+      🎲 {shown}
+      {settled && (
+        <>
+          {" "}
+          vs pressure {pressure} — {survived ? "held off" : "tackled"}
+        </>
+      )}
+    </span>
+  );
+}
+
 let nextId = 1;
 
 export function ScorePopups({ events }: { events: GameEvent[] }) {
@@ -118,6 +156,17 @@ export function ScorePopups({ events }: { events: GameEvent[] }) {
           });
           delay += 600;
         }
+      } else if (e.type === "PASS_CHALLENGED" || e.type === "OPP_PASS_CHALLENGED") {
+        staged.push({
+          delay,
+          popup: {
+            id: nextId++,
+            kind: e.survived ? "info" : "concede",
+            text: "",
+            node: <PressureRoll roll={e.roll} pressure={e.pressure} survived={e.survived} />,
+          },
+        });
+        delay += 520;
       } else if (e.type === "OPP_SHOT") {
         staged.push({
           delay,

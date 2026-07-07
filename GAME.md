@@ -43,10 +43,11 @@ your possession; even rounds are their possession.
 - The ball is a single integer position (0 = your goal, 20 = their goal). Kickoff is
   **midfield (10)**.
 - Each round rolls a pool of **5 d6 dice** and draws up to **4 cards**.
-- A card needs a die that fits its slot. Slotting the die spends it and resolves the
-  pass immediately.
+- A card needs a die that fits its slot. You can drag a die onto a legal card or use
+  the click fallbacks; slotting the die spends that exact die and resolves the pass
+  immediately.
 - Your first completed pass in a possession is always safe. Later passes show an
-  interception risk before you commit.
+  interception pressure before you commit.
 - You can **shoot anytime after one completed pass**. Shooting spends your banked
   Chance against a distance penalty based on where the ball is; 0-Chance punts are
   legal but low percentage.
@@ -57,7 +58,7 @@ Your possession is push-your-luck:
 
 1. Play progress/setup/finish cards as passes.
 2. Completed passes move the ball, bank Chance, set up the next finisher, or reduce
-   the next pass risk.
+   the next pass pressure.
 3. If a later pass is intercepted, all banked Chance is lost and the opponent gets
    one instant counter shot.
 4. Shoot when the current Chance and field position look worth cashing in.
@@ -65,15 +66,15 @@ Your possession is push-your-luck:
 Their possession mirrors the same rhythm:
 
 1. Defensive cards are the only cards you can play.
-2. Playing a defender commits interception risk against their next pass.
+2. Playing a defender commits interception pressure against their next pass.
 3. Ending the round is a legal **stand off**: you do not commit a defender, and their
    next pass happens undefended.
 4. If you intercept them, you get one instant counter shot.
 5. If they complete enough passes for their style, or reach your box, they shoot.
 
-The match UI surfaces this loop with pass chips, current/interception risk, a live
-shot estimate, their-chain defense controls, a persistent ticker, and one-time coach
-tips.
+The match UI surfaces this loop with pass chips, current/interception pressure, a
+live shot estimate, their-chain defense controls, drag legality highlights, a
+persistent ticker, and one-time coach tips.
 
 Opponent intent copy describes your passing posture in chain mode:
 
@@ -81,10 +82,10 @@ Opponent intent copy describes your passing posture in chain mode:
 - Sit deep: "They sit deep — easy to keep the ball (10% base), harder to finish (+4 DC)"
 - Attack/counter: "They play it balanced — 17% base risk"
 
-The ticker keeps the latest match events visible (passes for both teams,
-interceptions, counters, shot roll math, goals/saves, and possession changes). Coach
-tips are stored as `coach.possession`, `coach.risk`, `coach.chance`, `coach.punt`,
-`coach.defense`, and `coach.push` once dismissed.
+The ticker keeps the latest match events visible (pressure rolls, passes for both
+teams, interceptions, counters, shot roll math, goals/saves, and possession
+changes). Coach tips are stored as `coach.possession`, `coach.risk`, `coach.chance`,
+`coach.punt`, `coach.defense`, and `coach.push` once dismissed.
 
 ---
 
@@ -98,9 +99,12 @@ There is no lane duel or delayed resolve step. Each die assignment is the action
   possession.
 - **Draw effects** happen immediately.
 - **Setup effects** (`setupNext`) bank a bonus for the next Chance-gaining card.
-- **Safe-pass effects** reduce your next interception check.
+- **Safe-pass effects** reduce your next interception pressure.
 - **Position combos** reward passes that flow like a real football move. Only the
   previous completed pass matters, and combo state resets every possession.
+- **Pressure rolls** make challenged passes visible: raw interception risk is
+  quantized to d20 pressure with `round(risk * 20)`, and the pass survives when the
+  d20 roll is higher than pressure. The first pass of your possession is still free.
 - **Interceptions** immediately end the possession after the counter shot.
 - **Shots** immediately end the possession and reset the ball to midfield.
 
@@ -230,6 +234,7 @@ Your chain:
 - Risk base: press 27%, balanced 17%, sit deep 10%
 - Risk ramp: +6% per completed pass after the first
 - Risk cap: 65%
+- Visible pressure: `round(risk * 20)` on a d20; tackled on `roll <= pressure`
 - Development gain: +1 Chance per completed pass
 - Position combo bonuses: MF -> WG next pass risk -8%; WG -> ST +3 Chance; MF -> ST +2 Chance
 - Train max level: 2
@@ -240,6 +245,7 @@ Their chain:
 
 - Opponent base interception risk: 12%
 - Opponent risk ramp: +5% per completed pass
+- Visible pressure: same d20 pressure roll as your challenged passes
 - Opponent pass advance: 2 steps toward your goal
 - Opponent Chance gain: `round(rating * 0.03)`, capped at 6 per pass
 - Opponent chain targets: balanced 3, possession 4, flair 4, fortress 2, counter 2,

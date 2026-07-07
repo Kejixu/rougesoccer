@@ -1,6 +1,8 @@
+import { pressureOf } from "../core/types";
+
 export const CHAIN_GLOSSARY: Record<string, string> = {
   Chance: "Chance is your banked shot bonus for this possession.",
-  Risk: "Risk is the interception chance on the next pass.",
+  Risk: "Risk becomes d20 pressure on the next pass.",
   Recycle: "Recycle ends your possession safely without shooting.",
   "Stand off": "Stand off lets their next pass happen without committing a card.",
   Counter: "A counter is an instant shot after an interception.",
@@ -22,7 +24,7 @@ export function describeChainStatus(input: {
   if (input.passes === 0) {
     return "Open the move — your first pass is always safe.";
   }
-  return `Chance ${input.shotQuality} · shot ${Math.round(input.shootPct * 100)}% · next pass ${Math.round(input.riskPct * 100)}% risk.`;
+  return `Chance ${input.shotQuality} · shot ${Math.round(input.shootPct * 100)}% · next pass pressure ${pressureOf(input.riskPct)} (${Math.round(input.riskPct * 100)}%).`;
 }
 
 export type CoachTipKey = "possession" | "risk" | "chance" | "punt" | "defense" | "push" | "combo";
@@ -34,7 +36,7 @@ export interface CoachTip {
 
 export const COACH_TIPS: Record<CoachTipKey, string> = {
   possession: "Cards are passes. Each die you slot plays one — your first pass is always free.",
-  risk: "That % is the chance they take the ball on your NEXT pass. Lose it and you lose all banked Chance — and they counter.",
+  risk: "Pressure is the d20 number they tackle on for your NEXT pass. Lose it and you lose all banked Chance — and they counter.",
   chance: "Chance is your shot's power. Shoot spends it: d20 + Chance vs their keeper. Build it with finishers.",
   punt: "A punt! Long shots are priced in — work the ball closer and bank Chance for better odds.",
   defense: "Their turn. Slot defenders to raise the interception % on their next pass — or stand off and let them play.",

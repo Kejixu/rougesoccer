@@ -13,7 +13,7 @@ import {
 } from "../src/core/match/dice";
 import { seedRng } from "../src/core/rng";
 import { DEFAULT_BALANCE } from "../src/core/balance";
-import { dieFitsSlot } from "../src/core/types";
+import { dieFitsSlot, pressureOf } from "../src/core/types";
 import type { CardInstance, DiceMatchState, OppInfo } from "../src/core/types";
 import { applyRunAction, createRun } from "../src/core/run/run";
 import { makeContent } from "../src/data/content";
@@ -235,6 +235,46 @@ describe("your chain", () => {
     );
   });
 
+  it("pressureOf quantizes raw interception risk to d20 pressure", () => {
+    expect(pressureOf(0)).toBe(0);
+    expect(pressureOf(0.02)).toBe(0);
+    expect(pressureOf(0.225)).toBe(5);
+    expect(pressureOf(0.65)).toBe(13);
+    expect(pressureOf(0.99)).toBe(20);
+  });
+
+  it("emits PASS_CHALLENGED and uses the quantized d20 outcome for your challenged pass", () => {
+    const m = {
+      ...start(["d_shortpass"], "pressure-quantized"),
+      passes: 1,
+      intent: { kind: "press" as const },
+      nextRiskDelta: -0.045,
+      rng: seedRng("q-20"),
+      dice: [{ value: 4, used: false }],
+      hand: [inst("d_shortpass", 0)],
+      shotQuality: 7,
+    };
+
+    expect(interceptionRisk(m)).toBeCloseTo(0.225, 5);
+    const step = applyDiceAction(DICE_CARD_MAP, m, { type: "ASSIGN_DIE", uid: m.hand[0]!.uid, dieIndex: 0 });
+
+    expect(step.events[2]).toEqual({ type: "PASS_CHALLENGED", roll: 5, pressure: 5, survived: false });
+    expect(step.events).toContainEqual(expect.objectContaining({ type: "CHAIN_INTERCEPTED", byYou: false, chanceLost: 7 }));
+  });
+
+  it("does not emit PASS_CHALLENGED for the free first pass", () => {
+    const m = {
+      ...start(["d_shortpass"], "first-pass-no-pressure"),
+      passes: 0,
+      rng: seedRng("first-pass-no-pressure-action"),
+      dice: [{ value: 4, used: false }],
+      hand: [inst("d_shortpass", 0)],
+    };
+
+    const step = applyDiceAction(DICE_CARD_MAP, m, { type: "ASSIGN_DIE", uid: m.hand[0]!.uid, dieIndex: 0 });
+    expect(step.events.some((e) => e.type === "PASS_CHALLENGED")).toBe(false);
+  });
+
   it("chance effects grow with development: later passes are worth more", () => {
     let m = start(["d_poacher"], "dev");
     m = {
@@ -370,6 +410,22 @@ describe("their chain", () => {
     const committed = step.events.find((e) => e.type === "DEFENSE_COMMITTED");
     expect(committed).toMatchObject({ type: "DEFENSE_COMMITTED", amount: 0.18, total: 0.18 });
     expect(step.events.some((e) => e.type === "OPP_PASS" || e.type === "CHAIN_INTERCEPTED")).toBe(true);
+  });
+
+  it("emits OPP_PASS_CHALLENGED before resolving their pass", () => {
+    let m = theirRound(["d_tackle", "d_tackle", "d_tackle", "d_tackle"], "opp-pressure");
+    m = {
+      ...m,
+      rng: seedRng("s-32"),
+      defenseCommit: 0.18,
+    };
+    const step = applyDiceAction(DICE_CARD_MAP, m, { type: "END_ROUND" });
+    const challenged = step.events.find((e) => e.type === "OPP_PASS_CHALLENGED");
+
+    expect(challenged).toEqual({ type: "OPP_PASS_CHALLENGED", roll: 13, pressure: 6, survived: true });
+    expect(step.events.findIndex((e) => e.type === "OPP_PASS_CHALLENGED")).toBeLessThan(
+      step.events.findIndex((e) => e.type === "OPP_PASS"),
+    );
   });
 
   it("attack cards cannot be played on their possession", () => {

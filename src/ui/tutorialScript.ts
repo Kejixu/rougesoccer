@@ -61,7 +61,7 @@ export const TUTORIAL_STEPS: TutorialStep[] = [
     id: "one-more",
     lock: { kind: "playCard", defId: "d_throughball" },
     title: "One more - a special one.",
-    what: "See the risk % - the chance they steal your NEXT pass. Through Ball is a SETUP: it moves the ball and makes your next finisher +4.",
+    what: "See the pressure - the d20 number they tackle on for your NEXT pass. Through Ball is a SETUP: it moves the ball and makes your next finisher +4.",
     why: "Risk climbs the longer you hold it; combos are how big chances get built.",
   },
   {
@@ -82,7 +82,7 @@ export const TUTORIAL_STEPS: TutorialStep[] = [
     id: "commit-keeper",
     lock: { kind: "playCard", defId: "d_keeper" },
     title: "Commit your keeper.",
-    what: "Defensive cards raise the interception % on their NEXT pass (+8%, and you draw a card).",
+    what: "Defensive cards raise the interception pressure on their NEXT pass (+8% raw risk, and you draw a card).",
     why: "Dice you can't attack with still buy defense. This one wins the ball - and the counter goes in!",
   },
   {

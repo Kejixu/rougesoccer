@@ -7,6 +7,7 @@ import { rollIntent } from "./intents";
 import {
   dieFitsSlot,
   levelStats,
+  pressureOf,
   type CardDef,
   type CardDefMap,
   type CardInstance,
@@ -338,19 +339,25 @@ function chainIntercepted(defs: CardDefMap, draft: DiceMatchState, events: GameE
 
 function oppPassAttempt(defs: CardDefMap, draft: DiceMatchState, events: GameEvent[]): void {
   const risk = oppInterceptionRisk(draft);
-  if (rand(draft) < risk) {
-    events.push({ type: "CHAIN_INTERCEPTED", byYou: true, passes: draft.oppPasses, chanceLost: draft.oppChance });
-    const bonus = draft.bal.DICE.COUNTER_CHANCE + mutatorSum(draft.mutators, "counterSpring");
+  const pressure = pressureOf(risk);
+  if (risk > 0) {
     const roll = 1 + Math.floor(rand(draft) * draft.bal.DICE.SHOT_DIE);
-    const goal = roll + bonus >= draft.keeperDC;
-    events.push({ type: "COUNTER_SHOT", byYou: true, roll, bonus, dc: draft.keeperDC, goal });
-    if (goal) {
-      draft.playerGoals += 1;
-      events.push({ type: "GOAL_SCORED", goals: 1, total: draft.playerGoals });
+    const survived = roll > pressure;
+    if (pressure > 0) events.push({ type: "OPP_PASS_CHALLENGED", roll, pressure, survived });
+    if (!survived) {
+      events.push({ type: "CHAIN_INTERCEPTED", byYou: true, passes: draft.oppPasses, chanceLost: draft.oppChance });
+      const bonus = draft.bal.DICE.COUNTER_CHANCE + mutatorSum(draft.mutators, "counterSpring");
+      const counterRoll = 1 + Math.floor(rand(draft) * draft.bal.DICE.SHOT_DIE);
+      const goal = counterRoll + bonus >= draft.keeperDC;
+      events.push({ type: "COUNTER_SHOT", byYou: true, roll: counterRoll, bonus, dc: draft.keeperDC, goal });
+      if (goal) {
+        draft.playerGoals += 1;
+        events.push({ type: "GOAL_SCORED", goals: 1, total: draft.playerGoals });
+      }
+      draft.ball = draft.bal.DICE.MIDFIELD;
+      concludeRound(defs, draft, events);
+      return;
     }
-    draft.ball = draft.bal.DICE.MIDFIELD;
-    concludeRound(defs, draft, events);
-    return;
   }
 
   draft.oppPasses += 1;
@@ -414,10 +421,16 @@ function assignDie(defs: CardDefMap, draft: DiceMatchState, uid: string, dieInde
   const combo = def.position ? comboFor(draft.lastPassPosition, def.position) : null;
   const risk = interceptionRisk(draft);
   draft.nextRiskDelta = 0;
-  if (risk > 0 && rand(draft) < risk) {
-    discard();
-    chainIntercepted(defs, draft, events);
-    return;
+  const pressure = pressureOf(risk);
+  if (risk > 0) {
+    const roll = 1 + Math.floor(rand(draft) * draft.bal.DICE.SHOT_DIE);
+    const survived = roll > pressure;
+    if (pressure > 0) events.push({ type: "PASS_CHALLENGED", roll, pressure, survived });
+    if (!survived) {
+      discard();
+      chainIntercepted(defs, draft, events);
+      return;
+    }
   }
 
   let gained = 0;

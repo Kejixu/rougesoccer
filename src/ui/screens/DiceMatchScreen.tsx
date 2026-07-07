@@ -1,6 +1,7 @@
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useRef, useState, type PointerEvent } from "react";
 import {
   dieFitsSlot,
+  pressureOf,
   slotLabel,
   type ContentBundle,
   type DiceMatchAction,
@@ -13,6 +14,7 @@ import {
 import { ZONE_NAMES, bestDieFor, comboFor, interceptionRisk, oppInterceptionRisk, playableCards, shotEstimate, zoneOf } from "../../core/match/dice";
 import { ScorePopups } from "../components/ScorePopups";
 import { CHAIN_GLOSSARY, coachTipFor, describeChainStatus, type CoachTipKey } from "../diceUx";
+import { dieDropTargets } from "../diceDropTargets";
 import { COACH_TIP_KEYS, tutorialLockAllows, type TutorialActionIntent, type TutorialStep } from "../tutorialScript";
 
 const PIPS: Record<number, string> = { 1: "⚀", 2: "⚁", 3: "⚂", 4: "⚃", 5: "⚄", 6: "⚅" };
@@ -68,10 +70,14 @@ function eventLine(e: GameEvent): string | null {
     case "PASS_COMPLETED": {
       if (e.combo === "Switch of play") return "Switch of play! next pass -8%.";
       if (e.combo) return `${e.combo}! ${e.cardName}: pass ${e.passes}, +${e.chanceGained} Chance.`;
-      return `${e.cardName}: pass ${e.passes}, +${e.chanceGained} Chance, ${Math.round(e.risked * 100)}% risk.`;
+      return `${e.cardName}: pass ${e.passes}, +${e.chanceGained} Chance, pressure ${pressureOf(e.risked)} (${Math.round(e.risked * 100)}%).`;
     }
+    case "PASS_CHALLENGED":
+      return `Pressure roll: ${e.roll} vs ${e.pressure} — ${e.survived ? "safe" : "TACKLED"}.`;
+    case "OPP_PASS_CHALLENGED":
+      return `Their pressure roll: ${e.roll} vs ${e.pressure} — ${e.survived ? "safe" : "picked off"}.`;
     case "OPP_PASS":
-      return `Their pass ${e.passes}: ${e.oppChance} Chance, ${Math.round(e.risk * 100)}% risk.`;
+      return `Their pass ${e.passes}: ${e.oppChance} Chance, pressure ${pressureOf(e.risk)} (${Math.round(e.risk * 100)}%).`;
     case "DEFENSE_COMMITTED":
       return `${e.cardName} (${e.die}): +${Math.round(e.amount * 100)}% defense, total +${Math.round(e.total * 100)}%.`;
     case "CHAIN_INTERCEPTED":
@@ -149,6 +155,17 @@ interface ChainChip {
   combo?: string;
 }
 
+interface DraggingDie {
+  dieIndex: number;
+  value: number;
+  pointerId: number;
+  x: number;
+  y: number;
+  startX: number;
+  startY: number;
+  moved: boolean;
+}
+
 interface TutorialScreenProps {
   step: TutorialStep;
   stepIndex: number;
@@ -223,6 +240,9 @@ export function DiceMatchScreen(props: DiceMatchScreenProps) {
   const [tickerLines, setTickerLines] = useState<string[]>([]);
   const [seenCoachKeys, setSeenCoachKeys] = useState<Set<CoachTipKey>>(() => readSeenCoachKeys());
   const [puntPressed, setPuntPressed] = useState(false);
+  const [draggingDie, setDraggingDie] = useState<DraggingDie | null>(null);
+  const dragRef = useRef<DraggingDie | null>(null);
+  const suppressDieClickRef = useRef(false);
 
   // A fresh roll remounts the dice so they cascade in; a reroll spins the one die.
   const [rollKey, setRollKey] = useState(0);
@@ -279,6 +299,8 @@ export function DiceMatchScreen(props: DiceMatchScreenProps) {
   const dcNow = m.keeperDC;
   const riskNow = interceptionRisk(m);
   const theirRisk = oppInterceptionRisk(m);
+  const pressureNow = pressureOf(riskNow);
+  const theirPressure = pressureOf(theirRisk);
   const chainStatus = describeChainStatus({
     possession: m.possession,
     passes: m.passes,
@@ -289,6 +311,7 @@ export function DiceMatchScreen(props: DiceMatchScreenProps) {
     shootPct: shotNow.p,
   });
   const playable = playableCards(content.defs, m);
+  const dragTargets = draggingDie ? dieDropTargets(content.defs, m, draggingDie.dieIndex, tutorial?.step.lock) : null;
 
   const selVal = selectedDie !== null ? m.dice[selectedDie]?.value : undefined;
   const coachTip = tutorial
@@ -327,6 +350,62 @@ export function DiceMatchScreen(props: DiceMatchScreenProps) {
     }
     act({ type: "ASSIGN_DIE", uid, dieIndex });
     setSelectedDie(null);
+  };
+
+  const onDiePointerDown = (e: PointerEvent<HTMLButtonElement>, dieIndex: number, value: number) => {
+    if (m.dice[dieIndex]?.used) return;
+    e.preventDefault();
+    try {
+      e.currentTarget.setPointerCapture(e.pointerId);
+    } catch {
+      // synthetic pointers (tests) and some browsers can't capture — dragging
+      // still works because move/up handlers live on the die itself
+    }
+    const next = {
+      dieIndex,
+      value,
+      pointerId: e.pointerId,
+      x: e.clientX,
+      y: e.clientY,
+      startX: e.clientX,
+      startY: e.clientY,
+      moved: false,
+    };
+    dragRef.current = next;
+    setDraggingDie(next);
+  };
+
+  const onDiePointerMove = (e: PointerEvent<HTMLButtonElement>) => {
+    const active = dragRef.current;
+    if (!active || active.pointerId !== e.pointerId) return;
+    const moved = active.moved || Math.hypot(e.clientX - active.startX, e.clientY - active.startY) > 4;
+    const next = { ...active, x: e.clientX, y: e.clientY, moved };
+    dragRef.current = next;
+    setDraggingDie(next);
+  };
+
+  const onDiePointerUp = (e: PointerEvent<HTMLButtonElement>) => {
+    const active = dragRef.current;
+    if (!active || active.pointerId !== e.pointerId) return;
+    const target = document.elementFromPoint(e.clientX, e.clientY);
+    const uid = target instanceof HTMLElement ? target.closest<HTMLElement>("[data-uid]")?.dataset.uid : undefined;
+    if (uid && dragTargets?.has(uid)) {
+      suppressDieClickRef.current = true;
+      act({ type: "ASSIGN_DIE", uid, dieIndex: active.dieIndex });
+      setSelectedDie(null);
+    } else if (active.moved) {
+      suppressDieClickRef.current = true;
+      setSelectedDie(null);
+    }
+    dragRef.current = null;
+    setDraggingDie(null);
+  };
+
+  const onDiePointerCancel = (e: PointerEvent<HTMLButtonElement>) => {
+    if (dragRef.current?.pointerId !== e.pointerId) return;
+    suppressDieClickRef.current = dragRef.current.moved;
+    dragRef.current = null;
+    setDraggingDie(null);
   };
 
   const shootDisabled = m.possession !== "you" || m.passes < 1 || !tutorialAllows({ kind: "shoot" });
@@ -412,7 +491,7 @@ export function DiceMatchScreen(props: DiceMatchScreenProps) {
             <span className="shotq-badge">Chance {m.shotQuality}</span>
             {riskNow > 0 && (
               <span className="risk-badge" data-testid="chain-risk" data-hot={riskNow >= 0.3 ? "true" : "false"}>
-                {Math.round(riskNow * 100)}% risk
+                pressure {pressureNow} ({Math.round(riskNow * 100)}%)
               </span>
             )}
             <span className="chain-status" data-testid="chain-status">{chainStatus}</span>
@@ -426,7 +505,7 @@ export function DiceMatchScreen(props: DiceMatchScreenProps) {
           <span>Chance {m.oppChance}</span>
           <span>Committed +{Math.round(m.defenseCommit * 100)}%</span>
           <span className="risk-badge" data-hot={theirRisk >= 0.3 ? "true" : "false"}>
-            {Math.round(theirRisk * 100)}% interception
+            pressure {theirPressure} ({Math.round(theirRisk * 100)}%)
           </span>
           <span className="chain-status" data-testid="chain-status">{chainStatus}</span>
         </div>
@@ -480,13 +559,23 @@ export function DiceMatchScreen(props: DiceMatchScreenProps) {
               <button
                 key={`${i}-${rollKey}-${rerolled ? rerollFx.n : 0}`}
                 type="button"
-                className={`die${d.used ? " used" : ""}${selectedDie === i ? " selected" : ""}${rerolled ? " rerolled" : ""}${rerolled && rerollFx.lucky ? " lucky" : ""}`}
+                className={`die${d.used ? " used" : ""}${selectedDie === i ? " selected" : ""}${draggingDie?.dieIndex === i ? " dragging" : ""}${rerolled ? " rerolled" : ""}${rerolled && rerollFx.lucky ? " lucky" : ""}`}
                 style={{ animationDelay: rerolled ? "0ms" : `${i * 55}ms` }}
                 data-testid={`die-${i}`}
                 data-value={d.value}
                 data-used={d.used ? "true" : "false"}
-                disabled={d.used || Boolean(tutorial)}
-                onClick={() => setSelectedDie(selectedDie === i ? null : i)}
+                disabled={d.used}
+                onClick={() => {
+                  if (suppressDieClickRef.current) {
+                    suppressDieClickRef.current = false;
+                    return;
+                  }
+                  setSelectedDie(selectedDie === i ? null : i);
+                }}
+                onPointerDown={(e) => onDiePointerDown(e, i, d.value)}
+                onPointerMove={onDiePointerMove}
+                onPointerUp={onDiePointerUp}
+                onPointerCancel={onDiePointerCancel}
               >
                 <span className="die-pip">{PIPS[d.value]}</span>
                 <span className="die-num">{d.value}</span>
@@ -521,6 +610,7 @@ export function DiceMatchScreen(props: DiceMatchScreenProps) {
               const def = content.defs[c.defId]!;
               const cardHighlighted = tutorialHighlights({ kind: "playCard", defId: def.id });
               const cardPlayable = canPlay(c.uid) && tutorialAllows({ kind: "playCard", defId: def.id });
+              const dropClass = dragTargets ? (dragTargets.has(c.uid) ? " drop-ok" : " drop-dim") : "";
               const defense = isDefenseCard(def);
               const liveCombo = !defense && m.possession === "you" && def.position ? comboFor(m.lastPassPosition, def.position) : null;
               const role = defense
@@ -532,7 +622,7 @@ export function DiceMatchScreen(props: DiceMatchScreenProps) {
                 <button
                   key={c.uid}
                   type="button"
-                  className={`dice-card role-${role}${cardPlayable ? "" : " unplayable"}${cardHighlighted ? " tutorial-highlight" : ""}`}
+                  className={`dice-card role-${role}${cardPlayable ? "" : " unplayable"}${cardHighlighted ? " tutorial-highlight" : ""}${dropClass}`}
                   data-testid={`card-${def.id}`}
                   data-uid={c.uid}
                   data-playable={cardPlayable ? "true" : "false"}
@@ -545,13 +635,24 @@ export function DiceMatchScreen(props: DiceMatchScreenProps) {
                   <span className="dice-card-text">{def.levels[Math.min(c.level, def.levels.length - 1)]!.text}</span>
                   {!defense && m.passes >= 1 && (
                     <span className="risk-badge card-risk" data-hot={riskNow >= 0.3 ? "true" : "false"}>
-                      {Math.round(riskNow * 100)}%
+                      P{pressureNow} ({Math.round(riskNow * 100)}%)
                     </span>
                   )}
                 </button>
               );
             })}
           </div>
+
+          {draggingDie && (
+            <div
+              className="die die-drag-ghost"
+              style={{ transform: `translate3d(${draggingDie.x - 24}px, ${draggingDie.y - 24}px, 0)` }}
+              aria-hidden="true"
+            >
+              <span className="die-pip">{PIPS[draggingDie.value]}</span>
+              <span className="die-num">{draggingDie.value}</span>
+            </div>
+          )}
 
           <div className="action-bar">
             <button

@@ -652,6 +652,8 @@
   background: var(--surface);
   color: var(--ink);
   cursor: pointer;
+  touch-action: none;
+  user-select: none;
   display: flex;
   flex-direction: column;
   gap: 8px;
@@ -979,6 +981,22 @@
   transform: translateY(-4px);
 }
 
+.die.dragging {
+  transform: translateY(-4px) scale(1.05);
+  opacity: 0.45;
+}
+
+.die-drag-ghost {
+  position: fixed;
+  left: 0;
+  top: 0;
+  z-index: 60;
+  pointer-events: none;
+  transform-origin: center;
+  box-shadow: 0 12px 28px rgba(0, 0, 0, 0.34), 0 0 0 3px rgba(120, 200, 140, 0.45);
+  animation: none;
+}
+
 .die.used {
   opacity: 0.25;
   cursor: default;
@@ -1054,6 +1072,22 @@
 .dice-card.unplayable {
   opacity: 0.4;
   cursor: default;
+}
+
+.dice-card.drop-ok {
+  opacity: 1;
+  border-color: var(--accent);
+  box-shadow: 0 0 0 3px rgba(120, 200, 140, 0.28);
+  animation: drop-ok-pulse 0.7s ease-in-out infinite alternate;
+}
+
+.dice-card.drop-dim {
+  opacity: 0.28;
+}
+
+@keyframes drop-ok-pulse {
+  from { transform: translateY(-2px); }
+  to { transform: translateY(-5px); }
 }
 
 .dice-card.role-defend {

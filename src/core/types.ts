@@ -138,6 +138,11 @@ export function dieFitsSlot(value: number, slot: DieSlot): boolean {
   }
 }
 
+/** Convert a raw interception fraction into the visible d20 pressure target. */
+export function pressureOf(risk: number): number {
+  return Math.max(0, Math.min(20, Math.round(risk * 20)));
+}
+
 // ---------- nation dice mutators (the variety hook) ----------
 // Each playable nation bends a dice rule. Setup-time mutators (poolDelta,
 // keeperDcDelta) apply once; rerollDie grants a per-round action;
@@ -351,6 +356,8 @@ export type GameEvent =
   // ---- dice mode ----
   | { type: "DICE_ROLLED"; dice: number[] }
   | { type: "DIE_ASSIGNED"; uid: string; die: number }
+  | { type: "PASS_CHALLENGED"; roll: number; pressure: number; survived: boolean }
+  | { type: "OPP_PASS_CHALLENGED"; roll: number; pressure: number; survived: boolean }
   // Legacy UI-only variants retained until the Task 3 UI rewrite removes old lane popups.
   | { type: "LANE_COMMITTED"; uid: string; cardName: string; die: number; buildUp: number; chance: number; cover: number }
   | {
