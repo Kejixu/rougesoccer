@@ -13,6 +13,7 @@ import {
 import { ZONE_NAMES, bestDieFor, interceptionRisk, oppInterceptionRisk, playableCards, shotEstimate, zoneOf } from "../../core/match/dice";
 import { ScorePopups } from "../components/ScorePopups";
 import { CHAIN_GLOSSARY, coachTipFor, describeChainStatus, type CoachTipKey } from "../diceUx";
+import { COACH_TIP_KEYS, tutorialLockAllows, type TutorialActionIntent, type TutorialStep } from "../tutorialScript";
 
 const PIPS: Record<number, string> = { 1: "⚀", 2: "⚁", 3: "⚂", 4: "⚃", 5: "⚄", 6: "⚅" };
 
@@ -110,8 +111,7 @@ function coachStorageKey(key: CoachTipKey): string {
 
 function readSeenCoachKeys(): Set<CoachTipKey> {
   if (typeof localStorage === "undefined") return new Set();
-  const keys: CoachTipKey[] = ["possession", "risk", "chance", "punt", "defense", "push"];
-  return new Set(keys.filter((key) => localStorage.getItem(coachStorageKey(key)) === "1"));
+  return new Set(COACH_TIP_KEYS.filter((key) => localStorage.getItem(coachStorageKey(key)) === "1"));
 }
 
 function persistCoachKey(key: CoachTipKey): void {
@@ -145,20 +145,75 @@ interface ChainChip {
   risked: number;
 }
 
-export function DiceMatchScreen({
-  run,
-  content,
-  events,
-  dispatch,
-}: {
-  run: RunState;
+interface TutorialScreenProps {
+  step: TutorialStep;
+  stepIndex: number;
+  totalSteps: number;
+  onContinue: () => void;
+  onSkip: () => void;
+}
+
+type DiceMatchScreenProps = {
   content: ContentBundle;
   events: GameEvent[];
-  dispatch: (a: RunAction) => void;
-}) {
-  const m = run.activeMatch!;
+} & (
+  | {
+      run: RunState;
+      dispatch: (a: RunAction) => void;
+      match?: never;
+      playerName?: never;
+      onMatchAction?: never;
+      tutorial?: never;
+    }
+  | {
+      match: DiceMatchState;
+      playerName: string;
+      onMatchAction: (a: DiceMatchAction) => void;
+      tutorial: TutorialScreenProps;
+      run?: never;
+      dispatch?: never;
+    }
+);
+
+function TutorialOverlay({ tutorial }: { tutorial: TutorialScreenProps }) {
+  const lastStep = tutorial.stepIndex >= tutorial.totalSteps - 1;
+  return (
+    <aside className="tutorial-overlay panel" data-testid="tutorial-step">
+      <div className="tutorial-kicker">
+        Step {tutorial.stepIndex + 1} of {tutorial.totalSteps}
+      </div>
+      <h2>{tutorial.step.title}</h2>
+      {tutorial.step.what && (
+        <p>
+          <strong>WHAT:</strong> {tutorial.step.what}
+        </p>
+      )}
+      <p>
+        <strong>WHY:</strong> {tutorial.step.why}
+      </p>
+      <div className="tutorial-actions">
+        {tutorial.step.lock.kind === "next" && (
+          <button type="button" className="btn btn--primary" data-testid="tutorial-continue" onClick={tutorial.onContinue}>
+            {lastStep ? "Finish" : "Continue"}
+          </button>
+        )}
+        <button type="button" className="tutorial-skip" data-testid="tutorial-skip" onClick={tutorial.onSkip}>
+          Skip tutorial
+        </button>
+      </div>
+    </aside>
+  );
+}
+
+export function DiceMatchScreen(props: DiceMatchScreenProps) {
+  const { content, events } = props;
+  const tutorial = props.tutorial;
+  const m = tutorial ? props.match : props.run.activeMatch!;
   const [selectedDie, setSelectedDie] = useState<number | null>(null);
-  const act = (action: DiceMatchAction) => dispatch({ type: "MATCH_ACTION", action });
+  const act = (action: DiceMatchAction) => {
+    if (tutorial) props.onMatchAction(action);
+    else props.dispatch({ type: "MATCH_ACTION", action });
+  };
   const chainRef = useRef<ChainChip[]>([]);
   const [chainEntries, setChainEntries] = useState<ChainChip[]>([]);
   const [tickerLines, setTickerLines] = useState<string[]>([]);
@@ -206,7 +261,14 @@ export function DiceMatchScreen({
 
   const style = content.styles[m.opp.style];
   const coach = content.teams.find((t) => t.id === m.opp.teamId)?.coach;
-  const playerName = content.teams.find((t) => t.id === run.playerTeamId)?.name ?? "You";
+  const playerName =
+    tutorial
+      ? props.playerName
+      : content.teams.find((t) => t.id === props.run.playerTeamId)?.name ?? "You";
+  const tutorialAllows = (intent: TutorialActionIntent): boolean =>
+    !tutorial || tutorialLockAllows(tutorial.step.lock, intent);
+  const tutorialHighlights = (intent: TutorialActionIntent): boolean =>
+    Boolean(tutorial && tutorialLockAllows(tutorial.step.lock, intent));
   const intent = m.intent ? intentText(m.intent) : null;
   const shotNow = shotEstimate(m);
   const dcNow = m.keeperDC;
@@ -224,17 +286,19 @@ export function DiceMatchScreen({
   const playable = playableCards(content.defs, m);
 
   const selVal = selectedDie !== null ? m.dice[selectedDie]?.value : undefined;
-  const coachTip = coachTipFor(
-    {
-      possession: m.possession,
-      passes: m.passes,
-      shotQuality: m.shotQuality,
-      interceptionRisk: riskNow,
-      puntPressed,
-      phase: m.phase as DiceMatchState["phase"],
-    },
-    seenCoachKeys,
-  );
+  const coachTip = tutorial
+    ? null
+    : coachTipFor(
+        {
+          possession: m.possession,
+          passes: m.passes,
+          shotQuality: m.shotQuality,
+          interceptionRisk: riskNow,
+          puntPressed,
+          phase: m.phase as DiceMatchState["phase"],
+        },
+        seenCoachKeys,
+      );
   const dismissCoachTip = (key: CoachTipKey) => {
     persistCoachKey(key);
     setSeenCoachKeys((prev) => new Set([...prev, key]));
@@ -246,6 +310,7 @@ export function DiceMatchScreen({
   };
 
   const onCardClick = (uid: string, defId: string) => {
+    if (!tutorialAllows({ kind: "playCard", defId })) return;
     const slot = content.defs[defId]!.slot!;
     let dieIndex = selectedDie;
     if (dieIndex === null || m.dice[dieIndex]?.used || !dieFitsSlot(m.dice[dieIndex]!.value, slot)) {
@@ -258,7 +323,8 @@ export function DiceMatchScreen({
     setSelectedDie(null);
   };
 
-  const shootDisabled = m.possession !== "you" || m.passes < 1;
+  const shootDisabled = m.possession !== "you" || m.passes < 1 || !tutorialAllows({ kind: "shoot" });
+  const endRoundDisabled = !tutorialAllows({ kind: "endRound" });
   const shootLabel = `⚽ Shoot (${Math.round(shotNow.p * 100)}%)${m.possession === "you" && m.passes < 1 ? " — make a pass first" : ""}`;
 
   return (
@@ -361,6 +427,7 @@ export function DiceMatchScreen({
 
       <ChainGlossary />
       <MatchTicker lines={tickerLines} />
+      {tutorial && <TutorialOverlay tutorial={tutorial} />}
 
       {m.phase === "PUSH_DECISION" && (
         <div className="push-modal-backdrop" data-testid="push-decision">
@@ -373,10 +440,22 @@ export function DiceMatchScreen({
               survive in the lead pays <strong>+{m.bal.ET_BUDGET_REWARD} budget</strong>.
             </p>
             <p style={{ display: "flex", gap: 12, justifyContent: "center" }}>
-              <button type="button" className="btn" data-testid="take-win" onClick={() => act({ type: "TAKE_WIN" })}>
+              <button
+                type="button"
+                className={`btn${tutorialHighlights({ kind: "takeWin" }) ? " tutorial-highlight" : ""}`}
+                data-testid="take-win"
+                disabled={!tutorialAllows({ kind: "takeWin" })}
+                onClick={() => act({ type: "TAKE_WIN" })}
+              >
                 Bank the win
               </button>
-              <button type="button" className="btn btn--primary" data-testid="extra-time" onClick={() => act({ type: "EXTRA_TIME" })}>
+              <button
+                type="button"
+                className="btn btn--primary"
+                data-testid="extra-time"
+                disabled={Boolean(tutorial)}
+                onClick={() => act({ type: "EXTRA_TIME" })}
+              >
                 Go for glory
               </button>
             </p>
@@ -399,7 +478,7 @@ export function DiceMatchScreen({
                 data-testid={`die-${i}`}
                 data-value={d.value}
                 data-used={d.used ? "true" : "false"}
-                disabled={d.used}
+                disabled={d.used || Boolean(tutorial)}
                 onClick={() => setSelectedDie(selectedDie === i ? null : i)}
               >
                 <span className="die-pip">{PIPS[d.value]}</span>
@@ -412,7 +491,7 @@ export function DiceMatchScreen({
                 type="button"
                 className="btn reroll-btn"
                 data-testid="reroll-die"
-                disabled={selectedDie === null || m.dice[selectedDie]?.used}
+                disabled={Boolean(tutorial) || selectedDie === null || m.dice[selectedDie]?.used}
                 title="Joga Bonito: reroll the selected die"
                 onClick={() => {
                   if (selectedDie !== null) act({ type: "REROLL_DIE", dieIndex: selectedDie });
@@ -433,7 +512,8 @@ export function DiceMatchScreen({
           <div className="dice-hand" data-testid="hand">
             {m.hand.map((c) => {
               const def = content.defs[c.defId]!;
-              const cardPlayable = canPlay(c.uid);
+              const cardHighlighted = tutorialHighlights({ kind: "playCard", defId: def.id });
+              const cardPlayable = canPlay(c.uid) && tutorialAllows({ kind: "playCard", defId: def.id });
               const defense = isDefenseCard(def);
               const role = defense
                 ? "defend"
@@ -444,7 +524,7 @@ export function DiceMatchScreen({
                 <button
                   key={c.uid}
                   type="button"
-                  className={`dice-card role-${role}${cardPlayable ? "" : " unplayable"}`}
+                  className={`dice-card role-${role}${cardPlayable ? "" : " unplayable"}${cardHighlighted ? " tutorial-highlight" : ""}`}
                   data-testid={`card-${def.id}`}
                   data-uid={c.uid}
                   data-playable={cardPlayable ? "true" : "false"}
@@ -467,7 +547,7 @@ export function DiceMatchScreen({
           <div className="action-bar">
             <button
               type="button"
-              className="btn btn--primary"
+              className={`btn btn--primary${tutorialHighlights({ kind: "shoot" }) ? " tutorial-highlight" : ""}`}
               data-testid="shoot"
               disabled={shootDisabled}
               title="Roll a d20 + Chance vs the keeper's DC"
@@ -478,7 +558,13 @@ export function DiceMatchScreen({
             >
               {shootLabel}
             </button>
-            <button type="button" className="btn btn--danger" data-testid="end-round" onClick={() => act({ type: "END_ROUND" })}>
+            <button
+              type="button"
+              className={`btn btn--danger${tutorialHighlights({ kind: "endRound" }) ? " tutorial-highlight" : ""}`}
+              data-testid="end-round"
+              disabled={endRoundDisabled}
+              onClick={() => act({ type: "END_ROUND" })}
+            >
               {m.possession === "you" ? "Recycle possession" : "Stand off"}
             </button>
           </div>
