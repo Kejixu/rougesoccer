@@ -12,9 +12,12 @@ const content = makeContent();
 
 interface MatchStats {
   rounds: number;
+  attackRounds: number;
+  defenseRounds: number;
   decisionsWithChoice: number; // rounds where >1 distinct card was playable
   forcedDecisions: number; // exactly 1 playable card
-  deadRounds: number; // 0 playable, had to end round
+  deadAttackRounds: number; // your possession, 0 playable attacking cards
+  standOffOnly: number; // their possession, 0 playable defense cards (legal stand off)
   shots: number;
   goalsFor: number;
   goalsAgainst: number;
@@ -73,9 +76,12 @@ function probe(team: string, seed: string): { matches: MatchStats[]; result: str
     if (inMatch && !lastMatchActive) {
       cur = {
         rounds: 0,
+        attackRounds: 0,
+        defenseRounds: 0,
         decisionsWithChoice: 0,
         forcedDecisions: 0,
-        deadRounds: 0,
+        deadAttackRounds: 0,
+        standOffOnly: 0,
         shots: 0,
         goalsFor: 0,
         goalsAgainst: 0,
@@ -103,7 +109,10 @@ function probe(team: string, seed: string): { matches: MatchStats[]; result: str
         if (m.dice.every((d) => !d.used)) {
           const n = distinctPlayableCards(m);
           cur.rounds++;
-          if (n === 0) cur.deadRounds++;
+          if (m.possession === "you") cur.attackRounds++;
+          else cur.defenseRounds++;
+          if (n === 0 && m.possession === "you") cur.deadAttackRounds++;
+          else if (n === 0 && m.possession === "them") cur.standOffOnly++;
           else if (n === 1) cur.forcedDecisions++;
           else cur.decisionsWithChoice++;
 
@@ -169,9 +178,12 @@ function probe(team: string, seed: string): { matches: MatchStats[]; result: str
 function summarize(team: string) {
   const N = 40;
   let totRounds = 0,
+    attackRounds = 0,
+    defenseRounds = 0,
     choice = 0,
     forced = 0,
     dead = 0,
+    standOffOnly = 0,
     shots = 0,
     goals = 0,
     goalsAg = 0,
@@ -196,9 +208,12 @@ function summarize(team: string) {
     for (const m of matches) {
       matchCount++;
       totRounds += m.rounds;
+      attackRounds += m.attackRounds;
+      defenseRounds += m.defenseRounds;
       choice += m.decisionsWithChoice;
       forced += m.forcedDecisions;
-      dead += m.deadRounds;
+      dead += m.deadAttackRounds;
+      standOffOnly += m.standOffOnly;
       shots += m.shots;
       goals += m.goalsFor;
       goalsAg += m.goalsAgainst;
@@ -221,7 +236,7 @@ function summarize(team: string) {
       }
     }
   }
-  const decisions = choice + forced + dead;
+  const decisions = choice + forced + dead + standOffOnly;
   return {
     team,
     runWin: `${Math.round((wins / N) * 100)}%`,
@@ -235,7 +250,8 @@ function summarize(team: string) {
     highDiePerRound: (highDice / decisions).toFixed(2),
     highWantersPerRound: (highWanters / decisions).toFixed(2),
     contention: ((highWanters - highDice) / decisions).toFixed(2),
-    pctDead: `${Math.round((dead / decisions) * 100)}%`,
+    deadAttackRounds: `${Math.round((dead / attackRounds) * 100)}%`,
+    standOffOnly: `${Math.round((standOffOnly / defenseRounds) * 100)}%`,
     shotsPerMatch: (shots / matchCount).toFixed(1),
     goalsPerMatch: (goals / matchCount).toFixed(1),
     oppGoalsPerMatch: (goalsAg / matchCount).toFixed(1),

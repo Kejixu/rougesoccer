@@ -534,7 +534,7 @@ export interface StaffOffer {
 }
 
 export interface RunState {
-  version: 3;
+  version: 4;
   seed: string;
   playerTeamId: string;
   stage: Stage;

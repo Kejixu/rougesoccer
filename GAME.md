@@ -1,4 +1,4 @@
-# RogueSoccer — how it actually plays (current build)
+# RogueSoccer - how it actually plays (current build)
 
 This describes the game **as the code plays it today** on the Momentum Duel branch,
 not older design intent. It is the shared reference: if something here is wrong or
@@ -15,174 +15,225 @@ feels off, that is the thing to change. Source of truth = `src/core/match/dice.t
 
 One run = one World Cup campaign with the team you pick.
 
-- **Group stage:** a 3-team mini-group — you play **2 matches**, the other two teams
+- **Group stage:** a 3-team mini-group - you play **2 matches**, the other two teams
   play each other once (simulated). Top of the group advances; otherwise the run ends.
-- **Knockout:** R32 → R16 → QF → SF → **Final** (single elimination).
+- **Knockout:** R32 -> R16 -> QF -> SF -> **Final** (single elimination).
 - Between matches: **rewards** (pick a card), a **shop** (buy/upgrade/remove cards),
   and **staff hires** (passive perks) each time you advance a stage.
-- Difficulty ramps every stage (`STAGE_CLOCK_MULT`: GROUP 1.1 → FINAL 2.3), which
-  scales each opponent's rating, keeper, and pressure.
+- Difficulty ramps every stage (`STAGE_CLOCK_MULT`: GROUP 1.1 -> FINAL 2.3), which
+  scales each opponent's rating, keeper, and attack threat.
 
 Playable nations today: **Brazil, USA, Mexico, Canada** (each bends the dice rules).
 
 ---
 
-## 2. The match — Momentum Duel
+## 2. The match - Possession Chains
 
-A match is a **five-round dice-and-card duel for momentum** on one shared pitch.
+A match is a **six-round dice-and-card match** on one shared pitch. Odd rounds are
+your possession; even rounds are their possession.
 
 ```
  YOUR GOAL                    midfield                    THEIR GOAL
-   │  Your Box │ Your Third │  kickoff  │ Their Third │ Their Box │
-   0 ─────────────────────────── ball ───────────────────────────► 20
+   |  Your Box | Your Third |  kickoff  | Their Third | Their Box |
+   0 --------------------------- ball ----------------------------> 20
    YOUR_BOX=4                                      THEIR_BOX=16
 ```
 
 - The ball is a single integer position (0 = your goal, 20 = their goal). Kickoff is
   **midfield (10)**.
 - Each round rolls a pool of **5 d6 dice** and draws up to **4 cards**.
-- A card needs a die that fits its slot. Slotting the die spends it and commits the
-  card into one or more round lanes.
-- Cards are no longer locked by possession phase. Attack, chance, and defensive cards
-  can all be useful in the same round.
+- A card needs a die that fits its slot. Slotting the die spends it and resolves the
+  pass immediately.
+- Your first completed pass in a possession is always safe. Later passes show an
+  interception risk before you commit.
+- You can **shoot anytime**. Shooting spends your banked Chance against a distance
+  penalty based on where the ball is.
+- You can **recycle** with `END_ROUND`: end the possession safely with no shot and no
+  counter.
 
-The three round lanes:
+Your possession is push-your-luck:
 
-- **Build-Up:** converts into pitch movement when the round resolves. It is not
-  one-for-one movement; current tuning uses about two thirds of Build-Up as steps.
-- **Chance:** becomes Shot Quality when the resolved ball is in the Final Third or Box.
-- **Cover:** reduces the opponent's pressure before they can move the ball toward your goal.
-- **Shot Quality:** banked finishing power. Once the ball is in their box, it adds to
-  the d20 shot roll.
-- **Finish cards:** Chance cards. They do not help early build-up unless they also
-  have a Build-Up effect; they add Chance only once the ball is projected deep enough.
+1. Play progress/setup/finish cards as passes.
+2. Completed passes move the ball, bank Chance, set up the next finisher, or reduce
+   the next pass risk.
+3. If a later pass is intercepted, all banked Chance is lost and the opponent gets
+   one instant counter shot.
+4. Shoot when the current Chance and field position look worth cashing in.
 
-This is the core decision: spend high dice on progress, chance, or safety. A round
-should rarely be dead because every tactical role can be committed if a die fits.
+Their possession mirrors the same rhythm:
 
-The match screen must make the loop legible:
+1. Defensive cards are the only cards you can play.
+2. Playing a defender commits interception risk against their next pass.
+3. Ending the round is a legal **stand off**: you do not commit a defender, and their
+   next pass happens undefended.
+4. If you intercept them, you get one instant counter shot.
+5. If they complete enough passes for their style, or reach your box, they shoot.
 
-- The lane badges show the current committed Build-Up, Chance, and Cover.
-- Clicking a card stages a pending play first; the player confirms with **Commit**
-  after seeing exactly which die and lane changes will be used.
-- The decision coach labels the current tactical state and priority: build territory,
-  add chance, cover danger, or shoot.
-- The duel preview shows the expected ball movement, chance banking, cover absorbed,
-  and any opponent push before you resolve the round.
-- The match log explains the last few actions in plain language, including what each
-  card added and how the duel resolved.
+The match UI surfaces this loop with pass chips, current/interception risk, a live
+shot estimate, and their-chain defense controls.
 
 ---
 
-## 3. Resolving a round
+## 3. Round rhythm
 
-At the start of a round, the opponent reveals an **intent**: attack, counter, press,
-or sit deep.
+There is no lane duel or delayed resolve step. Each die assignment is the action.
 
-During the round:
+- **Your rounds:** attack cards are playable; defensive cards wait for their
+  possession.
+- **Their rounds:** defensive cards are playable; attack cards wait for your
+  possession.
+- **Draw effects** happen immediately.
+- **Setup effects** (`setupNext`) bank a bonus for the next Chance-gaining card.
+- **Safe-pass effects** reduce your next interception check.
+- **Interceptions** immediately end the possession after the counter shot.
+- **Shots** immediately end the possession and reset the ball to midfield.
 
-- Progress cards add **Build-Up**.
-- Finish cards add **Chance** if the current or projected ball position is deep enough.
-- Defensive cards add **Cover**.
-- Draw effects still draw immediately.
-
-When you press **Resolve duel**:
-
-1. Build-Up converts into pitch steps and moves the ball forward.
-2. Chance becomes banked **Shot Quality** if the ball is in the Final Third or Box.
-3. **If the ball is now in their box with Shot Quality, you shoot.** Reaching the box
-   with a chance IS the shot — it fires immediately, before the opponent can react.
-   The shot resets the ball to midfield, and the opponent's pressure is skipped this
-   round (you were on the attack).
-4. Otherwise the opponent intent resolves: Cover subtracts from attack/counter
-   pressure, then the remaining pressure pushes the ball toward your goal. This can
-   reach your third or box even if you started the round with initiative.
-5. If the opponent reaches your box, they shoot.
-6. The hand and dice clear, and the next round starts unless the match result is due.
-
-This is the key balance lever: your shot resolving *before* opponent pressure means
-attacking chances and defensive territory no longer fight over the same step, so
-opponent pressure can be strong (real defensive territory) without starving shots.
+At the end of a possession, remaining hand cards are discarded, dice clear, and the
+next round starts unless the match has reached a result, a push decision, sudden
+death, or a shootout.
 
 ---
 
 ## 4. Shooting and conceding
 
-- **You shoot:** when the duel leaves the ball in their box (`ball >= 16`) with Shot
-  Quality > 0, the shot fires automatically as the duel resolves —
-  `d20 + Shot Quality >= their keeper DC` is a goal. It happens before opponent
-  pressure and ends the round.
-- **They shoot:** if opponent pressure pushes the ball into your box (`ball <= 4`),
-  `d20 + their danger >= your keeper DC` is a goal.
-- Any shot resets the ball to midfield and flips initiative.
+Your shot:
+
+```
+d20 + Shot Quality >= their keeper DC + zone penalty + sit-deep bonus
+```
+
+Their shot:
+
+```
+d20 + Opponent Chance >= your keeper DC + mirrored zone penalty
+```
+
+Counter shots are one-roll chances after an interception. Your counter uses
+`COUNTER_CHANCE` plus any nation bonus; their counter uses their per-pass Chance gain
+and is scarier if you lost the ball in your own half.
+
+Zone penalties:
+
+| Ball zone | Position | Shot DC penalty |
+|---|---:|---:|
+| Your box | 0-3 | +6 |
+| Your third | 4-7 | +6 |
+| Midfield | 8-11 | +6 |
+| Their third | 12-15 | +3 |
+| Their box | 16-20 | +0 |
 
 ---
 
 ## 5. How a match ends
 
-After round 5 (regulation):
+After round 6 (regulation):
 
-- **Leading →** push-your-luck: **bank the win**, or **extra time**. Extra-time
-  pressure hits 2x harder, but each round survived in the lead pays budget + scout.
-- **Tied →** a **draw** in the group, or **sudden death** in a knockout. After three
+- **Leading ->** push-your-luck: **bank the win**, or **extra time**. Extra-time
+  pressure is riskier, but each round survived in the lead pays budget + scout.
+- **Tied ->** a **draw** in the group, or **sudden death** in a knockout. After three
   sudden-death rounds, the match goes to a penalty shootout roll.
-- **Trailing →** loss / elimination.
+- **Trailing ->** loss / elimination.
 
 ---
 
 ## 6. The card pool (dice cards)
 
-Low dice tend to make Cover, mid dice make Build-Up, and high dice make Chance. The
-important change is that cards contribute to lanes first; movement and pressure
-happen together when the duel resolves.
+Attack cards advance the chain or build Chance during your possession. Defensive
+cards raise their interception risk during the opponent possession.
 
 | Card | Slot | Role | Effect |
 |---|---|---|---|
-| Short Pass | 2+ | build-up | Build-Up = die value |
-| Driving Run | 3+ | build-up | +4 Build-Up |
-| Flank Run | 4+ | build-up | +3 Build-Up, draw 1 |
-| Quick Combo | 4+ | build-up | +2 Build-Up, draw 1 |
-| Overlapping Run | =4 | build-up | +4 Build-Up, draw 1 |
-| Through Ball | 5+ | build-up/chance | +1 zone Build-Up, +2 Chance deep |
-| Counter Attack | 3+ | build-up/chance | +1 zone Build-Up, +3 Chance in box |
-| Clinical Finish | 5+ | chance | Chance = die value in box |
-| Poacher | even | chance | +5 Chance in box |
-| Whipped Cross | 4+ | chance | +4 Chance in final third or box |
-| Screamer | 6 | chance | +8 Chance in final third or box |
-| Last-Ditch Tackle | 2- | cover | strong Cover; USA adds Build-Up |
-| Clearance | 3- | cover | +6 Cover |
-| Keeper Claims It | any | cover | +4 Cover, draw 1 |
+| Short Pass | 2+ | progress | Move by the die value |
+| Driving Run | 3+ | progress | Move 4 |
+| Flank Run | 4+ | progress | Move 3, draw 1 |
+| Quick Combo | 4+ | progress/finish | Move 2, +2 Chance |
+| Sideways Pass | 3- | safety | Next pass 12% safer, move 1 |
+| Through Ball | 5+ | setup/progress | Next finisher +4, move 2 |
+| Counter Attack | 3+ | progress/finish | Move 3, +3 Chance |
+| Clinical Finish | 5+ | finish | Chance = the die |
+| Poacher | even | finish | +5 Chance |
+| Whipped Cross | 4+ | setup | Next finisher +5 |
+| Screamer from Range | 6 | finish | +8 Chance |
+| Last-Ditch Tackle | 2- | defend | +18% to intercept their next pass |
+| Clearance | 3- | defend | +12% to intercept their next pass |
+| Keeper Claims It | any | defend | +8% to intercept their next pass, draw 1 |
 
-**Starting deck (16 cards, ~40% defense):** Short Pass x3, Driving Run x2, Flank Run,
+Chance cards gain extra value as the move develops:
+
+```
+Chance gained = base card value + setup bonus + completed passes * DEVELOPMENT_GAIN
+```
+
+**Starting deck (17 cards):** Short Pass x3, Driving Run x2, Sideways Pass x2,
 Through Ball, Clinical Finish x2, Poacher, Tackle x3, Clearance x2, Keeper.
 
 ---
 
 ## 7. Nation identities
 
-- **Brazil — "Joga Bonito":** 4 dice instead of 5, but reroll one die each round;
-  harder opponent keeper. Flair over volume.
-- **Mexico — "La Ola":** an extra die each round; slightly harder keeper. Win on volume.
-- **USA — "The Press":** tackles add counter Build-Up. Win safety and territory together.
-- **Canada — "Resolute":** opponents advance 2 fewer steps against you. Hard to break down.
+- **Brazil - "Joga Bonito":** 4 dice instead of 5, but reroll one die each round;
+  opponent keeper DC +2. Flair over volume.
+- **Mexico - "La Ola":** an extra die each round; opponent keeper DC +2. Win on volume.
+- **USA - "The Press":** instant counters get +0.5 to the shot roll. The edge is small
+  after tuning, but preserves the high-press identity without making counters the
+  primary scoring engine.
+- **Canada - "Resolute":** opponents have +1% interception risk against you. The edge
+  is intentionally small because larger values pushed Canada above the win-rate band.
 
 ---
 
-## 8. Key numbers (`balance.ts → DICE`)
+## 8. Key numbers (`balance.ts -> DICE`)
 
-Pool 5 dice · d6 · hand 4 · 5 regulation rounds · pitch 0-20 · midfield 10 · Build-Up
-scale 0.65 · their
-box 16 · your box 4 · their keeper DC 9 + rating x 0.14 (cap 18) · your keeper DC 14 ·
-shot d20 · opponent danger rating x 0.08 (cap 6) · opponent pressure scale 0.34.
+Pool 5 dice - d6 - hand 4 - 6 regulation rounds - pitch 0-20 - midfield 10 -
+their box 16 - your box 4.
+
+Shot math:
+
+- Their keeper DC: `10 + rating * 0.14 + nation keeper delta`
+- Your keeper DC: `15`
+- Shot die: d20
+- Sit-deep bonus to their keeper: +4
+- Zone DC penalty: `[6, 6, 6, 3, 0]`
+
+Your chain:
+
+- Risk base: press 25%, balanced 15%, sit deep 8%
+- Risk ramp: +6% per completed pass after the first
+- Risk cap: 65%
+- Development gain: +1 Chance per completed pass
+- Counter chance: +0 before nation bonuses
+- Opponent shallow counter bonus: +3 if you lose it in your half
+
+Their chain:
+
+- Opponent base interception risk: 12%
+- Opponent risk ramp: +5% per completed pass
+- Opponent pass advance: 2 steps toward your goal
+- Opponent Chance gain: `round(rating * 0.03)`, capped at 6 per pass
+- Opponent chain targets: balanced 3, possession 4, flair 4, fortress 2, counter 2,
+  highpress 3
+
+Latest probe target readout:
+
+- Run wins: Brazil 23%, Mexico 23%, USA 25%, Canada 30%
+- Passes per chain: 2.01-2.11
+- Intercepted share: 15-20%
+- Goals per match: 1.2-1.4 for you, 0.5-0.6 for opponents
+- Dead attack rounds: 0-2%
+- Stand-off-only defensive rounds: 20-25% (informational; standing off is legal)
 
 ---
 
 ## 9. Known rough edges
 
-- **Balance needs a fresh pass:** Momentum Duel changes dead-round frequency and shot
-  timing, so previous win-rate numbers are no longer authoritative.
-- **Possession language is now "initiative":** some variable names still say
-  `possession` for compatibility, but the player-facing loop is lane allocation.
-- **Chance gating is deliberately strict:** finish cards only add Chance once the
-  current or projected ball position is deep enough. If this still feels dead, the
-  next lever is weaker off-zone chance rather than more hand size.
+- **Canada remains a little hot:** the final probe has Canada at 30% greedy run wins,
+  above the 15-25% ideal but below the 35% hard ceiling. Larger Canada identity
+  bonuses broke the ceiling; removing the identity entirely only moved the probe to
+  about 28%.
+- **Chains still sit near the floor:** passes per chain are just over 2. Attempts to
+  lower risk ramp did not meaningfully create 2.5-3 pass chains and pushed win rates
+  around, so this ships as a conservative balance.
+- **Counters are toned down but still visible:** player counter goals now sit roughly
+  0.3-0.5 per match instead of dominating total scoring.
+- **Screamer's long-range specialization is not special-cased:** it is currently a
+  flat +8 Chance card; distance is handled only by the shared zone penalty table.

@@ -182,7 +182,7 @@ export const DICE_CARD_DEFS = [
 export const DICE_CARD_MAP: Record<string, CardDef> = Object.fromEntries(DICE_CARD_DEFS.map((d) => [d.id, d]));
 
 const DICE_STARTING_LIST: { defId: string; count: number }[] = [
-  { defId: "d_shortpass", count: 2 },
+  { defId: "d_shortpass", count: 3 },
   { defId: "d_drivingrun", count: 2 },
   { defId: "d_sideways", count: 2 },
   { defId: "d_throughball", count: 1 },
