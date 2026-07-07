@@ -4,21 +4,14 @@ import {
   slotLabel,
   type ContentBundle,
   type DiceMatchAction,
-  type DiceMatchState,
   type GameEvent,
   type Intent,
   type RunAction,
   type RunState,
 } from "../../core/types";
-import { ZONE_NAMES, bestDieFor, zoneOf } from "../../core/match/dice";
+import { ZONE_NAMES, bestDieFor, interceptionRisk, oppInterceptionRisk, playableCards, shotEstimate, zoneOf } from "../../core/match/dice";
 import { ScorePopups } from "../components/ScorePopups";
-import {
-  LANE_GLOSSARY,
-  describeDecisionCoach,
-  describePendingCommit,
-  describePressureStatus,
-  type PendingCommitSummary,
-} from "../diceUx";
+import { CHAIN_GLOSSARY, describeChainStatus } from "../diceUx";
 
 const PIPS: Record<number, string> = { 1: "⚀", 2: "⚁", 3: "⚂", 4: "⚃", 5: "⚄", 6: "⚅" };
 
@@ -67,74 +60,20 @@ function PitchTrack({
   );
 }
 
-function pressureOf(intent: Intent | null): number {
-  if (!intent) return 0;
-  return intent.kind === "attack" || intent.kind === "counter" ? intent.points : 4;
-}
-
-function MovePreview({ m }: { m: DiceMatchState }) {
-  if (!m || m.phase !== "ROUND_ACTIVE") return null;
-  const pressure = pressureOf(m.intent);
-  const absorbed = Math.min(m.cover, pressure);
-  const through = Math.max(0, pressure - m.cover);
-  const buildUpSteps = Math.round(m.buildUp * m.bal.DICE.BUILD_UP_SCALE);
-  const ballAfterBuildUp = Math.min(m.bal.DICE.PITCH_LEN, m.ball + buildUpSteps);
-  const oppSteps = Math.max(0, Math.round(through * m.bal.DICE.OPP_ADVANCE_SCALE));
-  const finalBall = Math.max(0, ballAfterBuildUp - oppSteps);
-  const chanceBanks = m.chance > 0 && zoneOf(ballAfterBuildUp, m.bal) >= 3;
-  const pressureText = describePressureStatus({ pressure, cover: m.cover, finalBall });
-  return (
-    <div className="duel-preview panel" data-testid="duel-preview">
-      <span className="duel-preview-step">Ball {m.ball} → {ballAfterBuildUp}</span>
-      <span className="duel-preview-step">Chance {chanceBanks ? `+${m.chance} SQ` : m.chance > 0 ? "needs final third" : "+0"}</span>
-      <span className="duel-preview-step">Cover {absorbed}/{pressure}</span>
-      {oppSteps > 0 && <span className="duel-preview-step danger">They push to {finalBall}</span>}
-      <span className={`duel-preview-note${through > 0 ? " danger" : ""}`}>{pressureText}</span>
-    </div>
-  );
-}
-
-function DecisionCoach({ m }: { m: DiceMatchState }) {
-  const pressure = pressureOf(m.intent);
-  const through = Math.max(0, pressure - m.cover);
-  const projectedBall = Math.min(m.bal.DICE.PITCH_LEN, m.ball + Math.round(m.buildUp * m.bal.DICE.BUILD_UP_SCALE));
-  const oppSteps = Math.max(0, Math.round(through * m.bal.DICE.OPP_ADVANCE_SCALE));
-  const finalBall = Math.max(0, projectedBall - oppSteps);
-  const chanceBanks = m.chance > 0 && zoneOf(projectedBall, m.bal) >= 3;
-  const coach = describeDecisionCoach({
-    ball: m.ball,
-    projectedBall,
-    finalBall,
-    theirBox: m.bal.DICE.THEIR_BOX,
-    shotQuality: m.shotQuality,
-    pressure,
-    cover: m.cover,
-    chance: m.chance,
-    chanceBanks,
-  });
-  return (
-    <div className={`decision-coach panel state-${coach.state.toLowerCase()}`} data-testid="decision-coach">
-      <span className="decision-state">{coach.state}</span>
-      <span className="decision-priority">{coach.priority}</span>
-      <span className="decision-reason">{coach.reason}</span>
-    </div>
-  );
-}
-
 function eventLine(e: GameEvent): string | null {
   switch (e.type) {
-    case "LANE_COMMITTED": {
-      const parts = [];
-      if (e.buildUp) parts.push(`+${e.buildUp} Build-Up`);
-      if (e.chance) parts.push(`+${e.chance} Chance`);
-      if (e.cover) parts.push(`+${e.cover} Cover`);
-      return `${e.cardName} (${e.die}) committed ${parts.join(", ") || "no lane change"}.`;
-    }
-    case "DUEL_RESOLVED": {
-      const chance = e.shotQualityGained > 0 ? `, +${e.shotQualityGained} Shot Quality` : "";
-      const cover = e.pressure > 0 ? ` Cover absorbed ${e.absorbed}/${e.pressure}` : "";
-      return `Duel resolved: ball ${e.ballFrom} → ${e.ballAfterBuildUp} → ${e.ballAfterOpponent}${chance}.${cover}`;
-    }
+    case "PASS_COMPLETED":
+      return `${e.cardName}: pass ${e.passes}, +${e.chanceGained} Chance, ${Math.round(e.risked * 100)}% risk.`;
+    case "OPP_PASS":
+      return `Their pass ${e.passes}: ${e.oppChance} Chance, ${Math.round(e.risk * 100)}% risk.`;
+    case "DEFENSE_COMMITTED":
+      return `${e.cardName} (${e.die}): +${Math.round(e.amount * 100)}% defense, total +${Math.round(e.total * 100)}%.`;
+    case "CHAIN_INTERCEPTED":
+      return e.byYou
+        ? `Won the interception after ${e.passes} passes.`
+        : `Tackled after ${e.passes} passes; lost ${e.chanceLost} Chance.`;
+    case "COUNTER_SHOT":
+      return `${e.byYou ? "Your" : "Their"} counter: d20 ${e.roll} + ${e.bonus} vs ${e.dc} = ${e.goal ? "goal" : "saved"}.`;
     case "SHOT_TAKEN":
       return `Shot: d20 ${e.roll} + ${e.quality} vs ${e.dc} = ${e.goal ? "goal" : "saved"}.`;
     case "OPP_SHOT":
@@ -160,61 +99,30 @@ function MatchLog({ events }: { events: GameEvent[] }) {
   );
 }
 
-function LaneGlossary() {
+function ChainGlossary() {
   return (
-    <div className="lane-glossary panel" data-testid="lane-glossary">
-      <div><strong>Build-Up</strong><span>{LANE_GLOSSARY.buildUp}</span></div>
-      <div><strong>Chance</strong><span>{LANE_GLOSSARY.chance}</span></div>
-      <div><strong>Cover</strong><span>{LANE_GLOSSARY.cover}</span></div>
-      <div><strong>Shot Quality</strong><span>{LANE_GLOSSARY.shotQuality}</span></div>
-      <div><strong>Finish</strong><span>{LANE_GLOSSARY.finish}</span></div>
-    </div>
+    <details className="glossary panel" data-testid="chain-glossary">
+      <summary>How this works</summary>
+      {Object.entries(CHAIN_GLOSSARY).map(([term, copy]) => (
+        <div key={term}>
+          <strong>{term}</strong>
+          <span>{copy}</span>
+        </div>
+      ))}
+    </details>
   );
 }
 
-function commitSummaryFor(m: DiceMatchState, content: ContentBundle, uid: string, dieIndex: number): PendingCommitSummary | null {
-  const card = m.hand.find((c) => c.uid === uid);
-  const die = m.dice[dieIndex];
-  if (!card || !die || die.used) return null;
-  const def = content.defs[card.defId];
-  if (!def) return null;
-  let buildUp = 0;
-  let chance = 0;
-  let cover = 0;
-  const projectedZone = () =>
-    zoneOf(Math.min(m.bal.DICE.PITCH_LEN, m.ball + Math.round((m.buildUp + buildUp) * m.bal.DICE.BUILD_UP_SCALE)), m.bal);
-  for (const eff of def.diceEffects ?? []) {
-    switch (eff.kind) {
-      case "progress":
-        buildUp += eff.amount;
-        break;
-      case "progressFromDie":
-        buildUp += die.value;
-        break;
-      case "advance":
-        buildUp += eff.zones * m.bal.DICE.ZONE_WIDTH;
-        break;
-      case "shotQuality":
-        if (projectedZone() >= (eff.minZone ?? 0)) chance += eff.amount;
-        break;
-      case "shotQualityFromDie":
-        if (projectedZone() >= (eff.minZone ?? 0)) chance += die.value;
-        break;
-      case "winPossession":
-        cover += 10 + die.value;
-        buildUp += m.mutators.filter((mut) => mut.kind === "counterSpring").reduce((sum, mut) => sum + mut.amount, 0);
-        break;
-      case "pushBack":
-        cover += eff.steps;
-        break;
-      case "clearance":
-        cover += 6;
-        break;
-      case "draw":
-        break;
-    }
-  }
-  return { cardName: def.name, die: die.value, buildUp, chance, cover };
+function isDefenseCard(def: ContentBundle["defs"][string] | undefined): boolean {
+  return (def?.diceEffects ?? []).some((e) => e.kind === "defend");
+}
+
+interface ChainChip {
+  uid: string;
+  cardName: string;
+  passes: number;
+  chanceGained: number;
+  risked: number;
 }
 
 export function DiceMatchScreen({
@@ -230,8 +138,9 @@ export function DiceMatchScreen({
 }) {
   const m = run.activeMatch!;
   const [selectedDie, setSelectedDie] = useState<number | null>(null);
-  const [pendingCommit, setPendingCommit] = useState<{ uid: string; dieIndex: number } | null>(null);
   const act = (action: DiceMatchAction) => dispatch({ type: "MATCH_ACTION", action });
+  const chainRef = useRef<ChainChip[]>([]);
+  const [chainEntries, setChainEntries] = useState<ChainChip[]>([]);
 
   // A fresh roll remounts the dice so they cascade in; a reroll spins the one die.
   const [rollKey, setRollKey] = useState(0);
@@ -242,8 +151,22 @@ export function DiceMatchScreen({
       fxNonce.current += 1;
       setRollKey(fxNonce.current);
       setSelectedDie(null);
-      setPendingCommit(null);
     }
+    if (events.some((e) => e.type === "ROUND_START")) chainRef.current = [];
+    const completed = events.filter((e): e is Extract<GameEvent, { type: "PASS_COMPLETED" }> => e.type === "PASS_COMPLETED");
+    if (completed.length > 0) {
+      chainRef.current = [
+        ...chainRef.current,
+        ...completed.map((e) => ({
+          uid: e.uid,
+          cardName: e.cardName,
+          passes: e.passes,
+          chanceGained: e.chanceGained,
+          risked: e.risked,
+        })),
+      ];
+    }
+    if (events.some((e) => e.type === "ROUND_START") || completed.length > 0) setChainEntries([...chainRef.current]);
     const re = [...events].reverse().find((e) => e.type === "DIE_REROLLED");
     if (re && re.type === "DIE_REROLLED") {
       fxNonce.current += 1;
@@ -256,17 +179,25 @@ export function DiceMatchScreen({
   const playerName = content.teams.find((t) => t.id === run.playerTeamId)?.name ?? "You";
   const scale = (m.mode === "extratime" ? m.bal.EXTRA_TIME_CLOCK_MULT : 1);
   const intent = m.intent ? intentText(m.intent, scale) : null;
-  const inBox = m.ball >= m.bal.DICE.THEIR_BOX;
-  const dcNow = m.keeperDC + (m.intent?.kind === "sitDeep" ? m.bal.DICE.SIT_DEEP_DC_BONUS : 0);
+  const shotNow = shotEstimate(m);
+  const dcNow = shotNow.dc;
+  const riskNow = interceptionRisk(m);
+  const theirRisk = oppInterceptionRisk(m);
+  const chainStatus = describeChainStatus({
+    possession: m.possession,
+    passes: m.passes,
+    shotQuality: m.shotQuality,
+    riskPct: riskNow,
+    oppPasses: m.oppPasses,
+    oppChance: m.oppChance,
+    shootPct: shotNow.p,
+  });
+  const playable = playableCards(content.defs, m);
 
-  const freeDice = m.dice.map((d, i) => ({ ...d, i })).filter((d) => !d.used);
   const selVal = selectedDie !== null ? m.dice[selectedDie]?.value : undefined;
 
-  const canPlay = (defId: string): boolean => {
-    const slot = content.defs[defId]?.slot;
-    if (!slot) return false;
-    if (selVal !== undefined) return dieFitsSlot(selVal, slot);
-    return freeDice.some((d) => dieFitsSlot(d.value, slot));
+  const canPlay = (uid: string): boolean => {
+    return playable.has(uid);
   };
 
   const onCardClick = (uid: string, defId: string) => {
@@ -278,17 +209,8 @@ export function DiceMatchScreen({
       dieIndex = bestDieFor(content.defs, m, uid);
       if (dieIndex < 0) return;
     }
-    setPendingCommit({ uid, dieIndex });
+    act({ type: "ASSIGN_DIE", uid, dieIndex });
     setSelectedDie(null);
-  };
-
-  const pendingSummary =
-    pendingCommit !== null ? commitSummaryFor(m, content, pendingCommit.uid, pendingCommit.dieIndex) : null;
-
-  const commitPending = () => {
-    if (!pendingCommit) return;
-    act({ type: "ASSIGN_DIE", uid: pendingCommit.uid, dieIndex: pendingCommit.dieIndex });
-    setPendingCommit(null);
   };
 
   return (
@@ -317,19 +239,13 @@ export function DiceMatchScreen({
 
       <div className="dice-stat-row">
         <span className="shotq-badge" data-testid="shot-quality">
-          ⚽ Shot Quality {m.shotQuality}
+          Chance {m.shotQuality}
         </span>
-        <span className="shotq-badge" data-testid="build-up">
-          Build-Up +{m.buildUp}
-        </span>
-        <span className="shotq-badge" data-testid="chance">
-          Chance +{m.chance}
-        </span>
-        <span className="shotq-badge" data-testid="cover">
-          Cover {m.cover}
+        <span className="shotq-badge" data-testid="passes">
+          Passes {m.possession === "you" ? m.passes : m.oppPasses}
         </span>
         <span className={`possession-badge${m.possession === "them" ? " defending" : ""}`} data-testid="possession-badge">
-          {m.possession === "you" ? "● Initiative" : "○ Under pressure"}
+          {m.possession === "you" ? "● Your possession" : "○ Their possession"}
         </span>
         <span className="pitch-arrow" data-testid="pitch-arrow">
           {m.possession === "you" ? "→" : "←"}
@@ -348,20 +264,45 @@ export function DiceMatchScreen({
         </div>
       )}
 
-      {m.phase === "ROUND_ACTIVE" && <DecisionCoach m={m} />}
-      <MovePreview m={m} />
-      <LaneGlossary />
-      {pendingSummary && (
-        <div className="pending-commit panel" data-testid="pending-commit">
-          <span>{describePendingCommit(pendingSummary)}</span>
-          <button type="button" className="btn btn--primary" data-testid="confirm-card" onClick={commitPending}>
-            Commit
-          </button>
-          <button type="button" className="btn" data-testid="cancel-card" onClick={() => setPendingCommit(null)}>
-            Cancel
-          </button>
+      {m.phase === "ROUND_ACTIVE" && m.possession === "you" && (
+        <div className="chain-panel panel" data-testid="chain-panel">
+          <div className="chain-strip" data-testid="chain-strip">
+            {chainEntries.length === 0 ? (
+              <span className="chain-chip empty">First pass safe</span>
+            ) : (
+              chainEntries.map((chip, i) => (
+                <span key={`${chip.uid}-${i}`} className="chain-chip">
+                  {chip.passes}. {chip.cardName}
+                  {chip.chanceGained > 0 && <strong>+{chip.chanceGained}</strong>}
+                </span>
+              ))
+            )}
+          </div>
+          <div className="chain-summary">
+            <span className="shotq-badge">Chance {m.shotQuality}</span>
+            {riskNow > 0 && (
+              <span className="risk-badge" data-testid="chain-risk" data-hot={riskNow >= 0.3 ? "true" : "false"}>
+                {Math.round(riskNow * 100)}% risk
+              </span>
+            )}
+            <span className="chain-status" data-testid="chain-status">{chainStatus}</span>
+          </div>
         </div>
       )}
+
+      {m.phase === "ROUND_ACTIVE" && m.possession === "them" && (
+        <div className="their-chain panel" data-testid="their-chain">
+          <span>Their pass {m.oppPasses}</span>
+          <span>Chance {m.oppChance}</span>
+          <span>Committed +{Math.round(m.defenseCommit * 100)}%</span>
+          <span className="risk-badge" data-hot={theirRisk >= 0.3 ? "true" : "false"}>
+            {Math.round(theirRisk * 100)}% interception
+          </span>
+          <span className="chain-status" data-testid="chain-status">{chainStatus}</span>
+        </div>
+      )}
+
+      <ChainGlossary />
       <MatchLog events={events} />
 
       {m.phase === "PUSH_DECISION" && (
@@ -435,8 +376,9 @@ export function DiceMatchScreen({
           <div className="dice-hand" data-testid="hand">
             {m.hand.map((c) => {
               const def = content.defs[c.defId]!;
-              const playable = canPlay(c.defId);
-              const role = (def.diceEffects ?? []).some((e) => e.kind === "winPossession" || e.kind === "pushBack" || e.kind === "clearance")
+              const cardPlayable = canPlay(c.uid);
+              const defense = isDefenseCard(def);
+              const role = defense
                 ? "defend"
                 : (def.diceEffects ?? []).some((e) => e.kind.startsWith("shotQuality"))
                   ? "finish"
@@ -445,16 +387,21 @@ export function DiceMatchScreen({
                 <button
                   key={c.uid}
                   type="button"
-                  className={`dice-card role-${role}${playable ? "" : " unplayable"}${pendingCommit?.uid === c.uid ? " pending" : ""}`}
+                  className={`dice-card role-${role}${cardPlayable ? "" : " unplayable"}`}
                   data-testid={`card-${def.id}`}
                   data-uid={c.uid}
-                  data-playable={playable ? "true" : "false"}
-                  disabled={!playable}
+                  data-playable={cardPlayable ? "true" : "false"}
+                  disabled={!cardPlayable}
                   onClick={() => onCardClick(c.uid, def.id)}
                 >
                   <span className="dice-card-slot">{def.slot ? slotLabel(def.slot) : "—"}</span>
                   <span className="dice-card-name">{def.name}</span>
                   <span className="dice-card-text">{def.levels[Math.min(c.level, def.levels.length - 1)]!.text}</span>
+                  {!defense && m.passes >= 1 && (
+                    <span className="risk-badge card-risk" data-hot={riskNow >= 0.3 ? "true" : "false"}>
+                      {Math.round(riskNow * 100)}%
+                    </span>
+                  )}
                 </button>
               );
             })}
@@ -465,31 +412,18 @@ export function DiceMatchScreen({
               type="button"
               className="btn btn--primary"
               data-testid="shoot"
-              disabled={!inBox || m.shotQuality <= 0}
-              title={inBox ? "Roll a d20 + shot quality vs the keeper's DC" : "Reach the box first"}
+              disabled={m.possession !== "you" || m.passes < 1 || m.shotQuality <= 0}
+              title="Roll a d20 + Chance vs the keeper's DC"
               onClick={() => act({ type: "SHOOT" })}
             >
-              ⚽ Shoot ({m.shotQuality} + d20 ≥ {dcNow})
+              ⚽ Shoot ({Math.round(shotNow.p * 100)}%)
             </button>
             <button type="button" className="btn btn--danger" data-testid="end-round" onClick={() => act({ type: "END_ROUND" })}>
-              Resolve duel — they {m.intent ? intentVerb(m.intent) : "act"}
+              {m.possession === "you" ? "Recycle possession" : "Stand off"}
             </button>
           </div>
         </>
       )}
     </main>
   );
-}
-
-function intentVerb(intent: Intent): string {
-  switch (intent.kind) {
-    case "attack":
-      return intent.big ? "unleash the big attack" : "attack";
-    case "sitDeep":
-      return "park the bus";
-    case "press":
-      return "press you";
-    case "counter":
-      return "spring the counter";
-  }
 }

@@ -140,55 +140,32 @@ export function ScorePopups({ events }: { events: GameEvent[] }) {
           popup: { id: nextId++, kind: "goal", text: e.goals > 1 ? `⚽ ${e.goals} GOALS!` : "⚽ GOAL!" },
         });
         delay += 650;
-      } else if (e.type === "LANE_COMMITTED") {
-        const parts = [];
-        if (e.buildUp) parts.push(`+${e.buildUp} build`);
-        if (e.chance) parts.push(`+${e.chance} chance`);
-        if (e.cover) parts.push(`+${e.cover} cover`);
-        if (parts.length > 0) {
-          staged.push({
-            delay,
-            popup: { id: nextId++, kind: "info", text: parts.join(" · ") },
-          });
-          delay += 350;
-        }
-      } else if (e.type === "DUEL_RESOLVED") {
-        if (e.shotQualityGained > 0) {
-          staged.push({
-            delay,
-            popup: { id: nextId++, kind: "shot", text: `+${e.shotQualityGained} Shot Quality` },
-          });
-          delay += 450;
-        }
-        if (e.pressure > 0) {
-          staged.push({
-            delay,
-            popup: {
-              id: nextId++,
-              kind: e.gotThrough > 0 ? "concede" : "info",
-              text: e.gotThrough > 0 ? `Cover ${e.absorbed}/${e.pressure} · ${e.gotThrough} through` : `Covered ${e.absorbed}/${e.pressure}`,
-            },
-          });
-          delay += 450;
-        }
-      } else if (e.type === "INTENT_EXECUTED") {
-        if (e.blocked > 0 && e.points === 0) {
-          staged.push({
-            delay,
-            popup: { id: nextId++, kind: "info", text: `Blocked! 🛡 ${e.blocked}` },
-          });
-          delay += 500;
-        } else if (e.points > 0) {
-          staged.push({
-            delay,
-            popup: {
-              id: nextId++,
-              kind: "concede",
-              text: e.intent.kind === "counter" ? `Countered! +${e.points}` : `They push +${e.points}`,
-            },
-          });
-          delay += 500;
-        }
+      } else if (e.type === "CHAIN_INTERCEPTED") {
+        staged.push({
+          delay,
+          popup: { id: nextId++, kind: e.byYou ? "info" : "concede", text: e.byYou ? "🎯 WON IT!" : "🚫 TACKLED!" },
+        });
+        delay += 600;
+      } else if (e.type === "COUNTER_SHOT") {
+        staged.push({
+          delay,
+          popup: {
+            id: nextId++,
+            kind: e.byYou ? "shot" : "concede",
+            text: "",
+            node: <ShotRoll roll={e.roll} quality={e.bonus} dc={e.dc} />,
+          },
+        });
+        delay += 900;
+        staged.push({
+          delay,
+          popup: {
+            id: nextId++,
+            kind: e.goal ? (e.byYou ? "goal" : "concede") : "info",
+            text: e.goal ? "⚡ COUNTER GOAL" : "🧤 SAVED",
+          },
+        });
+        delay += 600;
       } else if (e.type === "ET_SURVIVED") {
         staged.push({
           delay,
