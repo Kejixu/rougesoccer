@@ -10,7 +10,7 @@ import {
   type RunAction,
   type RunState,
 } from "../../core/types";
-import { ZONE_NAMES, bestDieFor, interceptionRisk, oppInterceptionRisk, playableCards, shotEstimate, zoneOf } from "../../core/match/dice";
+import { ZONE_NAMES, bestDieFor, comboFor, interceptionRisk, oppInterceptionRisk, playableCards, shotEstimate, zoneOf } from "../../core/match/dice";
 import { ScorePopups } from "../components/ScorePopups";
 import { CHAIN_GLOSSARY, coachTipFor, describeChainStatus, type CoachTipKey } from "../diceUx";
 import { COACH_TIP_KEYS, tutorialLockAllows, type TutorialActionIntent, type TutorialStep } from "../tutorialScript";
@@ -20,13 +20,13 @@ const PIPS: Record<number, string> = { 1: "⚀", 2: "⚁", 3: "⚂", 4: "⚃", 5
 function intentText(intent: Intent): { icon: string; text: string } {
   switch (intent.kind) {
     case "attack":
-      return { icon: intent.big ? "🔥" : "⚔", text: "They play it balanced — 15% base risk" };
+      return { icon: intent.big ? "🔥" : "⚔", text: "They play it balanced — 17% base risk" };
     case "sitDeep":
-      return { icon: "🧱", text: "They sit deep — easy to keep the ball (8% base), harder to finish (+4 DC)" };
+      return { icon: "🧱", text: "They sit deep — easy to keep the ball (10% base), harder to finish (+4 DC)" };
     case "press":
-      return { icon: "✋", text: "They press high — every pass is riskier (25% base)" };
+      return { icon: "✋", text: "They press high — every pass is riskier (27% base)" };
     case "counter":
-      return { icon: "⚡", text: "They play it balanced — 15% base risk" };
+      return { icon: "⚡", text: "They play it balanced — 17% base risk" };
   }
 }
 
@@ -65,8 +65,11 @@ function eventLine(e: GameEvent): string | null {
   switch (e.type) {
     case "ROUND_START":
       return `Round ${e.round}: ${e.round % 2 === 1 ? "your" : "their"} possession.`;
-    case "PASS_COMPLETED":
+    case "PASS_COMPLETED": {
+      if (e.combo === "Switch of play") return "Switch of play! next pass -8%.";
+      if (e.combo) return `${e.combo}! ${e.cardName}: pass ${e.passes}, +${e.chanceGained} Chance.`;
       return `${e.cardName}: pass ${e.passes}, +${e.chanceGained} Chance, ${Math.round(e.risked * 100)}% risk.`;
+    }
     case "OPP_PASS":
       return `Their pass ${e.passes}: ${e.oppChance} Chance, ${Math.round(e.risk * 100)}% risk.`;
     case "DEFENSE_COMMITTED":
@@ -143,6 +146,7 @@ interface ChainChip {
   passes: number;
   chanceGained: number;
   risked: number;
+  combo?: string;
 }
 
 interface TutorialScreenProps {
@@ -248,6 +252,7 @@ export function DiceMatchScreen(props: DiceMatchScreenProps) {
           passes: e.passes,
           chanceGained: e.chanceGained,
           risked: e.risked,
+          combo: e.combo,
         })),
       ];
     }
@@ -296,6 +301,7 @@ export function DiceMatchScreen(props: DiceMatchScreenProps) {
           interceptionRisk: riskNow,
           puntPressed,
           phase: m.phase as DiceMatchState["phase"],
+          comboTriggered: events.some((e) => e.type === "PASS_COMPLETED" && Boolean(e.combo)),
         },
         seenCoachKeys,
       );
@@ -397,6 +403,7 @@ export function DiceMatchScreen(props: DiceMatchScreenProps) {
                 <span key={`${chip.uid}-${i}`} className="chain-chip">
                   {chip.passes}. {chip.cardName}
                   {chip.chanceGained > 0 && <strong>+{chip.chanceGained}</strong>}
+                  {chip.combo && <em className="combo-tag">{chip.combo}</em>}
                 </span>
               ))
             )}
@@ -515,6 +522,7 @@ export function DiceMatchScreen(props: DiceMatchScreenProps) {
               const cardHighlighted = tutorialHighlights({ kind: "playCard", defId: def.id });
               const cardPlayable = canPlay(c.uid) && tutorialAllows({ kind: "playCard", defId: def.id });
               const defense = isDefenseCard(def);
+              const liveCombo = !defense && m.possession === "you" && def.position ? comboFor(m.lastPassPosition, def.position) : null;
               const role = defense
                 ? "defend"
                 : (def.diceEffects ?? []).some((e) => e.kind.startsWith("shotQuality"))
@@ -533,6 +541,7 @@ export function DiceMatchScreen(props: DiceMatchScreenProps) {
                 >
                   <span className="dice-card-slot">{def.slot ? slotLabel(def.slot) : "—"}</span>
                   <span className="dice-card-name">{def.name}</span>
+                  {liveCombo && <span className="combo-tag card-combo">combo</span>}
                   <span className="dice-card-text">{def.levels[Math.min(c.level, def.levels.length - 1)]!.text}</span>
                   {!defense && m.passes >= 1 && (
                     <span className="risk-badge card-risk" data-hot={riskNow >= 0.3 ? "true" : "false"}>

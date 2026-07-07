@@ -3,7 +3,9 @@
 import { describe, expect, it } from "vitest";
 import {
   applyDiceAction,
+  comboFor,
   createDiceMatch,
+  effectsFor,
   interceptionRisk,
   oppInterceptionRisk,
   playableCards,
@@ -13,6 +15,8 @@ import { seedRng } from "../src/core/rng";
 import { DEFAULT_BALANCE } from "../src/core/balance";
 import { dieFitsSlot } from "../src/core/types";
 import type { CardInstance, DiceMatchState, OppInfo } from "../src/core/types";
+import { applyRunAction, createRun } from "../src/core/run/run";
+import { makeContent } from "../src/data/content";
 import { DICE_CARD_MAP } from "../src/data/diceCards";
 
 const OPP: OppInfo = { teamId: "qat", name: "Qatar", attackRating: 12, style: "balanced", tier: 4 };
@@ -55,6 +59,110 @@ describe("dice slot fit", () => {
     expect(dieFitsSlot(4, { kind: "parity", even: true })).toBe(true);
     expect(dieFitsSlot(3, { kind: "parity", even: true })).toBe(false);
     expect(dieFitsSlot(1, { kind: "any" })).toBe(true);
+  });
+});
+
+describe("dice card levels", () => {
+  it("effectsFor resolves level-specific dice effects without changing the base definition", () => {
+    expect(effectsFor(DICE_CARD_MAP.d_drivingrun!, 0)).toEqual([{ kind: "progress", amount: 4 }]);
+    expect(effectsFor(DICE_CARD_MAP.d_drivingrun!, 1)).toEqual([{ kind: "progress", amount: 5 }]);
+    expect(effectsFor(DICE_CARD_MAP.d_drivingrun!, 2)).toEqual([{ kind: "progress", amount: 6 }]);
+    expect(effectsFor(DICE_CARD_MAP.d_drivingrun!, 99)).toEqual([{ kind: "progress", amount: 6 }]);
+    expect(DICE_CARD_MAP.d_drivingrun!.diceEffects).toEqual([{ kind: "progress", amount: 4 }]);
+  });
+
+  it("TRAIN_CARD upgrades the instance effect used by the live dice match", () => {
+    const content = makeContent(DEFAULT_BALANCE);
+    let run = createRun(content, "train-live-effect", "usa");
+    const card = run.deck.find((c) => c.defId === "d_shortpass")!;
+    run = { ...run, resources: { ...run.resources, budget: 999 } };
+
+    run = applyRunAction(content, run, { type: "TRAIN_CARD", uid: card.uid }).state;
+    expect(run.deck.find((c) => c.uid === card.uid)?.level).toBe(1);
+
+    run = applyRunAction(content, run, { type: "START_MATCH" }).state;
+    const upgraded = run.deck.find((c) => c.uid === card.uid)!;
+    const match = run.activeMatch!;
+    run = {
+      ...run,
+      activeMatch: {
+        ...match,
+        ball: DEFAULT_BALANCE.DICE.MIDFIELD,
+        passes: 0,
+        dice: [{ value: 4, used: false }],
+        hand: [{ ...upgraded, formPower: 0, fatigued: false }],
+      },
+    };
+
+    const step = applyRunAction(content, run, {
+      type: "MATCH_ACTION",
+      action: { type: "ASSIGN_DIE", uid: upgraded.uid, dieIndex: 0 },
+    });
+    expect(step.state.activeMatch?.ball).toBe(DEFAULT_BALANCE.DICE.MIDFIELD + 5);
+  });
+});
+
+describe("position combos", () => {
+  it("comboFor recognizes only the approved footballing links", () => {
+    expect(comboFor(null, "WG")).toBeNull();
+    expect(comboFor("MF", "WG")).toEqual({ label: "Switch of play", chance: 0, riskDelta: -0.08 });
+    expect(comboFor("WG", "ST")).toEqual({ label: "Delivered onto the run", chance: 3, riskDelta: 0 });
+    expect(comboFor("MF", "ST")).toEqual({ label: "Through the middle", chance: 2, riskDelta: 0 });
+    expect(comboFor("WG", "MF")).toBeNull();
+    expect(comboFor("ST", "WG")).toBeNull();
+  });
+
+  it("applies combo risk bonuses to the next pass and records the last pass position", () => {
+    const base = start(["d_flankrun"], "combo-risk");
+    const m = {
+      ...base,
+      passes: 1,
+      lastPassPosition: "MF" as const,
+      nextRiskDelta: -10,
+      intent: { kind: "sitDeep" as const, amount: 1 },
+      rng: seedRng("combo-risk-survives"),
+      dice: [{ value: 4, used: false }],
+      hand: [inst("d_flankrun", 0)],
+    };
+
+    const step = applyDiceAction(DICE_CARD_MAP, m, { type: "ASSIGN_DIE", uid: m.hand[0]!.uid, dieIndex: 0 });
+    expect(step.events).toContainEqual(expect.objectContaining({ type: "PASS_COMPLETED", combo: "Switch of play" }));
+    expect(step.state.nextRiskDelta).toBeCloseTo(-0.08, 5);
+    expect(step.state.lastPassPosition).toBe("WG");
+  });
+
+  it("adds combo chance into the same pass-completed accounting", () => {
+    const base = start(["d_poacher"], "combo-chance");
+    const m = {
+      ...base,
+      passes: 1,
+      lastPassPosition: "WG" as const,
+      nextRiskDelta: -10,
+      intent: { kind: "sitDeep" as const, amount: 1 },
+      rng: seedRng("combo-chance-survives"),
+      dice: [{ value: 2, used: false }],
+      hand: [inst("d_poacher", 0)],
+    };
+
+    const step = applyDiceAction(DICE_CARD_MAP, m, { type: "ASSIGN_DIE", uid: m.hand[0]!.uid, dieIndex: 0 });
+    expect(step.events).toContainEqual(
+      expect.objectContaining({ type: "PASS_COMPLETED", combo: "Delivered onto the run", chanceGained: 9 }),
+    );
+    expect(step.state.shotQuality).toBe(9);
+    expect(step.state.lastPassPosition).toBe("ST");
+  });
+
+  it("resets lastPassPosition when a new possession starts", () => {
+    const m = {
+      ...start(["d_shortpass"], "combo-reset"),
+      passes: 1,
+      lastPassPosition: "MF" as const,
+      hand: [],
+    };
+
+    const step = applyDiceAction(DICE_CARD_MAP, m, { type: "END_ROUND" });
+    expect(step.state.possession).toBe("them");
+    expect(step.state.lastPassPosition).toBeNull();
   });
 });
 
@@ -161,9 +269,11 @@ describe("your chain", () => {
     expect(m.nextChanceBonus).toBe(4);
     expect(interceptionRisk(m)).toBeLessThan(1);
     const sq = m.shotQuality;
-    const after = applyDiceAction(DICE_CARD_MAP, m, { type: "ASSIGN_DIE", uid: m.hand[0]!.uid, dieIndex: 1 }).state;
+    const step = applyDiceAction(DICE_CARD_MAP, m, { type: "ASSIGN_DIE", uid: m.hand[0]!.uid, dieIndex: 1 });
+    const after = step.state;
     expect(after.passes).toBe(2);
-    expect(after.shotQuality - sq).toBe(5 + 4 + 1 * DEFAULT_BALANCE.DICE.DEVELOPMENT_GAIN);
+    expect(step.events).toContainEqual(expect.objectContaining({ type: "PASS_COMPLETED", combo: "Through the middle" }));
+    expect(after.shotQuality - sq).toBe(5 + 4 + 2 + 1 * DEFAULT_BALANCE.DICE.DEVELOPMENT_GAIN);
     expect(after.nextChanceBonus).toBe(0);
   });
 

@@ -51,6 +51,7 @@ describe("dice UX copy", () => {
       Recycle: "Recycle ends your possession safely without shooting.",
       "Stand off": "Stand off lets their next pass happen without committing a card.",
       Counter: "A counter is an instant shot after an interception.",
+      Combo: "A combo is a linked pass sequence that earns a risk or Chance bonus.",
     });
   });
 });
@@ -59,11 +60,12 @@ describe("coach tips", () => {
   const baseSummary = {
     possession: "you" as const,
     passes: 0,
-    shotQuality: 0,
-    interceptionRisk: 0,
-    puntPressed: false,
-    phase: "ROUND_ACTIVE" as const,
-  };
+      shotQuality: 0,
+      interceptionRisk: 0,
+      puntPressed: false,
+      phase: "ROUND_ACTIVE" as const,
+      comboTriggered: false,
+    };
 
   it("shows the first-possession tip once", () => {
     expect(coachTipFor(baseSummary, new Set())).toEqual({
@@ -93,6 +95,17 @@ describe("coach tips", () => {
     expect(coachTipFor({ ...baseSummary, phase: "PUSH_DECISION" }, new Set(["risk", "chance", "punt", "defense"]))).toEqual({
       key: "push",
       text: "You have the win. Bank it, or gamble extra time for budget — their attacks hit 2× harder.",
+    });
+  });
+
+  it("shows the combo tip the first time a combo triggers", () => {
+    expect(coachTipFor({ ...baseSummary, comboTriggered: true }, new Set())).toEqual({
+      key: "combo",
+      text: "A combo! Passes that flow like a real move — midfield wide, wing to striker — earn bonuses. Sequence your passes.",
+    });
+    expect(coachTipFor({ ...baseSummary, comboTriggered: true }, new Set(["combo"]))).toEqual({
+      key: "possession",
+      text: "Cards are passes. Each die you slot plays one — your first pass is always free.",
     });
   });
 });

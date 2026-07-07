@@ -30,7 +30,7 @@ export interface TutorialStep {
   why: string;
 }
 
-export const COACH_TIP_KEYS: CoachTipKey[] = ["possession", "risk", "chance", "punt", "defense", "push"];
+export const COACH_TIP_KEYS: CoachTipKey[] = ["possession", "risk", "chance", "punt", "defense", "push", "combo"];
 
 export const TUTORIAL_OPP: OppInfo = {
   teamId: "qat",
@@ -96,8 +96,8 @@ export const TUTORIAL_STEPS: TutorialStep[] = [
     id: "bank-chance",
     lock: { kind: "playCard", defId: "d_poacher" },
     title: "Bank the Chance.",
-    what: "Finishers convert into Chance - shot power. Notice the development bonus: later passes in a move are worth more.",
-    why: "Watch the Shoot % jump. THIS is what you've been building toward.",
+    what: "Finishers convert into Chance - shot power. This Driving Run into Poacher also triggers Through the middle for +2.",
+    why: "Development and combos stack. Watch the Shoot % jump - THIS is what you've been building toward.",
   },
   {
     id: "cash-it-in",

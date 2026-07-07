@@ -153,14 +153,14 @@ export const DEFAULT_BALANCE: BalanceConfig = {
   // The player now snowballs (staff hires + gameplans), so the ramp climbs
   // steeply after the group stage to keep knockouts honest.
   // Gentler than combat mode: in dice mode this ramp drives both the keeper DC
-  // and the opponent's threat, so it compounds. Tuned for ~15-25% greedy wins.
+  // and the opponent's threat, so it compounds. Tuned for the 10-35% greedy-win band.
   STAGE_CLOCK_MULT: {
     GROUP: 1.1,
-    R32: 1.4,
-    R16: 1.6,
-    QF: 1.85,
-    SF: 2.05,
-    FINAL: 2.3,
+    R32: 1.45,
+    R16: 1.7,
+    QF: 1.95,
+    SF: 2.15,
+    FINAL: 2.4,
   },
 
   DICE: {
@@ -177,9 +177,9 @@ export const DEFAULT_BALANCE: BalanceConfig = {
     OWN_KEEPER_DC_BASE: 15,
     SHOT_DIE: 20,
     SIT_DEEP_DC_BONUS: 4,
-    RISK_BASE_PRESS: 0.25,
-    RISK_BASE_BALANCED: 0.15,
-    RISK_BASE_DEEP: 0.08,
+    RISK_BASE_PRESS: 0.27,
+    RISK_BASE_BALANCED: 0.17,
+    RISK_BASE_DEEP: 0.1,
     RISK_RAMP: 0.06,
     RISK_CAP: 0.65,
     DEVELOPMENT_GAIN: 1,

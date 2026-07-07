@@ -21,6 +21,7 @@ import {
   type MatchResult,
   type MatchState,
   type PassiveEffect,
+  type Position,
 } from "../types";
 
 export const ZONE_NAMES = ["Your Box", "Your Third", "Midfield", "Their Third", "Their Box"];
@@ -136,10 +137,25 @@ function isDefenseCard(def: CardDef | undefined): boolean {
   return (def?.diceEffects ?? []).some((e) => e.kind === "defend");
 }
 
+export function effectsFor(def: CardDef, level: number): DiceEffect[] {
+  return levelStats(def, level).diceEffects ?? def.diceEffects ?? [];
+}
+
+export function comboFor(
+  last: Position | null,
+  next: Position,
+): { label: string; chance: number; riskDelta: number } | null {
+  if (last === "MF" && next === "WG") return { label: "Switch of play", chance: 0, riskDelta: -0.08 };
+  if (last === "WG" && next === "ST") return { label: "Delivered onto the run", chance: 3, riskDelta: 0 };
+  if (last === "MF" && next === "ST") return { label: "Through the middle", chance: 2, riskDelta: 0 };
+  return null;
+}
+
 // ---------- round flow ----------
 
 function resetChain(draft: DiceMatchState): void {
   draft.passes = 0;
+  draft.lastPassPosition = null;
   draft.nextChanceBonus = 0;
   draft.nextRiskDelta = 0;
   draft.defenseCommit = 0;
@@ -263,7 +279,13 @@ function concludeRound(defs: CardDefMap, draft: DiceMatchState, events: GameEven
 
 // ---------- actions ----------
 
-function applyDiceEffect(draft: DiceMatchState, eff: DiceEffect, dieValue: number, events: GameEvent[]): number {
+function applyDiceEffect(
+  draft: DiceMatchState,
+  eff: DiceEffect,
+  dieValue: number,
+  events: GameEvent[],
+  extraChance = 0,
+): number {
   switch (eff.kind) {
     case "progress":
       moveBall(draft, eff.amount, events);
@@ -274,7 +296,7 @@ function applyDiceEffect(draft: DiceMatchState, eff: DiceEffect, dieValue: numbe
     case "shotQuality":
     case "shotQualityFromDie": {
       const base = eff.kind === "shotQuality" ? eff.amount : dieValue;
-      const gained = base + draft.nextChanceBonus + draft.passes * draft.bal.DICE.DEVELOPMENT_GAIN;
+      const gained = base + draft.nextChanceBonus + draft.passes * draft.bal.DICE.DEVELOPMENT_GAIN + extraChance;
       draft.nextChanceBonus = 0;
       draft.shotQuality += gained;
       return gained;
@@ -380,14 +402,16 @@ function assignDie(defs: CardDefMap, draft: DiceMatchState, uid: string, dieInde
   };
 
   if (draft.possession === "them") {
-    for (const eff of def.diceEffects ?? []) applyDiceEffect(draft, eff, die.value, events);
-    const amount = (def.diceEffects ?? []).reduce((a, e) => (e.kind === "defend" ? a + e.amount : a), 0);
+    const effects = effectsFor(def, inst.level);
+    for (const eff of effects) applyDiceEffect(draft, eff, die.value, events);
+    const amount = effects.reduce((a, e) => (e.kind === "defend" ? a + e.amount : a), 0);
     events.push({ type: "DEFENSE_COMMITTED", uid, cardName: def.name, die: die.value, amount, total: draft.defenseCommit });
     discard();
     oppPassAttempt(defs, draft, events);
     return;
   }
 
+  const combo = def.position ? comboFor(draft.lastPassPosition, def.position) : null;
   const risk = interceptionRisk(draft);
   draft.nextRiskDelta = 0;
   if (risk > 0 && rand(draft) < risk) {
@@ -397,8 +421,15 @@ function assignDie(defs: CardDefMap, draft: DiceMatchState, uid: string, dieInde
   }
 
   let gained = 0;
-  for (const eff of def.diceEffects ?? []) gained += applyDiceEffect(draft, eff, die.value, events);
+  let comboChance = combo?.chance ?? 0;
+  if (combo?.riskDelta) draft.nextRiskDelta += combo.riskDelta;
+  for (const eff of effectsFor(def, inst.level)) {
+    const extra = comboChance > 0 && (eff.kind === "shotQuality" || eff.kind === "shotQualityFromDie") ? comboChance : 0;
+    gained += applyDiceEffect(draft, eff, die.value, events, extra);
+    if (extra > 0) comboChance = 0;
+  }
   draft.passes += 1;
+  if (def.position) draft.lastPassPosition = def.position;
   events.push({
     type: "PASS_COMPLETED",
     uid,
@@ -407,6 +438,7 @@ function assignDie(defs: CardDefMap, draft: DiceMatchState, uid: string, dieInde
     chanceGained: gained,
     shotQuality: draft.shotQuality,
     risked: risk,
+    combo: combo?.label,
   });
   discard();
 }
@@ -465,6 +497,7 @@ export function createDiceMatch(defs: CardDefMap, cfg: DiceMatchConfig): DiceMat
     possession: "you",
     ownKeeperDC: cfg.balance.DICE.OWN_KEEPER_DC_BASE + passiveSumPlain(cfg.passives ?? [], "blockPerRound"),
     passes: 0,
+    lastPassPosition: null,
     nextChanceBonus: 0,
     nextRiskDelta: 0,
     defenseCommit: 0,

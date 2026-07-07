@@ -198,6 +198,7 @@ export interface PlayDef {
 export interface CardLevelStats {
   power?: number; // base shot points when committed to an attack
   defense?: number; // clock reduction while deployed
+  diceEffects?: DiceEffect[]; // dice-mode effects at this level; defaults to CardDef.diceEffects
   text: string;
 }
 
@@ -365,7 +366,16 @@ export type GameEvent =
       gotThrough: number;
       shotQualityGained: number;
     }
-  | { type: "PASS_COMPLETED"; uid: string; cardName: string; passes: number; chanceGained: number; shotQuality: number; risked: number }
+  | {
+      type: "PASS_COMPLETED";
+      uid: string;
+      cardName: string;
+      passes: number;
+      chanceGained: number;
+      shotQuality: number;
+      risked: number;
+      combo?: string;
+    }
   | { type: "CHAIN_INTERCEPTED"; byYou: boolean; passes: number; chanceLost: number }
   | { type: "COUNTER_SHOT"; byYou: boolean; roll: number; bonus: number; dc: number; goal: boolean }
   | { type: "OPP_PASS"; passes: number; oppChance: number; risk: number }
@@ -411,6 +421,7 @@ export interface DiceMatchState {
   possession: "you" | "them";
   ownKeeperDC: number; // their shots roll vs this
   passes: number; // completed passes in your current chain
+  lastPassPosition: Position | null; // previous completed pass in your current chain
   nextChanceBonus: number; // banked by setupNext, consumed by the next chance effect
   nextRiskDelta: number; // banked by safePass, consumed by your next interception check
   defenseCommit: number; // risk you've committed against THEIR chain this possession
@@ -534,7 +545,7 @@ export interface StaffOffer {
 }
 
 export interface RunState {
-  version: 4;
+  version: 5;
   seed: string;
   playerTeamId: string;
   stage: Stage;

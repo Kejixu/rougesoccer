@@ -78,7 +78,7 @@ describe("guided tutorial lock matching", () => {
   });
 
   it("lists all regular coach-tip keys for completion and skip marking", () => {
-    expect(COACH_TIP_KEYS).toEqual(["possession", "risk", "chance", "punt", "defense", "push"]);
+    expect(COACH_TIP_KEYS).toEqual(["possession", "risk", "chance", "punt", "defense", "push", "combo"]);
   });
 });
 
@@ -126,7 +126,8 @@ describe("guided tutorial golden seed", () => {
     step = playCard(state, "d_poacher");
     state = step.state;
     beats.push(...step.events);
-    expect(state.shotQuality).toBe(6);
+    expect(matchingEvents(step.events, "PASS_COMPLETED")[0]).toMatchObject({ combo: "Through the middle" });
+    expect(state.shotQuality).toBe(8);
 
     step = act(state, { type: "SHOOT" });
     state = step.state;
