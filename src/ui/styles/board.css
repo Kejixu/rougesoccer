@@ -1086,13 +1086,17 @@
 }
 
 .dice-card {
+  --role: #54a06b;
   width: 150px;
-  min-height: 120px;
+  min-height: 126px;
   text-align: left;
-  padding: 10px 12px;
+  padding: 12px 12px 10px;
   border-radius: 12px;
-  border: 2px solid var(--line);
-  background: var(--surface);
+  border: 2px solid color-mix(in srgb, var(--role) 55%, transparent);
+  border-top-width: 5px;
+  border-top-color: var(--role);
+  background: linear-gradient(180deg, var(--surface-2), var(--surface) 55%);
+  box-shadow: 0 2px 10px rgba(0, 0, 0, 0.3);
   color: var(--ink);
   cursor: pointer;
   display: flex;
@@ -1100,11 +1104,12 @@
   gap: 6px;
   font: inherit;
   position: relative;
-  transition: transform 0.12s ease, border-color 0.12s ease;
+  transition: transform 0.12s ease, border-color 0.12s ease, box-shadow 0.12s ease;
 }
 
 .dice-card:hover:not(:disabled) {
-  transform: translateY(-4px);
+  transform: translateY(-4px) rotate(-0.5deg);
+  box-shadow: 0 8px 20px rgba(0, 0, 0, 0.4);
 }
 
 .dice-card.unplayable {
@@ -1129,36 +1134,39 @@
 }
 
 .dice-card.role-defend {
-  border-left: 4px solid #5470c7;
+  --role: #5470c7;
 }
 .dice-card.role-progress {
-  border-left: 4px solid #54a06b;
+  --role: #54a06b;
 }
 .dice-card.role-finish {
-  border-left: 4px solid #c75450;
+  --role: #c75450;
 }
 
 .dice-card-slot {
   position: absolute;
-  top: -10px;
+  top: -12px;
   right: -10px;
-  min-width: 26px;
-  height: 26px;
-  padding: 0 6px;
+  min-width: 28px;
+  height: 28px;
+  padding: 0 7px;
   border-radius: 999px;
-  background: #1c2520;
-  border: 2px solid #cdd4ce;
-  color: #f6f3ea;
+  background: var(--role);
+  border: 2px solid var(--sticker-paper);
+  color: var(--sticker-paper);
   font-size: 12px;
-  font-weight: 700;
+  font-weight: 900;
   display: flex;
   align-items: center;
   justify-content: center;
 }
 
 .dice-card-name {
-  font-weight: 700;
-  font-size: 14px;
+  font-family: var(--font-display);
+  font-weight: 800;
+  font-size: 15px;
+  letter-spacing: 0.03em;
+  text-transform: uppercase;
 }
 
 .dice-card-text {
