@@ -123,6 +123,164 @@
   background: rgba(245, 241, 227, 0.25);
 }
 
+/* ---- combat mode: intent + stamina ---- */
+
+.intent-panel {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  font-size: 15px;
+  border-color: #7e3a3a;
+}
+
+.intent-icon {
+  font-size: 24px;
+}
+
+.match-log {
+  display: grid;
+  gap: 4px;
+  padding: 10px 12px;
+  border-color: rgba(120, 200, 140, 0.35);
+}
+
+.match-log-line {
+  font-size: 13px;
+  line-height: 1.35;
+  color: var(--ink-dim);
+}
+
+.match-log-line:first-child {
+  color: var(--ink);
+  font-weight: 700;
+}
+
+.glossary {
+  display: grid;
+  gap: 8px;
+  padding: 10px 12px;
+}
+
+.glossary summary {
+  cursor: pointer;
+  font-weight: 800;
+  color: var(--ink);
+}
+
+.glossary div {
+  display: grid;
+  gap: 3px;
+  margin-top: 8px;
+}
+
+.glossary strong {
+  font-size: 12px;
+  color: var(--ink);
+}
+
+.glossary span {
+  font-size: 11px;
+  line-height: 1.3;
+  color: var(--ink-dim);
+}
+
+.intent-threat {
+  margin-left: auto;
+  color: var(--danger);
+  font-weight: 700;
+}
+
+.intent-threat.safe {
+  color: var(--accent-2);
+}
+
+.stamina-bar {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.stamina-label {
+  font-family: var(--font-display);
+  font-size: 13px;
+  color: var(--ink-dim);
+  letter-spacing: 0.08em;
+}
+
+.stamina-pip {
+  width: 16px;
+  height: 16px;
+  border-radius: 50%;
+  background: #233a2c;
+  border: 1px solid #3a5a44;
+}
+
+.stamina-pip.full {
+  background: radial-gradient(circle at 35% 30%, #ffe9b0, var(--accent) 70%);
+  box-shadow: 0 0 6px rgba(255, 211, 77, 0.6);
+}
+
+.block-badge,
+.buff-badge {
+  font-weight: 800;
+  padding: 2px 10px;
+  border-radius: 10px;
+  font-size: 13px;
+}
+
+.block-badge {
+  background: #1d3a5f;
+  color: #bcd9ff;
+}
+
+.buff-badge {
+  background: #4a3a10;
+  color: var(--accent);
+}
+
+.cost-badge {
+  position: absolute;
+  top: -6px;
+  left: -6px;
+  width: 26px;
+  height: 26px;
+  border-radius: 50%;
+  background: radial-gradient(circle at 35% 30%, #ffe9b0, var(--accent) 70%);
+  color: #2a230a;
+  font-weight: 900;
+  font-size: 14px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  box-shadow: 0 1px 4px rgba(0, 0, 0, 0.6);
+  z-index: 2;
+}
+
+.combo-badge {
+  position: absolute;
+  top: -6px;
+  right: -4px;
+  font-size: 9px;
+  font-weight: 900;
+  letter-spacing: 0.06em;
+  padding: 2px 7px;
+  border-radius: 8px;
+  z-index: 2;
+  background: #233a2c;
+  color: var(--ink-dim);
+}
+
+.combo-badge.active {
+  background: var(--accent-2);
+  color: #0e1a12;
+  box-shadow: 0 0 10px rgba(77, 208, 122, 0.8);
+  animation: combo-pulse 1.2s ease infinite;
+}
+
+@keyframes combo-pulse {
+  50% { box-shadow: 0 0 16px rgba(77, 208, 122, 1); }
+}
+
 /* ---- attack preview (live play + score readout) ---- */
 
 .attack-preview {
@@ -253,6 +411,19 @@
   color: var(--ink);
 }
 
+.popup .shot-spin {
+  color: var(--ink);
+  opacity: 0.85;
+}
+
+.popup .shot-hit {
+  color: var(--accent);
+}
+
+.popup .shot-miss {
+  color: var(--danger);
+}
+
 .popup.goal {
   font-size: 64px;
   color: var(--accent);
@@ -321,4 +492,555 @@
   max-width: 480px;
   text-align: center;
   box-shadow: 0 10px 50px rgba(0, 0, 0, 0.6);
+}
+
+/* ---- passives: staff hires + active gameplans ---- */
+
+.passive-strip {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  margin: 4px 0;
+}
+
+.passive-chip {
+  font-size: 12px;
+  padding: 3px 10px;
+  border-radius: 999px;
+  border: 1px solid var(--line);
+  background: var(--surface);
+  color: var(--ink-dim);
+  cursor: help;
+}
+
+.passive-chip.staff {
+  border-color: #7a6a3a;
+  color: #d9c178;
+}
+
+.passive-chip.gameplan {
+  border-color: #3aa0a8;
+  color: #7fd4da;
+  animation: chip-in 0.4s ease;
+}
+
+.passive-chip.drilled {
+  border-color: #2c6e74;
+  color: #6cb4ba;
+}
+
+@keyframes chip-in {
+  0% { transform: scale(0.7); opacity: 0; }
+  100% { transform: scale(1); opacity: 1; }
+}
+
+/* ---- staff hire screen ---- */
+
+.staff-card {
+  width: 220px;
+  min-height: 150px;
+  text-align: left;
+  padding: 16px;
+  border-radius: 12px;
+  border: 2px solid var(--line);
+  background: var(--surface);
+  color: var(--ink);
+  cursor: pointer;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  transition: transform 0.12s ease, border-color 0.12s ease;
+  font: inherit;
+}
+
+.staff-card:hover {
+  transform: translateY(-3px);
+  border-color: var(--accent);
+}
+
+.staff-card[data-rarity="rare"] {
+  border-color: #5470c7;
+}
+
+.staff-card[data-rarity="legendary"] {
+  border-color: #d9b832;
+  box-shadow: 0 0 18px rgba(217, 184, 50, 0.25);
+}
+
+.staff-role {
+  font-weight: 700;
+  font-size: 15px;
+}
+
+.staff-name {
+  font-size: 13px;
+  color: var(--ink-dim);
+  font-style: italic;
+}
+
+.staff-text {
+  font-size: 13px;
+  line-height: 1.4;
+}
+
+.staff-rarity {
+  margin-top: auto;
+  font-size: 11px;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  color: var(--ink-dim);
+}
+
+/* ---- nation class kit picker ---- */
+
+.kit-card {
+  width: 230px;
+  text-align: left;
+  padding: 14px 16px;
+  border-radius: 12px;
+  border: 2px solid var(--line);
+  background: var(--surface);
+  color: var(--ink);
+  cursor: pointer;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  font: inherit;
+  transition: transform 0.12s ease, border-color 0.12s ease;
+}
+
+.kit-card:hover {
+  transform: translateY(-2px);
+}
+
+.kit-card[data-selected="true"] {
+  border-color: var(--accent);
+  box-shadow: 0 0 14px rgba(120, 200, 140, 0.25);
+}
+
+.kit-nation {
+  font-weight: 700;
+  font-size: 16px;
+}
+
+.kit-identity {
+  font-size: 13px;
+  color: var(--accent-2);
+  font-style: italic;
+}
+
+.kit-blurb {
+  font-size: 12px;
+  color: var(--ink-dim);
+  line-height: 1.45;
+}
+
+.kit-passive {
+  font-size: 12px;
+  color: #d9c178;
+}
+
+.kit-coach {
+  font-size: 11px;
+  color: var(--ink-dim);
+  margin-top: auto;
+}
+
+.passive-chip.kit {
+  border-color: #5a8a64;
+  color: #9fd4ab;
+}
+
+/* ============ DICE MODE ============ */
+
+.pitch-track {
+  display: flex;
+  gap: 6px;
+  margin: 10px 0;
+}
+
+.pitch-zone {
+  flex: 1;
+  position: relative;
+  padding: 14px 8px;
+  border-radius: 10px;
+  border: 2px solid var(--line);
+  background: linear-gradient(180deg, #16241a, #102016);
+  text-align: center;
+  color: var(--ink-dim);
+  transition: border-color 0.2s ease, transform 0.2s ease;
+}
+
+.pitch-zone.passed {
+  border-color: #3d8a55;
+  color: #9fd4ab;
+}
+
+.pitch-zone.current {
+  border-color: var(--accent);
+  color: var(--ink);
+  transform: translateY(-3px);
+  box-shadow: 0 4px 18px rgba(120, 200, 140, 0.25);
+}
+
+.pitch-zone.box.current {
+  border-color: #d9b832;
+  box-shadow: 0 4px 18px rgba(217, 184, 50, 0.3);
+}
+
+.pitch-zone-name {
+  display: block;
+  font-size: 13px;
+  font-weight: 600;
+}
+
+.pitch-progress {
+  display: block;
+  font-size: 12px;
+  margin-top: 4px;
+  color: var(--accent-2);
+}
+
+.dice-stat-row {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin: 6px 0;
+}
+
+.shotq-badge {
+  font-size: 14px;
+  font-weight: 700;
+  padding: 4px 12px;
+  border-radius: 999px;
+  background: rgba(217, 184, 50, 0.15);
+  border: 1px solid #d9b832;
+  color: #e7c95a;
+}
+
+.chain-panel,
+.their-chain {
+  display: grid;
+  gap: 10px;
+  padding: 12px;
+}
+
+.chain-strip {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+  min-height: 32px;
+}
+
+.chain-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  min-height: 28px;
+  padding: 4px 10px;
+  border-radius: 999px;
+  border: 1px solid rgba(120, 200, 140, 0.45);
+  background: rgba(120, 200, 140, 0.13);
+  color: #b8e6c1;
+  font-size: 12px;
+  font-weight: 800;
+}
+
+.chain-chip.empty {
+  color: var(--ink-dim);
+  border-color: rgba(245, 241, 227, 0.18);
+  background: rgba(245, 241, 227, 0.06);
+}
+
+.chain-chip strong {
+  color: #f0d76c;
+}
+
+.chain-summary,
+.their-chain {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  flex-wrap: wrap;
+}
+
+.chain-status {
+  font-size: 13px;
+  color: var(--ink-dim);
+}
+
+.risk-badge {
+  display: inline-flex;
+  align-items: center;
+  min-height: 24px;
+  padding: 3px 10px;
+  border-radius: 999px;
+  border: 1px solid rgba(217, 184, 50, 0.7);
+  background: rgba(217, 184, 50, 0.14);
+  color: #f0d76c;
+  font-size: 12px;
+  font-weight: 900;
+}
+
+.risk-badge[data-hot="true"] {
+  border-color: rgba(199, 84, 80, 0.85);
+  background: rgba(199, 84, 80, 0.16);
+  color: #f0a19e;
+}
+
+.card-risk {
+  align-self: flex-start;
+  margin-top: auto;
+  padding: 2px 8px;
+  min-height: 20px;
+  font-size: 11px;
+}
+
+.their-chain {
+  border-color: rgba(84, 112, 199, 0.45);
+  background: rgba(84, 112, 199, 0.08);
+}
+
+.their-chain > span:not(.chain-status):not(.risk-badge) {
+  font-size: 13px;
+  font-weight: 800;
+  color: #bcd0ff;
+}
+
+.dice-tray {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  flex-wrap: wrap;
+  padding: 12px;
+  border-radius: 12px;
+  background: var(--surface);
+  border: 1px solid var(--line);
+  margin: 8px 0;
+}
+
+.dice-label {
+  font-size: 12px;
+  letter-spacing: 0.1em;
+  color: var(--ink-dim);
+}
+
+.die {
+  width: 52px;
+  height: 52px;
+  border-radius: 12px;
+  border: 2px solid #cdd4ce;
+  background: linear-gradient(160deg, #f6f3ea, #d9d3c4);
+  color: #1c2520;
+  cursor: pointer;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  font: inherit;
+  transition: transform 0.1s ease, box-shadow 0.1s ease;
+  animation: die-in 0.25s ease;
+}
+
+@keyframes die-in {
+  0% { transform: scale(0.4) rotate(-25deg); opacity: 0; }
+  100% { transform: scale(1) rotate(0deg); opacity: 1; }
+}
+
+.die:hover:not(:disabled) {
+  transform: translateY(-3px);
+}
+
+.die.selected {
+  border-color: var(--accent);
+  box-shadow: 0 0 0 3px rgba(120, 200, 140, 0.5);
+  transform: translateY(-4px);
+}
+
+.die.used {
+  opacity: 0.25;
+  cursor: default;
+  filter: grayscale(0.8);
+}
+
+/* Joga Bonito: the reroll spins the die; a 5 or 6 flashes gold (the chase pays off). */
+.die.rerolled {
+  animation: die-reroll 0.5s cubic-bezier(0.2, 0.9, 0.3, 1.1);
+}
+
+.die.rerolled.lucky {
+  animation: die-reroll 0.5s cubic-bezier(0.2, 0.9, 0.3, 1.1), die-lucky 0.9s ease;
+}
+
+@keyframes die-reroll {
+  0% { transform: rotate(0deg) scale(1); }
+  35% { transform: rotate(380deg) scale(1.28); }
+  100% { transform: rotate(720deg) scale(1); }
+}
+
+@keyframes die-lucky {
+  0%, 100% { box-shadow: 0 0 0 0 rgba(245, 200, 70, 0); border-color: #cdd4ce; }
+  30% { box-shadow: 0 0 18px 6px rgba(245, 200, 70, 0.95); border-color: #f5c846; }
+}
+
+.die-pip {
+  font-size: 24px;
+  line-height: 1;
+}
+
+.die-num {
+  font-size: 11px;
+  font-weight: 700;
+  margin-top: 1px;
+}
+
+.dice-hint {
+  margin-left: auto;
+  font-size: 12px;
+  color: var(--ink-dim);
+}
+
+.dice-hand {
+  display: flex;
+  gap: 10px;
+  flex-wrap: wrap;
+  margin: 10px 0;
+}
+
+.dice-card {
+  width: 150px;
+  min-height: 120px;
+  text-align: left;
+  padding: 10px 12px;
+  border-radius: 12px;
+  border: 2px solid var(--line);
+  background: var(--surface);
+  color: var(--ink);
+  cursor: pointer;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  font: inherit;
+  position: relative;
+  transition: transform 0.12s ease, border-color 0.12s ease;
+}
+
+.dice-card:hover:not(:disabled) {
+  transform: translateY(-4px);
+}
+
+.dice-card.unplayable {
+  opacity: 0.4;
+  cursor: default;
+}
+
+.dice-card.role-defend {
+  border-left: 4px solid #5470c7;
+}
+.dice-card.role-progress {
+  border-left: 4px solid #54a06b;
+}
+.dice-card.role-finish {
+  border-left: 4px solid #c75450;
+}
+
+.dice-card-slot {
+  position: absolute;
+  top: -10px;
+  right: -10px;
+  min-width: 26px;
+  height: 26px;
+  padding: 0 6px;
+  border-radius: 999px;
+  background: #1c2520;
+  border: 2px solid #cdd4ce;
+  color: #f6f3ea;
+  font-size: 12px;
+  font-weight: 700;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.dice-card-name {
+  font-weight: 700;
+  font-size: 14px;
+}
+
+.dice-card-text {
+  font-size: 12px;
+  line-height: 1.35;
+  color: var(--ink-dim);
+}
+
+.reroll-btn {
+  padding: 6px 12px;
+  font-size: 13px;
+  border-color: #3aa0a8;
+  color: #7fd4da;
+}
+.reroll-btn:disabled { opacity: 0.4; }
+
+/* ---- pitch: goal ends + ball token + possession badge + direction arrow ---- */
+
+.goal-end {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 22px;
+  padding: 0 4px;
+  color: var(--ink-dim);
+  flex-shrink: 0;
+}
+
+.goal-end--yours {
+  transform: scaleX(-1); /* face toward pitch */
+}
+
+.ball-token {
+  display: block;
+  font-size: 18px;
+  margin-top: 4px;
+  animation: ball-pulse 1.2s ease infinite;
+}
+
+.ball-token.theirs {
+  filter: hue-rotate(200deg) brightness(0.85);
+  animation: ball-pulse-theirs 1.2s ease infinite;
+}
+
+@keyframes ball-pulse {
+  50% { transform: scale(1.2); }
+}
+
+@keyframes ball-pulse-theirs {
+  50% { transform: scale(1.2); filter: hue-rotate(200deg) brightness(1.1); }
+}
+
+.pitch-zone.theirs.current {
+  border-color: var(--danger);
+  box-shadow: 0 4px 18px rgba(163, 61, 61, 0.3);
+}
+
+.possession-badge {
+  font-size: 13px;
+  font-weight: 700;
+  padding: 4px 12px;
+  border-radius: 999px;
+  background: rgba(120, 200, 140, 0.15);
+  border: 1px solid var(--accent);
+  color: var(--accent-2);
+}
+
+.possession-badge.defending {
+  background: rgba(163, 61, 61, 0.15);
+  border-color: var(--danger);
+  color: #e88585;
+}
+
+.pitch-arrow {
+  font-size: 18px;
+  font-weight: 900;
+  color: var(--accent-2);
 }

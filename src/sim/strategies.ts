@@ -1,168 +1,111 @@
-// Bot strategies for the balance sim. They reuse the engine's pure scoring
-// function to evaluate candidate attacks, so their play quality tracks the
-// real rules automatically.
+// Bot strategies for the balance sim - DICE MODE possession chains.
 
-import { computeAttack, type AttackCard } from "../core/match/scoring";
-import { defenseRating } from "../core/match/engine";
-import { levelStats } from "../core/types";
+import { bestDieFor, interceptionRisk, playableCards, shotEstimate } from "../core/match/dice";
 import type {
-  CardInstance,
+  CardDef,
   ContentBundle,
-  MatchAction,
-  MatchState,
+  DiceMatchAction,
+  DiceMatchState,
   RunAction,
   RunState,
 } from "../core/types";
 import type { Bot } from "./bot";
 
-// ---------- match-policy helpers ----------
+type Role = "defend" | "finish" | "progress";
 
-function power(content: ContentBundle, c: CardInstance): number {
-  return (levelStats(content.defs[c.defId]!, c.level).power ?? 0) + c.formPower;
+function roleOf(def: CardDef): Role {
+  const effs = def.diceEffects ?? [];
+  if (effs.some((e) => e.kind === "defend")) return "defend";
+  if (effs.some((e) => e.kind === "shotQuality" || e.kind === "shotQualityFromDie" || e.kind === "setupNext")) {
+    return "finish";
+  }
+  return "progress";
 }
 
-function defense(content: ContentBundle, c: CardInstance): number {
-  return levelStats(content.defs[c.defId]!, c.level).defense ?? 0;
-}
-
-function toAttackCards(content: ContentBundle, cards: CardInstance[]): AttackCard[] {
-  return cards.map((inst) => ({ inst, def: content.defs[inst.defId]! }));
-}
-
-function evaluate(content: ContentBundle, m: MatchState, cards: CardInstance[]) {
-  return computeAttack(toAttackCards(content, cards), {
-    handSizeAfter: m.hand.length - cards.length,
-    leading: m.playerGoals > m.oppGoals,
-    trailing: m.playerGoals < m.oppGoals,
-    multCap: m.multCap,
-    goalThreshold: m.bal.GOAL_THRESHOLD,
-    plays: m.plays,
-  });
-}
-
-/** Try a handful of candidate combos and return the best (goals, then value). */
-function bestAttack(
+function diceAction(
   content: ContentBundle,
-  m: MatchState,
-): { cards: CardInstance[]; goals: number; value: number } | null {
-  const powerCards = m.hand
-    .filter((c) => power(content, c) > 0)
-    .sort((a, b) => power(content, b) - power(content, a));
-  if (powerCards.length === 0) return null;
-  const tactics = m.hand.filter(
-    (c) => power(content, c) === 0 && content.defs[c.defId]!.kind !== "player",
-  );
-
-  const candidates: CardInstance[][] = [];
-  for (let k = 1; k <= Math.min(m.bal.MAX_ATTACK_CARDS, powerCards.length); k++) {
-    candidates.push(powerCards.slice(0, k));
-  }
-  for (const t of tactics) {
-    candidates.push([...powerCards.slice(0, m.bal.MAX_ATTACK_CARDS - 1), t]);
-    if (tactics.length >= 2) {
-      const others = tactics.filter((x) => x !== t).slice(0, 1);
-      candidates.push([...powerCards.slice(0, m.bal.MAX_ATTACK_CARDS - 2), t, ...others]);
-    }
-  }
-
-  // play-directed candidates: hunt the named combos like a human would
-  const byPos = (pos: string) =>
-    powerCards.filter((c) => content.defs[c.defId]!.position === pos);
-  const st = byPos("ST");
-  const wg = byPos("WG");
-  const mf = byPos("MF");
-  const df = m.hand.filter(
-    (c) => content.defs[c.defId]!.position === "DF" && power(content, c) > 0,
-  );
-  const top = (arr: CardInstance[], n: number) => arr.slice(0, n);
-  const playShapes: CardInstance[][] = [
-    [...top(wg, 1), ...top(st, 1)], // counter / wing play
-    [...top(mf, 1), ...top(st, 1)], // through ball
-    [...top(mf, 2)], // one-two
-    [...top(mf, 3)], // tiki-taka
-    [...top(mf, 3), ...top(st, 1)], // tiki-taka + finisher
-    [...top(df, 1), ...top(wg, 1), ...top(st, 1)], // overlap
-    [...top(st, 1), ...top(wg, 1), ...top(mf, 1), ...top(df, 1)], // total football
-    [...top(wg, 1), ...top(st, 1), ...tactics.slice(0, 1)], // wing play + tactic
-  ];
-  for (const shape of playShapes) {
-    if (shape.length > 0 && shape.length <= m.bal.MAX_ATTACK_CARDS) candidates.push(shape);
-  }
-
-  let best: { cards: CardInstance[]; goals: number; value: number } | null = null;
-  for (const cards of candidates) {
-    if (cards.length === 0 || cards.length > m.bal.MAX_ATTACK_CARDS) continue;
-    const out = evaluate(content, m, cards);
-    if (!best || out.goals > best.goals || (out.goals === best.goals && out.value > best.value)) {
-      best = { cards, goals: out.goals, value: out.value };
-    }
-  }
-  return best;
-}
-
-function bestDefenders(content: ContentBundle, m: MatchState): CardInstance[] {
-  const slots = Math.max(0, m.bal.MAX_DEPLOYED - m.deployed.length);
-  return m.hand
-    .filter((c) => defense(content, c) > 0)
-    .sort((a, b) => defense(content, b) - defense(content, a))
-    .slice(0, Math.min(m.bal.MAX_DEFEND_CARDS, slots));
-}
-
-function greedyMatchAction(
-  content: ContentBundle,
-  m: MatchState,
-  opts: { defendThreshold: number; pushLead: number },
-): MatchAction {
+  m: DiceMatchState,
+  opts: { greed: number; riskTolerance: number; pushLead: number },
+): DiceMatchAction {
   if (m.phase === "PUSH_DECISION") {
     const lead = m.playerGoals - m.oppGoals;
-    if (lead >= opts.pushLead && m.extraRoundsPlayed < m.bal.MAX_EXTRA_ROUNDS) {
-      return { type: "EXTRA_TIME" };
-    }
+    if (lead >= opts.pushLead && m.extraRoundsPlayed < m.bal.MAX_EXTRA_ROUNDS) return { type: "EXTRA_TIME" };
     return { type: "TAKE_WIN" };
   }
-
-  if (m.playsLeft > 0) {
-    // shore up the defense early if the clock is running hot
-    const currentDef = defenseRating(content.defs, m);
-    const defenders = bestDefenders(content, m);
-    const clockHot = m.opp.attackRating - currentDef > m.opp.attackRating * opts.defendThreshold;
-    if (clockHot && defenders.length > 0 && m.round <= m.bal.MATCH_ROUNDS - 1) {
-      return { type: "DEFEND", cardUids: defenders.map((c) => c.uid) };
-    }
-
-    const attack = bestAttack(content, m);
-    if (attack && attack.goals >= 1) {
-      return { type: "ATTACK", cardUids: attack.cards.map((c) => c.uid) };
-    }
-    // weak hand: cycle it if we can
-    if (m.discardsLeft > 0 && m.drawPile.length + m.discardPile.length > 0) {
-      const junk = m.hand
-        .filter((c) => defense(content, c) === 0)
-        .sort((a, b) => power(content, a) - power(content, b))
-        .slice(0, m.bal.MAX_DISCARD_CARDS);
-      if (junk.length > 0) return { type: "DISCARD", cardUids: junk.map((c) => c.uid) };
-    }
-    // last round: fire the best we have even if it won't convert
-    if (attack && m.round >= m.bal.MATCH_ROUNDS) {
-      return { type: "ATTACK", cardUids: attack.cards.map((c) => c.uid) };
-    }
-    if (defenders.length > 0) {
-      return { type: "DEFEND", cardUids: defenders.map((c) => c.uid) };
-    }
+  if (m.rerollDieLeft > 0) {
+    const worst = m.dice.map((d, i) => ({ d, i })).filter((x) => !x.d.used && x.d.value === 1)[0];
+    if (worst) return { type: "REROLL_DIE", dieIndex: worst.i };
   }
+  const playable = playableCards(content.defs, m);
+
+  if (m.possession === "them") {
+    // commit defense while their chance threatens; otherwise stand off
+    const threat = m.oppChance >= m.ownKeeperDC - 12;
+    if (threat) {
+      for (const c of m.hand) {
+        if (!playable.has(c.uid)) continue;
+        const idx = bestDieFor(content.defs, m, c.uid);
+        if (idx >= 0) return { type: "ASSIGN_DIE", uid: c.uid, dieIndex: idx };
+      }
+    }
+    return { type: "END_ROUND" };
+  }
+
+  // your chain: shoot when the estimate is good enough or the next pass is too hot
+  const est = shotEstimate(m);
+  const risk = interceptionRisk(m);
+  const canShoot = m.passes >= 1 && m.shotQuality > 0;
+  if (canShoot && (est.p >= opts.greed || risk >= opts.riskTolerance)) return { type: "SHOOT" };
+
+  // order: setup > chance-when-developed > progress; else anything playable
+  const byRole = (want: (def: CardDef) => boolean): DiceMatchAction | null => {
+    for (const c of m.hand) {
+      if (!playable.has(c.uid)) continue;
+      const def = content.defs[c.defId]!;
+      if (!want(def)) continue;
+      const idx = bestDieFor(content.defs, m, c.uid);
+      if (idx >= 0) return { type: "ASSIGN_DIE", uid: c.uid, dieIndex: idx };
+    }
+    return null;
+  };
+  const effs = (d: CardDef) => d.diceEffects ?? [];
+  const pick =
+    (m.passes >= 1 ? byRole((d) => effs(d).some((e) => e.kind === "setupNext")) : null) ??
+    (m.passes >= 1
+      ? byRole((d) => effs(d).some((e) => e.kind === "shotQuality" || e.kind === "shotQualityFromDie"))
+      : null) ??
+    byRole((d) => effs(d).some((e) => e.kind === "progress" || e.kind === "progressFromDie" || e.kind === "safePass")) ??
+    byRole(() => true);
+  if (pick) return pick;
+  if (canShoot) return { type: "SHOOT" };
   return { type: "END_ROUND" };
 }
 
-// ---------- run-policy helpers ----------
+// ---------- run policy ----------
 
 function rewardScore(content: ContentBundle, defId: string): number {
   const def = content.defs[defId]!;
-  const rarityScore = def.rarity === "legendary" ? 40 : def.rarity === "rare" ? 20 : 0;
-  const stats = levelStats(def, 0);
-  return rarityScore + (stats.power ?? 0) + (stats.defense ?? 0) * 1.2;
+  const rarityScore = def.rarity === "legendary" ? 30 : def.rarity === "rare" ? 18 : 6;
+  const role = roleOf(def);
+  return rarityScore + (role === "finish" ? 4 : role === "progress" ? 3 : 2);
 }
 
 function greedyRunAction(content: ContentBundle, r: RunState): RunAction {
+  if (r.phase === "STAFF" && r.pendingStaff) {
+    const rank = { legendary: 2, rare: 1, common: 0 } as const;
+    let bestIdx = 0;
+    let best = -1;
+    r.pendingStaff.staffIds.forEach((id, i) => {
+      const s = content.staffPool.find((x) => x.id === id);
+      const score = s ? rank[s.rarity] : 0;
+      if (score > best) {
+        best = score;
+        bestIdx = i;
+      }
+    });
+    return { type: "PICK_STAFF", index: bestIdx };
+  }
+
   if (r.phase === "REWARD" && r.pendingReward) {
     let bestIdx = 0;
     let bestScore = -1;
@@ -178,44 +121,25 @@ function greedyRunAction(content: ContentBundle, r: RunState): RunAction {
 
   if (r.phase === "IDLE") {
     const prices = content.balance.SHOP_PRICES;
-    // train the best attacker while budget is comfortable
-    if (r.shop && r.resources.budget >= prices.train + 10) {
-      const trainable = r.deck
-        .filter((c) => {
-          const def = content.defs[c.defId]!;
-          const maxLevel = Math.min(content.balance.TRAIN_MAX_LEVEL, def.levels.length - 1);
-          return c.level < maxLevel && (levelStats(def, c.level).power ?? 0) >= 8;
-        })
-        .sort(
-          (a, b) =>
-            (levelStats(content.defs[b.defId]!, b.level).power ?? 0) -
-            (levelStats(content.defs[a.defId]!, a.level).power ?? 0),
-        )[0];
-      if (trainable) return { type: "TRAIN_CARD", uid: trainable.uid };
-    }
-    // buy a strong card if affordable and the deck isn't bloated
-    if (r.shop && r.deck.length < 24) {
+    if (r.shop && r.deck.length < 22) {
       const idx = r.shop.cards.findIndex(
-        (slot) =>
-          !slot.sold &&
-          r.resources.budget >= slot.price &&
-          rewardScore(content, slot.defId) >= 20,
+        (slot) => !slot.sold && r.resources.budget >= slot.price && rewardScore(content, slot.defId) >= 18,
       );
       if (idx !== -1) return { type: "BUY_CARD", index: idx };
     }
+    void prices;
     return { type: "START_MATCH" };
   }
 
   throw new Error(`bot has no action for phase ${r.phase}`);
 }
 
-// ---------- the strategies ----------
+// ---------- strategies ----------
 
 export function makeGreedyBot(): Bot {
   return {
     name: "greedy",
-    matchAction: (content, m) =>
-      greedyMatchAction(content, m, { defendThreshold: 0.5, pushLead: 2 }),
+    matchAction: (content, m) => diceAction(content, m, { greed: 0.62, riskTolerance: 0.3, pushLead: 2 }),
     runAction: greedyRunAction,
   };
 }
@@ -223,8 +147,7 @@ export function makeGreedyBot(): Bot {
 export function makeDefensiveBot(): Bot {
   return {
     name: "defensive",
-    matchAction: (content, m) =>
-      greedyMatchAction(content, m, { defendThreshold: 0.25, pushLead: 99 }), // never pushes
+    matchAction: (content, m) => diceAction(content, m, { greed: 0.5, riskTolerance: 0.22, pushLead: 99 }),
     runAction: greedyRunAction,
   };
 }
@@ -232,33 +155,33 @@ export function makeDefensiveBot(): Bot {
 export function makePushLuckyBot(): Bot {
   return {
     name: "pushlucky",
-    matchAction: (content, m) =>
-      greedyMatchAction(content, m, { defendThreshold: 0.5, pushLead: 1 }),
+    matchAction: (content, m) => diceAction(content, m, { greed: 0.78, riskTolerance: 0.42, pushLead: 1 }),
     runAction: greedyRunAction,
   };
 }
 
 export function makeRandomBot(): Bot {
-  // Deterministic "random": keyed off state counters, not an external RNG,
-  // so sim runs stay replayable.
   return {
     name: "random",
     matchAction: (content, m) => {
       if (m.phase === "PUSH_DECISION") {
         return (m.playerGoals + m.round) % 2 === 0 ? { type: "EXTRA_TIME" } : { type: "TAKE_WIN" };
       }
-      if (m.playsLeft > 0) {
-        const pick = m.hand.filter((c) => power(content, c) > 0).slice(0, 2);
-        if (pick.length > 0 && (m.round + m.hand.length) % 3 !== 0) {
-          return { type: "ATTACK", cardUids: pick.map((c) => c.uid) };
-        }
-        const defs = bestDefenders(content, m);
-        if (defs.length > 0) return { type: "DEFEND", cardUids: defs.map((c) => c.uid) };
-        if (pick.length > 0) return { type: "ATTACK", cardUids: pick.map((c) => c.uid) };
+      const playable = [...playableCards(content.defs, m)];
+      if (m.possession === "them" && (m.round + m.oppPasses) % 2 === 1) return { type: "END_ROUND" };
+      if (m.passes >= 2 && m.shotQuality > 0 && (m.round + m.passes) % 3 === 0) {
+        return { type: "SHOOT" };
       }
-      return { type: "END_ROUND" };
+      if (playable.length === 0) return { type: "END_ROUND" };
+      const uid = playable[(m.round * 5 + playable.length) % playable.length]!;
+      const idx = bestDieFor(content.defs, m, uid);
+      if (idx < 0) return { type: "END_ROUND" };
+      return { type: "ASSIGN_DIE", uid, dieIndex: idx };
     },
     runAction: (_content, r) => {
+      if (r.phase === "STAFF" && r.pendingStaff) {
+        return { type: "PICK_STAFF", index: r.deck.length % r.pendingStaff.staffIds.length };
+      }
       if (r.phase === "REWARD" && r.pendingReward) {
         return { type: "PICK_REWARD", index: r.deck.length % r.pendingReward.defIds.length };
       }

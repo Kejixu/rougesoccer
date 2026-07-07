@@ -18,6 +18,7 @@ export function generateShop(draft: RunState, content: ContentBundle): ShopState
     cards,
     trainPrice: content.balance.SHOP_PRICES.train,
     releasePrice: content.balance.SHOP_PRICES.release,
+    drillPrice: content.balance.SHOP_PRICES.drill,
     rerollScoutPrice: content.balance.SHOP_PRICES.rerollScout,
   };
 }
@@ -64,6 +65,25 @@ export function releaseCard(draft: RunState, content: ContentBundle, uid: string
   if (idx === -1) throw new Error(`card ${uid} not in deck`);
   draft.resources.budget -= price;
   draft.deck.splice(idx, 1);
+}
+
+/** Imbue, Dawncaster-style: the gameplan becomes a permanent run passive and
+ * the card leaves the deck — paid deck-thinning with an upside. */
+export function drillCard(draft: RunState, content: ContentBundle, uid: string): void {
+  if (!draft.shop) throw new Error("no shop available");
+  const price = draft.shop.drillPrice;
+  if (draft.resources.budget < price) throw new Error("not enough budget");
+  if (draft.deck.length <= content.balance.MIN_DECK_SIZE)
+    throw new Error("squad is at minimum size");
+  const card = draft.deck.find((c) => c.uid === uid);
+  if (!card) throw new Error(`card ${uid} not in deck`);
+  const def = content.defs[card.defId];
+  if (!def) throw new Error(`unknown def ${card.defId}`);
+  if (def.kind !== "gameplan") throw new Error("only gameplans can be drilled in");
+  if (draft.drilled.includes(def.id)) throw new Error(`${def.name} is already drilled in`);
+  draft.resources.budget -= price;
+  draft.deck.splice(draft.deck.indexOf(card), 1);
+  draft.drilled.push(def.id);
 }
 
 export function rerollShop(draft: RunState, content: ContentBundle): void {

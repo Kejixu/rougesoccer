@@ -3,10 +3,11 @@ import { applyRunAction, createRun } from "../core/run/run";
 import type { GameEvent, RunAction, RunState } from "../core/types";
 import { makeContent } from "../data/content";
 import { loadRun, saveRun } from "../save/persistence";
-import { MatchScreen } from "./screens/MatchScreen";
+import { DiceMatchScreen } from "./screens/DiceMatchScreen";
 import { ResultScreen } from "./screens/ResultScreen";
 import { RewardScreen } from "./screens/RewardScreen";
 import { ShopScreen } from "./screens/ShopScreen";
+import { StaffScreen } from "./screens/StaffScreen";
 import { TitleScreen } from "./screens/TitleScreen";
 import { TournamentScreen } from "./screens/TournamentScreen";
 
@@ -67,7 +68,9 @@ export function App() {
   } else if (run.phase === "DONE") {
     screen = <ResultScreen run={run} content={content} onNewRun={abandonRun} />;
   } else if (run.phase === "MATCH") {
-    screen = <MatchScreen run={run} content={content} events={events} dispatch={dispatch} />;
+    screen = <DiceMatchScreen run={run} content={content} events={events} dispatch={dispatch} />;
+  } else if (run.phase === "STAFF") {
+    screen = <StaffScreen run={run} content={content} dispatch={dispatch} />;
   } else if (run.phase === "REWARD") {
     screen = <RewardScreen run={run} content={content} dispatch={dispatch} />;
   } else if (showShop) {

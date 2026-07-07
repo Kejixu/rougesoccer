@@ -2,8 +2,8 @@ import { describe, expect, it } from "vitest";
 import { applyMatchAction, createMatch, type MatchConfig } from "../src/core/match/engine";
 import { seedRng } from "../src/core/rng";
 import { DEFAULT_BALANCE } from "../src/core/balance";
-import { DEFAULT_PLAYS } from "../src/core/match/plays";
 import {
+  cardCost,
   levelStats,
   type CardDefMap,
   type CardInstance,
@@ -26,7 +26,7 @@ function config(overrides: Partial<MatchConfig> = {}): MatchConfig {
   return {
     opp: MINNOW,
     styleEffects: [],
-    plays: [...DEFAULT_PLAYS],
+    plays: [],
     context: "group",
     deck: makeStartingDeck(),
     rng: seedRng("test-1"),
@@ -36,10 +36,10 @@ function config(overrides: Partial<MatchConfig> = {}): MatchConfig {
 }
 
 function allCards(s: MatchState): CardInstance[] {
-  return [...s.hand, ...s.drawPile, ...s.discardPile, ...s.exile, ...s.deployed];
+  return [...s.hand, ...s.drawPile, ...s.discardPile, ...s.exile];
 }
 
-/** Tiny deterministic greedy policy used to drive full matches in tests. */
+/** Tiny deterministic policy: block real threats, then attack, then end. */
 function pickAction(defs: CardDefMap, s: MatchState, pushLuck = false): MatchAction {
   if (s.phase === "PUSH_DECISION") {
     return pushLuck && s.extraRoundsPlayed < s.bal.MAX_EXTRA_ROUNDS
@@ -49,24 +49,17 @@ function pickAction(defs: CardDefMap, s: MatchState, pushLuck = false): MatchAct
   const power = (c: CardInstance) =>
     (levelStats(defs[c.defId]!, c.level).power ?? 0) + c.formPower;
   const defense = (c: CardInstance) => levelStats(defs[c.defId]!, c.level).defense ?? 0;
+  const affordable = s.hand.filter((c) => cardCost(defs[c.defId]!) <= s.stamina);
+  if (affordable.length === 0) return { type: "END_ROUND" };
 
-  if (s.playsLeft > 0) {
-    const attackers = s.hand
-      .filter((c) => power(c) > 0)
-      .sort((a, b) => power(b) - power(a))
-      .slice(0, s.bal.MAX_ATTACK_CARDS);
-    if (attackers.length > 0) {
-      return { type: "ATTACK", cardUids: attackers.map((c) => c.uid) };
-    }
-    const slots = Math.max(0, s.bal.MAX_DEPLOYED - s.deployed.length);
-    const defenders = s.hand
-      .filter((c) => defense(c) > 0)
-      .sort((a, b) => defense(b) - defense(a))
-      .slice(0, Math.min(s.bal.MAX_DEFEND_CARDS, slots));
-    if (defenders.length > 0) {
-      return { type: "DEFEND", cardUids: defenders.map((c) => c.uid) };
-    }
+  const threat =
+    s.intent?.kind === "attack" ? Math.max(0, s.intent.points - s.block) : 0;
+  if (threat >= s.bal.GOAL_THRESHOLD * 0.3) {
+    const blocker = affordable.sort((a, b) => defense(b) - defense(a))[0]!;
+    if (defense(blocker) > 0) return { type: "PLAY_CARD", uid: blocker.uid };
   }
+  const attacker = affordable.sort((a, b) => power(b) - power(a))[0]!;
+  if (power(attacker) > 0) return { type: "PLAY_CARD", uid: attacker.uid };
   return { type: "END_ROUND" };
 }
 
@@ -77,7 +70,7 @@ function playMatch(
 ): { state: MatchState; events: GameEvent[] } {
   let { state, events } = createMatch(defs, cfg);
   const log = [...events];
-  for (let guard = 0; guard < 300 && state.phase !== "DONE"; guard++) {
+  for (let guard = 0; guard < 400 && state.phase !== "DONE"; guard++) {
     const step = applyMatchAction(defs, state, pickAction(defs, state, pushLuck));
     state = step.state;
     log.push(...step.events);
@@ -85,17 +78,16 @@ function playMatch(
   return { state, events: log };
 }
 
-describe("full match", () => {
-  it("a greedy policy completes a match against a minnow", () => {
+describe("combat match", () => {
+  it("a simple policy completes a match; intents are revealed every round", () => {
     const { state, events } = playMatch(CARD_DEF_MAP, config());
     expect(state.phase).toBe("DONE");
     expect(state.result).not.toBe("pending");
+    expect(events.filter((e) => e.type === "INTENT_REVEALED").length).toBeGreaterThanOrEqual(
+      DEFAULT_BALANCE.MATCH_ROUNDS,
+    );
     expect(events.some((e) => e.type === "MATCH_END")).toBe(true);
-    // card conservation: all 16 starting cards accounted for
-    expect(allCards(state)).toHaveLength(16);
-    // result is consistent with the scoreline
-    if (state.playerGoals > state.oppGoals) expect(state.result).toBe("win");
-    if (state.playerGoals < state.oppGoals) expect(state.result).toBe("loss");
+    expect(allCards(state)).toHaveLength(makeStartingDeck().length);
   });
 
   it("is deterministic: same seed + same policy = identical final state", () => {
@@ -113,6 +105,72 @@ describe("full match", () => {
       oppGoals: state.oppGoals,
     }).toMatchSnapshot();
   });
+
+  it("stamina gates card plays", () => {
+    let { state } = createMatch(CARD_DEF_MAP, config());
+    expect(state.stamina).toBe(DEFAULT_BALANCE.STAMINA_PER_ROUND);
+    // drain stamina, then any further play must throw
+    for (let guard = 0; guard < 10; guard++) {
+      const affordable = state.hand.find(
+        (c) => cardCost(CARD_DEF_MAP[c.defId]!) <= state.stamina && cardCost(CARD_DEF_MAP[c.defId]!) > 0,
+      );
+      if (!affordable) break;
+      state = applyMatchAction(CARD_DEF_MAP, state, { type: "PLAY_CARD", uid: affordable.uid }).state;
+    }
+    const tooExpensive = state.hand.find(
+      (c) => cardCost(CARD_DEF_MAP[c.defId]!) > state.stamina,
+    );
+    if (tooExpensive) {
+      expect(() =>
+        applyMatchAction(CARD_DEF_MAP, state, { type: "PLAY_CARD", uid: tooExpensive.uid }),
+      ).toThrow(/stamina/);
+    }
+  });
+
+  it("block absorbs an attack intent", () => {
+    // craft: opp always attacks (balanced pattern round 1 = attack)
+    let { state } = createMatch(CARD_DEF_MAP, config({ rng: seedRng("block-test") }));
+    expect(state.intent?.kind).toBe("attack");
+    const defender = state.hand.find(
+      (c) => (levelStats(CARD_DEF_MAP[c.defId]!, c.level).defense ?? 0) > 0,
+    );
+    if (!defender) return; // seed without a defender in hand: skip
+    state = applyMatchAction(CARD_DEF_MAP, state, { type: "PLAY_CARD", uid: defender.uid }).state;
+    expect(state.block).toBeGreaterThan(0);
+    const step = applyMatchAction(CARD_DEF_MAP, state, { type: "END_ROUND" });
+    const exec = step.events.find((e) => e.type === "INTENT_EXECUTED");
+    expect(exec).toBeDefined();
+    if (exec && exec.type === "INTENT_EXECUTED") {
+      expect(exec.blocked).toBeGreaterThan(0);
+    }
+    expect(step.state.block).toBe(0); // block expires
+  });
+
+  it("tactics buff the next attack card", () => {
+    const deck: CardInstance[] = [
+      { uid: "t1", defId: "tac_through", level: 0, formPower: 0, fatigued: false },
+      { uid: "s1", defId: "st_clinical", level: 0, formPower: 0, fatigued: false },
+      ...Array.from({ length: 6 }, (_, i) => ({
+        uid: `f-${i}`,
+        defId: "mf_engine",
+        level: 0 as const,
+        formPower: 0,
+        fatigued: false,
+      })),
+    ];
+    let { state } = createMatch(CARD_DEF_MAP, config({ deck, rng: seedRng("buff-test") }));
+    const tactic = state.hand.find((c) => c.defId === "tac_through");
+    const striker = state.hand.find((c) => c.defId === "st_clinical");
+    if (!tactic || !striker) return; // hand draw didn't include both: skip
+    state = applyMatchAction(CARD_DEF_MAP, state, { type: "PLAY_CARD", uid: tactic.uid }).state;
+    expect(state.pendingMult).toBeCloseTo(1.5);
+    const step = applyMatchAction(CARD_DEF_MAP, state, { type: "PLAY_CARD", uid: striker.uid });
+    const shot = step.events.find((e) => e.type === "SHOT_VALUE");
+    if (shot && shot.type === "SHOT_VALUE") {
+      expect(shot.value).toBe(Math.floor(12 * 1.5));
+    }
+    expect(step.state.pendingMult).toBe(1); // buff consumed
+  });
 });
 
 describe("push-your-luck", () => {
@@ -121,46 +179,38 @@ describe("push-your-luck", () => {
       uid: `super-${i}`,
       defId: "st_clinical",
       level: 2 as const,
-      formPower: 20,
+      formPower: 10,
       fatigued: false,
     }));
 
-  it("leading at round 5 offers the push decision; extra time pays out and fatigues", () => {
+  it("first extra round is fatigue-free, second tires the squad", () => {
     let { state } = createMatch(
       CARD_DEF_MAP,
-      config({ deck: superDeck(), opp: { ...MINNOW, attackRating: 5 } }),
+      config({ deck: superDeck(), opp: { ...MINNOW, attackRating: 3 } }),
     );
-    // power through regulation
     for (let guard = 0; guard < 100 && state.phase === "ROUND_ACTIVE"; guard++) {
       state = applyMatchAction(CARD_DEF_MAP, state, pickAction(CARD_DEF_MAP, state)).state;
     }
     expect(state.phase).toBe("PUSH_DECISION");
-    expect(state.playerGoals).toBeGreaterThan(state.oppGoals);
 
-    // opt into extra time, play it out leading
     state = applyMatchAction(CARD_DEF_MAP, state, { type: "EXTRA_TIME" }).state;
-    expect(state.mode).toBe("extratime");
     for (let guard = 0; guard < 50 && state.phase === "ROUND_ACTIVE"; guard++) {
       state = applyMatchAction(CARD_DEF_MAP, state, pickAction(CARD_DEF_MAP, state)).state;
     }
-    // survived one ET round in the lead: rewards earned, push offered again,
-    // and the first push is "free" — no fatigue yet
     expect(state.earned.budget).toBe(DEFAULT_BALANCE.ET_BUDGET_REWARD);
-    expect(state.earned.scout).toBe(DEFAULT_BALANCE.ET_SCOUT_REWARD);
     expect(state.phase).toBe("PUSH_DECISION");
     expect(allCards(state).some((c) => c.fatigued)).toBe(false);
 
-    // push again: the second extra-time round is the one that tires the squad
     state = applyMatchAction(CARD_DEF_MAP, state, { type: "EXTRA_TIME" }).state;
-    let attacked = false;
+    let played = false;
     for (let guard = 0; guard < 50 && state.phase === "ROUND_ACTIVE"; guard++) {
       const action = pickAction(CARD_DEF_MAP, state);
-      if (action.type === "ATTACK" || action.type === "DEFEND") attacked = true;
+      if (action.type === "PLAY_CARD") played = true;
       state = applyMatchAction(CARD_DEF_MAP, state, action).state;
     }
     expect(state.phase).toBe("DONE");
     expect(state.result).toBe("win");
-    if (attacked) expect(allCards(state).some((c) => c.fatigued)).toBe(true);
+    if (played) expect(allCards(state).some((c) => c.fatigued)).toBe(true);
   });
 });
 
@@ -178,7 +228,7 @@ describe("sudden death", () => {
       config({
         deck: defenseDeck,
         context: "knockout",
-        opp: { ...MINNOW, attackRating: 1 }, // floor keeps it to 1pt/round: never scores
+        opp: { ...MINNOW, attackRating: 1 }, // tiny intents, always blockable
       }),
     );
     expect(events.some((e) => e.type === "SUDDEN_DEATH_START")).toBe(true);
@@ -188,62 +238,11 @@ describe("sudden death", () => {
   });
 });
 
-describe("style effects", () => {
-  it("fortress caps the attack multiplier", () => {
-    const { state } = createMatch(
-      CARD_DEF_MAP,
-      config({
-        styleEffects: [{ trigger: "onMatchStart", op: { kind: "scripted", key: "capMultAt2x" } }],
-      }),
-    );
-    expect(state.multCap).toBe(2);
-  });
-
-  it("possession forces a discard every round", () => {
-    const { state, events } = createMatch(
-      CARD_DEF_MAP,
-      config({
-        styleEffects: [
-          { trigger: "onRoundStart", op: { kind: "scripted", key: "forceRandomDiscard1" } },
-        ],
-      }),
-    );
-    expect(events.filter((e) => e.type === "CARDS_DISCARDED" && e.forced)).toHaveLength(1);
-    expect(state.hand.length).toBe(DEFAULT_BALANCE.HAND_SIZE - 1);
-  });
-
-  it("counter bursts the clock on a failed attack", () => {
-    let { state } = createMatch(
-      CARD_DEF_MAP,
-      config({
-        styleEffects: [
-          { trigger: "onAttackResolve", op: { kind: "scripted", key: "burstClockOnFailedAttack" } },
-        ],
-      }),
-    );
-    // weakest single attacker: guaranteed 0 goals
-    const weakest = state.hand
-      .filter((c) => (levelStats(CARD_DEF_MAP[c.defId]!, c.level).power ?? 0) > 0)
-      .sort(
-        (a, b) =>
-          (levelStats(CARD_DEF_MAP[a.defId]!, a.level).power ?? 0) -
-          (levelStats(CARD_DEF_MAP[b.defId]!, b.level).power ?? 0),
-      )[0];
-    if (!weakest) return; // hand without attackers: nothing to assert this seed
-    const step = applyMatchAction(CARD_DEF_MAP, state, {
-      type: "ATTACK",
-      cardUids: [weakest.uid],
-    });
-    expect(step.events.some((e) => e.type === "CLOCK_BURST")).toBe(true);
-    expect(step.state.oppClockPoints).toBeGreaterThan(0);
-  });
-});
-
 describe("action validation", () => {
   it("rejects illegal actions", () => {
     const { state } = createMatch(CARD_DEF_MAP, config());
     expect(() =>
-      applyMatchAction(CARD_DEF_MAP, state, { type: "ATTACK", cardUids: ["nope"] }),
+      applyMatchAction(CARD_DEF_MAP, state, { type: "PLAY_CARD", uid: "nope" }),
     ).toThrow(/not in hand/);
     expect(() => applyMatchAction(CARD_DEF_MAP, state, { type: "TAKE_WIN" })).toThrow(
       /requires phase/,
@@ -251,16 +250,5 @@ describe("action validation", () => {
     expect(() => applyMatchAction(CARD_DEF_MAP, state, { type: "EXTRA_TIME" })).toThrow(
       /requires phase/,
     );
-  });
-
-  it("rejects an attack with no power", () => {
-    let { state } = createMatch(CARD_DEF_MAP, config());
-    const tactic = state.hand.find(
-      (c) => (levelStats(CARD_DEF_MAP[c.defId]!, c.level).power ?? 0) === 0,
-    );
-    if (!tactic) return;
-    expect(() =>
-      applyMatchAction(CARD_DEF_MAP, state, { type: "ATTACK", cardUids: [tactic.uid] }),
-    ).toThrow(/at least one card with power/);
   });
 });

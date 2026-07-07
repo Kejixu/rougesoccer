@@ -3,12 +3,12 @@
 // reward picks and the shop. Same reducer pattern as the match engine.
 
 import { seedRng, nextFloat } from "../rng";
-import { applyMatchAction, createMatch } from "../match/engine";
+import { applyDiceAction, createDiceMatch } from "../match/dice";
 import {
   STAGE_ORDER,
   type ContentBundle,
+  type DiceMatchState,
   type GameEvent,
-  type MatchState,
   type OppInfo,
   type RunAction,
   type RunState,
@@ -16,10 +16,11 @@ import {
   type Stage,
   type TeamDef,
 } from "../types";
-import { emptyRow, playerGroupRank, recordResult, simulateOtherFixture } from "./group";
+import { emptyRow, playerGroupRank, recordResult, simulateGroupDecider } from "./group";
 import { drawKnockoutOpponent } from "./bracket";
 import { rollRewardOffer } from "./rewards";
-import { buyCard, generateShop, releaseCard, rerollShop, trainCard } from "./shop";
+import { buyCard, drillCard, generateShop, releaseCard, rerollShop, trainCard } from "./shop";
+import { rollStaffOffer, runPassives, runPassiveSum } from "./staff";
 
 function rand(draft: RunState): number {
   const [v, next] = nextFloat(draft.rng);
@@ -40,7 +41,8 @@ function nextStage(stage: Stage): Stage | null {
 
 // ---------- run creation ----------
 
-/** Pick 3 group opponents around the player's tier: one seed, one mid, one minnow. */
+/** Pick 2 group opponents around the player's tier: one seed, one mid.
+ * (3-team mini-group: the player plays both, keeping runs short.) */
 function pickGroupOpponents(draft: RunState, content: ContentBundle): string[] {
   const pool = content.teams.filter((t) => t.id !== draft.playerTeamId);
   const byTierBand = (tiers: number[]): TeamDef[] =>
@@ -48,7 +50,6 @@ function pickGroupOpponents(draft: RunState, content: ContentBundle): string[] {
   const bands: number[][] = [
     [1, 2], // a seed
     [2, 3], // a mid
-    [3, 4], // a minnow
   ];
   const picked: string[] = [];
   for (const band of bands) {
@@ -64,7 +65,7 @@ function pickGroupOpponents(draft: RunState, content: ContentBundle): string[] {
 export function createRun(content: ContentBundle, seed: string, playerTeamId: string): RunState {
   team(content, playerTeamId); // validate
   const state: RunState = {
-    version: 1,
+    version: 4,
     seed,
     playerTeamId,
     stage: "GROUP",
@@ -81,25 +82,41 @@ export function createRun(content: ContentBundle, seed: string, playerTeamId: st
     scouted: false,
     deck: [],
     uidCounter: 0,
+    staff: [],
+    drilled: [],
     resources: {
       budget: content.balance.STARTING_BUDGET,
       scout: content.balance.STARTING_SCOUT,
     },
     activeMatch: null,
     pendingReward: null,
+    pendingStaff: null,
     shop: null,
     usedTeamIds: [],
     result: "active",
     rng: seedRng(seed),
   };
 
-  state.deck = content.startingDeck.map((c) => ({
+  // class kit: each playable nation has its own starting deck
+  const kitDeck = content.nationKits?.[playerTeamId]?.startingDeck ?? content.startingDeck;
+  state.deck = kitDeck.map((c) => ({
     uid: `run-${state.uidCounter++}`,
     defId: c.defId,
     level: c.level,
     formPower: 0,
     fatigued: false,
   }));
+
+  const starDefId = content.nationStars?.[playerTeamId];
+  if (starDefId && content.defs[starDefId]) {
+    state.deck.push({
+      uid: `run-${state.uidCounter++}`,
+      defId: starDefId,
+      level: 0,
+      formPower: 0,
+      fatigued: false,
+    });
+  }
 
   state.groupTeamIds = pickGroupOpponents(state, content);
   state.groupTable = [playerTeamId, ...state.groupTeamIds].map(emptyRow);
@@ -142,12 +159,14 @@ function startMatch(draft: RunState, content: ContentBundle): GameEvent[] {
 
   const opp = buildOpp(content, draft, draft.nextOppId);
   const style = content.styles[team(content, draft.nextOppId).style];
-  const step = createMatch(content.defs, {
+  const step = createDiceMatch(content.defs, {
     opp,
     styleEffects: style.effects,
     plays: content.plays,
     context: draft.stage === "GROUP" ? "group" : "knockout",
     deck: matchDeck.map((c) => ({ ...c, formPower: 0 })),
+    passives: runPassives(content, draft),
+    mutators: content.nationDiceKits?.[draft.playerTeamId]?.mutators ?? [],
     rng: draft.rng,
     balance: content.balance,
   });
@@ -161,13 +180,13 @@ function startMatch(draft: RunState, content: ContentBundle): GameEvent[] {
 
 // ---------- match resolution ----------
 
-function settleMatch(draft: RunState, content: ContentBundle, match: MatchState): void {
+function settleMatch(draft: RunState, content: ContentBundle, match: DiceMatchState): void {
   const result = match.result;
   if (result === "pending") throw new Error("match is not finished");
 
   // sync fatigue back to the run deck; rested cards recover
   const playedUids = new Map<string, boolean>();
-  for (const pile of [match.hand, match.drawPile, match.discardPile, match.exile, match.deployed]) {
+  for (const pile of [match.hand, match.drawPile, match.discardPile, match.exile]) {
     for (const inst of pile) playedUids.set(inst.uid, inst.fatigued);
   }
   for (const card of draft.deck) {
@@ -178,6 +197,12 @@ function settleMatch(draft: RunState, content: ContentBundle, match: MatchState)
   // resources earned in-match (extra time bonuses etc.)
   draft.resources.budget += match.earned.budget;
   draft.resources.scout += match.earned.scout;
+
+  // staff payouts
+  draft.resources.scout += runPassiveSum(content, draft, "scoutPerMatch");
+  if (result === "win") draft.resources.budget += runPassiveSum(content, draft, "budgetOnWin");
+
+  let advancedStage = false;
 
   const oppId = match.opp.teamId;
   draft.usedTeamIds.push(oppId);
@@ -197,7 +222,6 @@ function settleMatch(draft: RunState, content: ContentBundle, match: MatchState)
   if (draft.stage === "GROUP") {
     recordResult(draft.groupTable, draft.playerTeamId, match.playerGoals, match.oppGoals);
     recordResult(draft.groupTable, oppId, match.oppGoals, match.playerGoals);
-    simulateOtherFixture(draft, content.teams, draft.matchIndexInStage + 1);
     draft.matchIndexInStage += 1;
 
     if (result === "win") draft.resources.budget += rewards.groupWin;
@@ -207,13 +231,16 @@ function settleMatch(draft: RunState, content: ContentBundle, match: MatchState)
     // beating a flair side pays a scouting bonus
     if (result === "win" && match.opp.style === "flair") draft.resources.scout += 1;
 
-    const groupDone = draft.matchIndexInStage >= 3;
+    const groupDone = draft.matchIndexInStage >= 2;
     if (groupDone) {
+      // the two AI opponents settle their head-to-head before the table is read
+      simulateGroupDecider(draft, content.teams);
       const rank = playerGroupRank(draft);
       if (rank <= 2) {
         draft.stage = "R32";
         draft.matchIndexInStage = 0;
         draft.nextOppId = drawKnockoutOpponent(draft, content.teams, "R32");
+        advancedStage = true;
       } else {
         draft.result = "eliminated";
         draft.phase = "DONE";
@@ -265,6 +292,14 @@ function settleMatch(draft: RunState, content: ContentBundle, match: MatchState)
     draft.nextOppId = drawKnockoutOpponent(draft, content.teams, after as Exclude<Stage, "GROUP">);
     draft.pendingReward = rollRewardOffer(draft, content, content.balance.REWARD_PICKS.win);
     draft.phase = "REWARD";
+    advancedStage = true;
+  }
+
+  // reaching a new stage means a backroom hire — staff pick comes first,
+  // then any pending card reward
+  if (advancedStage) {
+    draft.pendingStaff = rollStaffOffer(draft, content);
+    if (draft.pendingStaff) draft.phase = "STAFF";
   }
   draft.scouted = false;
 }
@@ -289,7 +324,7 @@ export function applyRunAction(
     case "MATCH_ACTION": {
       if (draft.phase !== "MATCH" || !draft.activeMatch)
         throw new Error("no match in progress");
-      const step = applyMatchAction(content.defs, draft.activeMatch, action.action);
+      const step = applyDiceAction(content.defs, draft.activeMatch, action.action);
       draft.activeMatch = step.state;
       events = step.events;
       if (step.state.phase === "DONE") settleMatch(draft, content, step.state);
@@ -310,6 +345,35 @@ export function applyRunAction(
       draft.pendingReward = null;
       draft.phase = "IDLE";
       draft.shop = generateShop(draft, content);
+      break;
+    }
+
+    case "CUT_CARD": {
+      if (draft.phase !== "REWARD" || !draft.pendingReward) throw new Error("no reward pending");
+      if (draft.deck.length <= content.balance.MIN_DECK_SIZE)
+        throw new Error("squad is at minimum size");
+      const idx = draft.deck.findIndex((c) => c.uid === action.uid);
+      if (idx === -1) throw new Error(`card ${action.uid} not in deck`);
+      draft.deck.splice(idx, 1);
+      draft.resources.budget += runPassiveSum(content, draft, "cutRefund");
+      draft.pendingReward = null;
+      draft.phase = "IDLE";
+      draft.shop = generateShop(draft, content);
+      break;
+    }
+
+    case "PICK_STAFF": {
+      if (draft.phase !== "STAFF" || !draft.pendingStaff) throw new Error("no staff offer pending");
+      const staffId = draft.pendingStaff.staffIds[action.index];
+      if (!staffId) throw new Error(`no staff option ${action.index}`);
+      draft.staff.push(staffId);
+      resolveStaffOffer(draft, content);
+      break;
+    }
+
+    case "SKIP_STAFF": {
+      if (draft.phase !== "STAFF" || !draft.pendingStaff) throw new Error("no staff offer pending");
+      resolveStaffOffer(draft, content);
       break;
     }
 
@@ -335,6 +399,12 @@ export function applyRunAction(
     case "RELEASE_CARD": {
       requireIdle(draft);
       releaseCard(draft, content, action.uid);
+      draft.resources.budget += runPassiveSum(content, draft, "cutRefund");
+      break;
+    }
+    case "DRILL_CARD": {
+      requireIdle(draft);
+      drillCard(draft, content, action.uid);
       break;
     }
     case "REROLL_SHOP": {
@@ -359,4 +429,15 @@ export function applyRunAction(
 function requireIdle(state: RunState): void {
   if (state.phase !== "IDLE")
     throw new Error(`action requires the between-match phase, run is in ${state.phase}`);
+}
+
+/** After a staff pick/skip: fall through to the card reward, or back to camp. */
+function resolveStaffOffer(draft: RunState, content: ContentBundle): void {
+  draft.pendingStaff = null;
+  if (draft.pendingReward) {
+    draft.phase = "REWARD";
+  } else {
+    draft.phase = "IDLE";
+    if (!draft.shop) draft.shop = generateShop(draft, content);
+  }
 }

@@ -40,6 +40,24 @@ export function TournamentScreen({
         {run.deck.length} cards
       </p>
 
+      {(run.staff.length > 0 || run.drilled.length > 0) && (
+        <div className="passive-strip" data-testid="staff-roster">
+          {run.staff.map((id) => {
+            const s = content.staffPool.find((x) => x.id === id);
+            return s ? (
+              <span key={id} className="passive-chip staff" title={s.text}>
+                👔 {s.role} — {s.name}
+              </span>
+            ) : null;
+          })}
+          {run.drilled.map((defId) => (
+            <span key={defId} className="passive-chip drilled" title={content.defs[defId]?.levels[0]?.text}>
+              📋 {content.defs[defId]?.name ?? defId} (drilled in)
+            </span>
+          ))}
+        </div>
+      )}
+
       {run.stage === "GROUP" ? (
         <div className="panel">
           <table data-testid="group-table" className="standings">

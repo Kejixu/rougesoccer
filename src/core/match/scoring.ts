@@ -62,6 +62,8 @@ export function evalCondition(
       return ctx.leading;
     case "trailing":
       return ctx.trailing;
+    case "oppIntent":
+      return false; // clock mode has no telegraphed intents
   }
 }
 

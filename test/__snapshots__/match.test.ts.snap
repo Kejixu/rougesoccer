@@ -1,9 +1,9 @@
 // Vitest Snapshot v1, https://vitest.dev/guide/snapshot.html
 
-exports[`full match > final scoreline snapshot (balance regression guard) 1`] = `
+exports[`combat match > final scoreline snapshot (balance regression guard) 1`] = `
 {
-  "oppGoals": 0,
-  "playerGoals": 0,
-  "result": "draw",
+  "oppGoals": 1,
+  "playerGoals": 2,
+  "result": "win",
 }
 `;

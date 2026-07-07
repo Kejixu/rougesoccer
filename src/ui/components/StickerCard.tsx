@@ -6,7 +6,7 @@ import { useCallback, useRef } from "react";
 import { levelStats, type CardDef, type CardInstance, type Position } from "../../core/types";
 import { portraitUrl } from "../portraits";
 
-const POSITION_TINTS: Record<Position | "tactic" | "moment", [string, string]> = {
+const POSITION_TINTS: Record<Position | "tactic" | "moment" | "gameplan", [string, string]> = {
   ST: ["#7e2c2c", "#c75450"],
   WG: ["#5a2c7e", "#9254c7"],
   MF: ["#2c5e3c", "#54a06b"],
@@ -14,9 +14,10 @@ const POSITION_TINTS: Record<Position | "tactic" | "moment", [string, string]> =
   GK: ["#7e5a2c", "#c79a54"],
   tactic: ["#3c4a44", "#6a7a72"],
   moment: ["#7e6a1c", "#d9b832"],
+  gameplan: ["#1c5258", "#3aa0a8"],
 };
 
-function Silhouette({ kind }: { kind: Position | "tactic" | "moment" }) {
+function Silhouette({ kind }: { kind: Position | "tactic" | "moment" | "gameplan" }) {
   const [from, to] = POSITION_TINTS[kind];
   return (
     <svg viewBox="0 0 100 74" style={{ width: "100%", height: "100%" }} aria-hidden>
@@ -27,7 +28,16 @@ function Silhouette({ kind }: { kind: Position | "tactic" | "moment" }) {
         </linearGradient>
       </defs>
       <rect width="100" height="74" fill={`url(#bg-${kind})`} />
-      {kind === "tactic" ? (
+      {kind === "gameplan" ? (
+        // clipboard formation: dots flowing into an arrow
+        <g stroke="#f5f1e3" strokeWidth="2.2" fill="#f5f1e3" opacity="0.85">
+          <circle cx="24" cy="52" r="4" />
+          <circle cx="40" cy="38" r="4" />
+          <circle cx="58" cy="46" r="4" />
+          <path d="M28 49 L37 41 M44 39 L54 44" fill="none" />
+          <path d="M62 43 L76 28 M76 28 l-9 1.5 M76 28 l-1.5 9" fill="none" strokeWidth="2.6" />
+        </g>
+      ) : kind === "tactic" ? (
         // chalkboard X's and O's
         <g stroke="#f5f1e3" strokeWidth="2.4" fill="none" opacity="0.85">
           <path d="M22 24 l12 12 M34 24 l-12 12" />
@@ -56,19 +66,24 @@ export function StickerCard({
   inst,
   selected,
   disabled,
+  cost,
+  combo,
   onClick,
 }: {
   def: CardDef;
   inst?: CardInstance;
   selected?: boolean;
   disabled?: boolean;
+  cost?: number;
+  combo?: "active" | "inactive" | null;
   onClick?: () => void;
 }) {
   const ref = useRef<HTMLButtonElement>(null);
   const level = inst?.level ?? 0;
   const stats = levelStats(def, level);
   const power = (stats.power ?? 0) + (inst?.formPower ?? 0);
-  const kind = def.position ?? (def.kind === "moment" ? "moment" : "tactic");
+  const kind =
+    def.position ?? (def.kind === "moment" || def.kind === "gameplan" ? def.kind : "tactic");
   const portrait = def.portrait ?? portraitUrl(def.id);
 
   const onPointerMove = useCallback((e: React.PointerEvent) => {
@@ -110,6 +125,12 @@ export function StickerCard({
         <div className="rules-text">{stats.text}</div>
         {inst?.fatigued && <div className="fatigue-strip">Tired</div>}
       </div>
+      {cost !== undefined && <div className="cost-badge">{cost}</div>}
+      {combo && (
+        <div className={`combo-badge ${combo}`} data-testid="combo-badge">
+          {combo === "active" ? "✓ COMBO" : "combo…"}
+        </div>
+      )}
       {def.rarity === "legendary" && <div className="legend-badge">★</div>}
       <div className="foil-layer" />
     </button>

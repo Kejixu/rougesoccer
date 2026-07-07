@@ -25,7 +25,7 @@ describe("full campaign", () => {
     const state = playRun("fullrun-1");
     expect(state.phase).toBe("DONE");
     expect(["won", "eliminated"]).toContain(state.result);
-    expect(state.deck.length).toBeGreaterThanOrEqual(16);
+    expect(state.deck.length).toBeGreaterThanOrEqual(14);
     expect(state.resources.budget).toBeGreaterThanOrEqual(0);
     expect(state.resources.scout).toBeGreaterThanOrEqual(0);
     // every opponent faced exactly once
@@ -46,7 +46,7 @@ describe("full campaign", () => {
       const state = playRun(`spread-${i}`);
       if (state.result === "eliminated" && state.stage === "GROUP") {
         sawGroupExit = true;
-        expect(state.matchIndexInStage).toBe(3);
+        expect(state.matchIndexInStage).toBe(2); // 3-team mini-group: 2 matches
       }
       if (state.stage !== "GROUP") sawAdvance = true;
     }
@@ -55,8 +55,8 @@ describe("full campaign", () => {
 
   it("simulateRun records one entry per match played", () => {
     const record = simulateRun(content, makeGreedyBot(), "rec-1", "usa");
-    expect(record.matches.length).toBeGreaterThanOrEqual(3); // at least the group stage
-    expect(record.matches.length).toBeLessThanOrEqual(8); // 3 group + 5 knockout
+    expect(record.matches.length).toBeGreaterThanOrEqual(2); // at least the mini-group
+    expect(record.matches.length).toBeLessThanOrEqual(7); // 2 group + 5 knockout
     if (record.result === "won") {
       expect(record.matches.filter((m) => m.stage === "FINAL")).toHaveLength(1);
     }

@@ -31,6 +31,49 @@ function CountUpValue({ base, mult, value }: { base: number; mult: number; value
   );
 }
 
+// The shot is the climax: a d20 that spins like a slot reel, lands on the roll,
+// then reveals roll + quality vs the keeper's DC.
+function ShotRoll({ roll, quality, dc }: { roll: number; quality: number; dc: number }) {
+  const [shown, setShown] = useState(1);
+  const [settled, setSettled] = useState(false);
+  useEffect(() => {
+    let raf = 0;
+    const t0 = performance.now();
+    const D = 650;
+    let lastSwap = 0;
+    const tick = (t: number) => {
+      const k = Math.min(1, (t - t0) / D);
+      if (k < 1) {
+        // slow the reel as it settles
+        const gap = 45 + 120 * k * k;
+        if (t - lastSwap >= gap) {
+          setShown(1 + Math.floor((t * 9301 + 49297) % 20));
+          lastSwap = t;
+        }
+        raf = requestAnimationFrame(tick);
+      } else {
+        setShown(roll);
+        setSettled(true);
+      }
+    };
+    raf = requestAnimationFrame(tick);
+    return () => cancelAnimationFrame(raf);
+  }, [roll]);
+  const total = roll + quality;
+  const beat = total >= dc;
+  return (
+    <span className={settled ? (beat ? "shot-hit" : "shot-miss") : "shot-spin"}>
+      🎲 {shown}
+      {settled && (
+        <>
+          {" "}
+          + {quality} = <strong>{total}</strong> vs {dc}
+        </>
+      )}
+    </span>
+  );
+}
+
 let nextId = 1;
 
 export function ScorePopups({ events }: { events: GameEvent[] }) {
@@ -57,25 +100,72 @@ export function ScorePopups({ events }: { events: GameEvent[] }) {
           },
         });
         delay += 550;
-      } else if (e.type === "GOAL_SCORED") {
+      } else if (e.type === "SHOT_TAKEN") {
+        staged.push({
+          delay,
+          popup: {
+            id: nextId++,
+            kind: "shot",
+            text: "",
+            node: <ShotRoll roll={e.roll} quality={e.quality} dc={e.dc} />,
+          },
+        });
+        delay += 900;
+        if (!e.goal) {
+          staged.push({
+            delay,
+            popup: { id: nextId++, kind: "concede", text: "🧤 SAVED" },
+          });
+          delay += 600;
+        }
+      } else if (e.type === "OPP_SHOT") {
+        staged.push({
+          delay,
+          popup: {
+            id: nextId++,
+            kind: e.goal ? "concede" : "info",
+            text: "",
+            node: <ShotRoll roll={e.roll} quality={e.danger} dc={e.dc} />,
+          },
+        });
+        delay += 900;
+        staged.push({
+          delay,
+          popup: { id: nextId++, kind: e.goal ? "concede" : "info", text: e.goal ? "⚽ CONCEDED" : "🧤 SAVED!" },
+        });
+        delay += 600;
+      } else if (e.type === "GOAL_SCORED" && e.goals > 0) {
         staged.push({
           delay,
           popup: { id: nextId++, kind: "goal", text: e.goals > 1 ? `⚽ ${e.goals} GOALS!` : "⚽ GOAL!" },
         });
         delay += 650;
-      } else if (e.type === "CLOCK_TICK" && e.totalPoints < e.points) {
-        // remainder smaller than the tick means the bar wrapped: they scored
+      } else if (e.type === "CHAIN_INTERCEPTED") {
         staged.push({
           delay,
-          popup: { id: nextId++, kind: "concede", text: `${"They score…"} ${e.oppGoals}` },
+          popup: { id: nextId++, kind: e.byYou ? "info" : "concede", text: e.byYou ? "🎯 WON IT!" : "🚫 TACKLED!" },
         });
         delay += 600;
-      } else if (e.type === "CLOCK_BURST") {
+      } else if (e.type === "COUNTER_SHOT") {
         staged.push({
           delay,
-          popup: { id: nextId++, kind: "concede", text: `Counter! +${e.points} clock` },
+          popup: {
+            id: nextId++,
+            kind: e.byYou ? "shot" : "concede",
+            text: "",
+            node: <ShotRoll roll={e.roll} quality={e.bonus} dc={e.dc} />,
+          },
         });
-        delay += 500;
+        delay += 900;
+        staged.push({
+          delay,
+          popup: {
+            id: nextId++,
+            kind: e.goal ? (e.byYou ? "goal" : "concede") : "info",
+            text: e.goal ? "⚡ COUNTER GOAL" : "🧤 SAVED",
+          },
+        });
+        delay += 600;
       } else if (e.type === "ET_SURVIVED") {
         staged.push({
           delay,

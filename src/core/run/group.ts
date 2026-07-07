@@ -65,6 +65,21 @@ export function simulateFixture(
     : { homeGoals: loseGoals, awayGoals: winGoals };
 }
 
+/** 3-team mini-group: the player plays both opponents; this plays the single
+ * AI-vs-AI fixture between those two opponents. Call once, when the group ends. */
+export function simulateGroupDecider(draft: RunState, teams: TeamDef[]): FixtureResult {
+  if (draft.groupTeamIds.length !== 2)
+    throw new Error("mini-group must have exactly 2 opponents");
+  const home = teams.find((t) => t.id === draft.groupTeamIds[0])!;
+  const away = teams.find((t) => t.id === draft.groupTeamIds[1])!;
+  const { homeGoals, awayGoals } = simulateFixture(draft, home, away);
+  recordResult(draft.groupTable, home.id, homeGoals, awayGoals);
+  recordResult(draft.groupTable, away.id, awayGoals, homeGoals);
+  const fixture: FixtureResult = { matchday: 2, homeId: home.id, awayId: away.id, homeGoals, awayGoals };
+  draft.groupFixtures.push(fixture);
+  return fixture;
+}
+
 /** Play the matchday fixture between the two AI teams the player isn't facing. */
 export function simulateOtherFixture(
   draft: RunState,

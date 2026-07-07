@@ -41,11 +41,13 @@ describe("edge cases", () => {
         state = applyMatchAction(CARD_DEF_MAP, state, { type: "TAKE_WIN" }).state;
         continue;
       }
-      const attacker = state.hand.find((c) => c.defId.startsWith("st_"));
-      if (state.playsLeft > 0 && attacker) {
+      const attacker = state.hand.find(
+        (c) => c.defId.startsWith("st_") && state.stamina >= 2,
+      );
+      if (attacker) {
         state = applyMatchAction(CARD_DEF_MAP, state, {
-          type: "ATTACK",
-          cardUids: [attacker.uid],
+          type: "PLAY_CARD",
+          uid: attacker.uid,
         }).state;
       } else {
         state = applyMatchAction(CARD_DEF_MAP, state, { type: "END_ROUND" }).state;
@@ -53,7 +55,7 @@ describe("edge cases", () => {
     }
     expect(state.phase).toBe("DONE");
     // all five cards still exist somewhere
-    const all = [...state.hand, ...state.drawPile, ...state.discardPile, ...state.exile, ...state.deployed];
+    const all = [...state.hand, ...state.drawPile, ...state.discardPile, ...state.exile];
     expect(all).toHaveLength(5);
   });
 
@@ -87,8 +89,9 @@ describe("edge cases", () => {
     let run = createRun(content, "edge-release", "usa");
     run = structuredClone(run);
     run.resources.budget = 999;
-    // squad starts at 16, min is 10 -> 6 releases ok, 7th rejected
-    for (let i = 0; i < 6; i++) {
+    // release down to the floor, then one more must be rejected
+    const releases = run.deck.length - content.balance.MIN_DECK_SIZE;
+    for (let i = 0; i < releases; i++) {
       run = applyRunAction(content, run, { type: "RELEASE_CARD", uid: run.deck[0]!.uid }).state;
     }
     expect(run.deck.length).toBe(content.balance.MIN_DECK_SIZE);

@@ -25,11 +25,21 @@ describe("content cross-references", () => {
     }
   });
 
-  it("every playable card does something (power, defense, or an effect)", () => {
+  it("every playable card does something (power, defense, effect, or passive)", () => {
     for (const c of CARD_DEFS) {
       const s = levelStats(c, 0);
-      const useful = (s.power ?? 0) > 0 || (s.defense ?? 0) > 0 || c.effects.length > 0;
+      const useful =
+        (s.power ?? 0) > 0 ||
+        (s.defense ?? 0) > 0 ||
+        c.effects.length > 0 ||
+        c.passive !== undefined;
       expect(useful, c.id).toBe(true);
+    }
+  });
+
+  it("every gameplan card has a passive, and only gameplans do", () => {
+    for (const c of CARD_DEFS) {
+      expect(c.passive !== undefined, c.id).toBe(c.kind === "gameplan");
     }
   });
 

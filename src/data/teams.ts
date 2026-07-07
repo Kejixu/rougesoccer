@@ -44,5 +44,6 @@ export const TEAM_MAP: Record<string, TeamDef> = Object.fromEntries(
   TEAMS.map((t) => [t.id, t]),
 );
 
-/** Teams offered as player choices on the title screen: the three hosts. */
-export const PLAYABLE_TEAM_IDS = ["usa", "mex", "can"] as const;
+/** Teams offered as player choices on the title screen. Dice mode: each has a
+ * distinct identity (see NATION_DICE_KITS). Brazil is the showcase reroll nation. */
+export const PLAYABLE_TEAM_IDS = ["bra", "usa", "mex", "can"] as const;
