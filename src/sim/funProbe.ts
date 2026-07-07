@@ -23,18 +23,22 @@ interface MatchStats {
   // bite metrics
   rolesSum: number; // distinct roles (defend/progress/finish) doable this round, 0..3
   oneRoleRounds: number; // the roll dictates posture: only one role doable
-  boxRounds: number; // rounds spent in the box
-  boxFinishBlocked: number; // in box, but no die can fire a finisher
   highDice: number; // dice >=5 rolled
   highWanters: number; // cards in hand that want a high die (min5/min6/fromDie finishers)
+  chains: number; // your possessions with at least one completed pass
+  passesTotal: number;
+  intercepted: number; // your chain got picked
+  oppIntercepted: number; // you picked their chain
+  counterGoalsFor: number;
+  counterGoalsAgainst: number;
 }
 
 const ROLE_OF: Record<string, "defend" | "progress" | "finish"> = {};
 for (const d of content.cardPool) {
   const effs = d.diceEffects ?? [];
-  ROLE_OF[d.id] = effs.some((e) => e.kind === "winPossession" || e.kind === "pushBack" || e.kind === "clearance")
+  ROLE_OF[d.id] = effs.some((e) => e.kind === "defend")
     ? "defend"
-    : effs.some((e) => e.kind === "shotQuality" || e.kind === "shotQualityFromDie")
+    : effs.some((e) => e.kind === "shotQuality" || e.kind === "shotQualityFromDie" || e.kind === "setupNext")
       ? "finish"
       : "progress";
 }
@@ -79,10 +83,14 @@ function probe(team: string, seed: string): { matches: MatchStats[]; result: str
         rerolls: 0,
         rolesSum: 0,
         oneRoleRounds: 0,
-        boxRounds: 0,
-        boxFinishBlocked: 0,
         highDice: 0,
         highWanters: 0,
+        chains: 0,
+        passesTotal: 0,
+        intercepted: 0,
+        oppIntercepted: 0,
+        counterGoalsFor: 0,
+        counterGoalsAgainst: 0,
       };
     }
     lastMatchActive = inMatch;
@@ -102,12 +110,6 @@ function probe(team: string, seed: string): { matches: MatchStats[]; result: str
           const roles = rolesDoable(m);
           cur.rolesSum += roles.size;
           if (roles.size === 1) cur.oneRoleRounds++;
-
-          const inBox = m.ball >= m.bal.DICE.THEIR_BOX;
-          if (inBox) {
-            cur.boxRounds++;
-            if (!roles.has("finish")) cur.boxFinishBlocked++;
-          }
 
           cur.highDice += m.dice.filter((d) => d.value >= 5).length;
           cur.highWanters += m.hand.filter((c) => {
@@ -136,12 +138,25 @@ function probe(team: string, seed: string): { matches: MatchStats[]; result: str
           c.shots++;
           c.shotRolls.push({ roll: e.roll, quality: e.quality, dc: e.dc, goal: e.goal });
         }
-        if (e.type === "GOAL_SCORED") {
-          if (e.goals >= 1) c.goalsFor += e.goals;
-          else c.goalsAgainst += 1; // goals:0 marks a concede
+        if (e.type === "PASS_COMPLETED") {
+          if (e.passes === 1) c.chains++;
+          c.passesTotal++;
+        }
+        if (e.type === "CHAIN_INTERCEPTED") {
+          if (e.byYou) c.oppIntercepted++;
+          else c.intercepted++;
+        }
+        if (e.type === "COUNTER_SHOT") {
+          if (e.byYou) c.shots++;
+          if (e.goal) {
+            if (e.byYou) c.counterGoalsFor++;
+            else c.counterGoalsAgainst++;
+          }
         }
         if (e.type === "DIE_REROLLED") c.rerolls++;
         if (e.type === "MATCH_END") {
+          c.goalsFor = e.playerGoals;
+          c.goalsAgainst = e.oppGoals;
           matches.push(c);
           cur = null;
         }
@@ -167,10 +182,14 @@ function summarize(team: string) {
     wins = 0;
   let rolesSum = 0,
     oneRole = 0,
-    boxRounds = 0,
-    boxBlocked = 0,
     highDice = 0,
-    highWanters = 0;
+    highWanters = 0,
+    chains = 0,
+    passesTotal = 0,
+    intercepted = 0,
+    oppIntercepted = 0,
+    counterGoalsFor = 0,
+    counterGoalsAgainst = 0;
   for (let i = 0; i < N; i++) {
     const { matches, result } = probe(team, `${team}-fun-${i}`);
     if (result === "won") wins++;
@@ -186,10 +205,14 @@ function summarize(team: string) {
       rerolls += m.rerolls;
       rolesSum += m.rolesSum;
       oneRole += m.oneRoleRounds;
-      boxRounds += m.boxRounds;
-      boxBlocked += m.boxFinishBlocked;
       highDice += m.highDice;
       highWanters += m.highWanters;
+      chains += m.chains;
+      passesTotal += m.passesTotal;
+      intercepted += m.intercepted;
+      oppIntercepted += m.oppIntercepted;
+      counterGoalsFor += m.counterGoalsFor;
+      counterGoalsAgainst += m.counterGoalsAgainst;
       for (const s of m.shotRolls) {
         const total = s.roll + s.quality;
         const margin = total - s.dc;
@@ -206,7 +229,9 @@ function summarize(team: string) {
     // bite: how often the roll forces a single posture, and avg roles available (3 = no pressure)
     avgRolesAvail: (rolesSum / decisions).toFixed(2),
     oneRoleShare: `${Math.round((oneRole / decisions) * 100)}%`,
-    boxFinishBlocked: boxRounds ? `${Math.round((boxBlocked / boxRounds) * 100)}%` : "—",
+    passesPerChain: chains ? (passesTotal / chains).toFixed(2) : "0.00",
+    interceptedShare: chains ? `${Math.round((intercepted / chains) * 100)}%` : "0%",
+    oppInterceptedShare: `${Math.round((oppIntercepted / decisions) * 100)}%`,
     highDiePerRound: (highDice / decisions).toFixed(2),
     highWantersPerRound: (highWanters / decisions).toFixed(2),
     contention: ((highWanters - highDice) / decisions).toFixed(2),
@@ -214,6 +239,8 @@ function summarize(team: string) {
     shotsPerMatch: (shots / matchCount).toFixed(1),
     goalsPerMatch: (goals / matchCount).toFixed(1),
     oppGoalsPerMatch: (goalsAg / matchCount).toFixed(1),
+    counterGoalsFor: (counterGoalsFor / matchCount).toFixed(2),
+    counterGoalsAgainst: (counterGoalsAgainst / matchCount).toFixed(2),
     nearMissPerMatch: (nearMiss / matchCount).toFixed(2),
   };
 }
