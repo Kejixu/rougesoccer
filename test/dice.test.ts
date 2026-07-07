@@ -178,6 +178,21 @@ describe("your chain", () => {
     expect(step.state.round).toBeGreaterThan(m.round);
   });
 
+  it("allows a zero-Chance punt after at least one completed pass", () => {
+    const m = {
+      ...start(["d_shortpass"], "punt"),
+      passes: 1,
+      shotQuality: 0,
+      ball: DEFAULT_BALANCE.DICE.MIDFIELD,
+      intent: null,
+    };
+    const step = applyDiceAction(DICE_CARD_MAP, m, { type: "SHOOT" });
+    expect(step.events).toContainEqual(
+      expect.objectContaining({ type: "SHOT_TAKEN", quality: 0, dc: m.keeperDC + 6 }),
+    );
+    expect(step.state.round).toBeGreaterThan(m.round);
+  });
+
   it("an interception loses the whole banked chance and triggers their counter", () => {
     const base = start(["d_shortpass"], "picked");
     let sawInterception = false;

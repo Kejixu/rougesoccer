@@ -4,6 +4,7 @@ import {
   slotLabel,
   type ContentBundle,
   type DiceMatchAction,
+  type DiceMatchState,
   type GameEvent,
   type Intent,
   type RunAction,
@@ -11,21 +12,20 @@ import {
 } from "../../core/types";
 import { ZONE_NAMES, bestDieFor, interceptionRisk, oppInterceptionRisk, playableCards, shotEstimate, zoneOf } from "../../core/match/dice";
 import { ScorePopups } from "../components/ScorePopups";
-import { CHAIN_GLOSSARY, describeChainStatus } from "../diceUx";
+import { CHAIN_GLOSSARY, coachTipFor, describeChainStatus, type CoachTipKey } from "../diceUx";
 
 const PIPS: Record<number, string> = { 1: "⚀", 2: "⚁", 3: "⚂", 4: "⚃", 5: "⚄", 6: "⚅" };
 
-function intentText(intent: Intent, scale: number): { icon: string; text: string } {
-  const t = (n: number) => Math.round(n * scale);
+function intentText(intent: Intent): { icon: string; text: string } {
   switch (intent.kind) {
     case "attack":
-      return { icon: intent.big ? "🔥" : "⚔", text: `${intent.big ? "ALL-OUT ATTACK" : "Attack"} — ${t(intent.points)} threat` };
+      return { icon: intent.big ? "🔥" : "⚔", text: "They play it balanced — 15% base risk" };
     case "sitDeep":
-      return { icon: "🧱", text: "Sit Deep — the keeper is harder to beat this round" };
+      return { icon: "🧱", text: "They sit deep — easy to keep the ball (8% base), harder to finish (+4 DC)" };
     case "press":
-      return { icon: "✋", text: "High Press — fewer dice and cards next round" };
+      return { icon: "✋", text: "They press high — every pass is riskier (25% base)" };
     case "counter":
-      return { icon: "⚡", text: `Counter — ${t(intent.points)} threat if they win it back` };
+      return { icon: "⚡", text: "They play it balanced — 15% base risk" };
   }
 }
 
@@ -62,6 +62,8 @@ function PitchTrack({
 
 function eventLine(e: GameEvent): string | null {
   switch (e.type) {
+    case "ROUND_START":
+      return `Round ${e.round}: ${e.round % 2 === 1 ? "your" : "their"} possession.`;
     case "PASS_COMPLETED":
       return `${e.cardName}: pass ${e.passes}, +${e.chanceGained} Chance, ${Math.round(e.risked * 100)}% risk.`;
     case "OPP_PASS":
@@ -78,18 +80,21 @@ function eventLine(e: GameEvent): string | null {
       return `Shot: d20 ${e.roll} + ${e.quality} vs ${e.dc} = ${e.goal ? "goal" : "saved"}.`;
     case "OPP_SHOT":
       return `Their shot: d20 ${e.roll} + ${e.danger} vs ${e.dc} = ${e.goal ? "goal" : "saved"}.`;
+    case "GOAL_SCORED":
+      return e.goals > 0 ? `Goal for you. Score ${e.total}.` : `They score. Their total ${e.total}.`;
     case "DIE_REROLLED":
-      return `Rerolled die ${e.dieIndex + 1}: ${e.from} → ${e.to}.`;
+      return `Rerolled die ${e.dieIndex + 1}: ${e.from} -> ${e.to}.`;
+    case "PUSH_DECISION":
+      return `Full time: you lead ${e.playerGoals}-${e.oppGoals}. Bank it or push.`;
     default:
       return null;
   }
 }
 
-function MatchLog({ events }: { events: GameEvent[] }) {
-  const lines = events.map(eventLine).filter((line): line is string => line !== null).slice(-4).reverse();
+function MatchTicker({ lines }: { lines: string[] }) {
   if (lines.length === 0) return null;
   return (
-    <div className="match-log panel" data-testid="match-log">
+    <div className="match-log panel" data-testid="ticker">
       {lines.map((line, i) => (
         <div key={`${i}-${line}`} className="match-log-line">
           {line}
@@ -97,6 +102,21 @@ function MatchLog({ events }: { events: GameEvent[] }) {
       ))}
     </div>
   );
+}
+
+function coachStorageKey(key: CoachTipKey): string {
+  return `coach.${key}`;
+}
+
+function readSeenCoachKeys(): Set<CoachTipKey> {
+  if (typeof localStorage === "undefined") return new Set();
+  const keys: CoachTipKey[] = ["possession", "risk", "chance", "punt", "defense", "push"];
+  return new Set(keys.filter((key) => localStorage.getItem(coachStorageKey(key)) === "1"));
+}
+
+function persistCoachKey(key: CoachTipKey): void {
+  if (typeof localStorage === "undefined") return;
+  localStorage.setItem(coachStorageKey(key), "1");
 }
 
 function ChainGlossary() {
@@ -141,12 +161,22 @@ export function DiceMatchScreen({
   const act = (action: DiceMatchAction) => dispatch({ type: "MATCH_ACTION", action });
   const chainRef = useRef<ChainChip[]>([]);
   const [chainEntries, setChainEntries] = useState<ChainChip[]>([]);
+  const [tickerLines, setTickerLines] = useState<string[]>([]);
+  const [seenCoachKeys, setSeenCoachKeys] = useState<Set<CoachTipKey>>(() => readSeenCoachKeys());
+  const [puntPressed, setPuntPressed] = useState(false);
 
   // A fresh roll remounts the dice so they cascade in; a reroll spins the one die.
   const [rollKey, setRollKey] = useState(0);
   const [rerollFx, setRerollFx] = useState<{ i: number; lucky: boolean; n: number } | null>(null);
   const fxNonce = useRef(0);
+  const lastBatchRef = useRef<GameEvent[] | null>(null);
   useEffect(() => {
+    // StrictMode double-runs mount effects with the SAME events array; appending
+    // twice duplicated ticker/chip entries. Process each event batch exactly once.
+    if (lastBatchRef.current === events) return;
+    lastBatchRef.current = events;
+    const nextLines = events.map(eventLine).filter((line): line is string => line !== null);
+    if (nextLines.length > 0) setTickerLines((prev) => [...nextLines.reverse(), ...prev].slice(0, 8));
     if (events.some((e) => e.type === "DICE_ROLLED")) {
       fxNonce.current += 1;
       setRollKey(fxNonce.current);
@@ -177,10 +207,9 @@ export function DiceMatchScreen({
   const style = content.styles[m.opp.style];
   const coach = content.teams.find((t) => t.id === m.opp.teamId)?.coach;
   const playerName = content.teams.find((t) => t.id === run.playerTeamId)?.name ?? "You";
-  const scale = (m.mode === "extratime" ? m.bal.EXTRA_TIME_CLOCK_MULT : 1);
-  const intent = m.intent ? intentText(m.intent, scale) : null;
+  const intent = m.intent ? intentText(m.intent) : null;
   const shotNow = shotEstimate(m);
-  const dcNow = shotNow.dc;
+  const dcNow = m.keeperDC;
   const riskNow = interceptionRisk(m);
   const theirRisk = oppInterceptionRisk(m);
   const chainStatus = describeChainStatus({
@@ -195,6 +224,22 @@ export function DiceMatchScreen({
   const playable = playableCards(content.defs, m);
 
   const selVal = selectedDie !== null ? m.dice[selectedDie]?.value : undefined;
+  const coachTip = coachTipFor(
+    {
+      possession: m.possession,
+      passes: m.passes,
+      shotQuality: m.shotQuality,
+      interceptionRisk: riskNow,
+      puntPressed,
+      phase: m.phase as DiceMatchState["phase"],
+    },
+    seenCoachKeys,
+  );
+  const dismissCoachTip = (key: CoachTipKey) => {
+    persistCoachKey(key);
+    setSeenCoachKeys((prev) => new Set([...prev, key]));
+    if (key === "punt") setPuntPressed(false);
+  };
 
   const canPlay = (uid: string): boolean => {
     return playable.has(uid);
@@ -212,6 +257,9 @@ export function DiceMatchScreen({
     act({ type: "ASSIGN_DIE", uid, dieIndex });
     setSelectedDie(null);
   };
+
+  const shootDisabled = m.possession !== "you" || m.passes < 1;
+  const shootLabel = `⚽ Shoot (${Math.round(shotNow.p * 100)}%)${m.possession === "you" && m.passes < 1 ? " — make a pass first" : ""}`;
 
   return (
     <main className="board">
@@ -264,6 +312,15 @@ export function DiceMatchScreen({
         </div>
       )}
 
+      {coachTip && (
+        <div className={`coach-tip coach-tip--${coachTip.key}`} data-testid="coach-tip">
+          <span>{coachTip.text}</span>
+          <button type="button" aria-label="Dismiss coach tip" onClick={() => dismissCoachTip(coachTip.key)}>
+            ×
+          </button>
+        </div>
+      )}
+
       {m.phase === "ROUND_ACTIVE" && m.possession === "you" && (
         <div className="chain-panel panel" data-testid="chain-panel">
           <div className="chain-strip" data-testid="chain-strip">
@@ -303,7 +360,7 @@ export function DiceMatchScreen({
       )}
 
       <ChainGlossary />
-      <MatchLog events={events} />
+      <MatchTicker lines={tickerLines} />
 
       {m.phase === "PUSH_DECISION" && (
         <div className="push-modal-backdrop" data-testid="push-decision">
@@ -412,11 +469,14 @@ export function DiceMatchScreen({
               type="button"
               className="btn btn--primary"
               data-testid="shoot"
-              disabled={m.possession !== "you" || m.passes < 1 || m.shotQuality <= 0}
+              disabled={shootDisabled}
               title="Roll a d20 + Chance vs the keeper's DC"
-              onClick={() => act({ type: "SHOOT" })}
+              onClick={() => {
+                if (m.shotQuality === 0) setPuntPressed(true);
+                act({ type: "SHOOT" });
+              }}
             >
-              ⚽ Shoot ({Math.round(shotNow.p * 100)}%)
+              {shootLabel}
             </button>
             <button type="button" className="btn btn--danger" data-testid="end-round" onClick={() => act({ type: "END_ROUND" })}>
               {m.possession === "you" ? "Recycle possession" : "Stand off"}

@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { CHAIN_GLOSSARY, describeChainStatus } from "../src/ui/diceUx";
+import { CHAIN_GLOSSARY, coachTipFor, describeChainStatus } from "../src/ui/diceUx";
 
 describe("dice UX copy", () => {
   it("explains that your first pass is safe", () => {
@@ -51,6 +51,48 @@ describe("dice UX copy", () => {
       Recycle: "Recycle ends your possession safely without shooting.",
       "Stand off": "Stand off lets their next pass happen without committing a card.",
       Counter: "A counter is an instant shot after an interception.",
+    });
+  });
+});
+
+describe("coach tips", () => {
+  const baseSummary = {
+    possession: "you" as const,
+    passes: 0,
+    shotQuality: 0,
+    interceptionRisk: 0,
+    puntPressed: false,
+    phase: "ROUND_ACTIVE" as const,
+  };
+
+  it("shows the first-possession tip once", () => {
+    expect(coachTipFor(baseSummary, new Set())).toEqual({
+      key: "possession",
+      text: "Cards are passes. Each die you slot plays one — your first pass is always free.",
+    });
+    expect(coachTipFor(baseSummary, new Set(["possession"]))).toBeNull();
+  });
+
+  it("prioritizes risk, chance, punt, defense, and push triggers when unseen", () => {
+    expect(coachTipFor({ ...baseSummary, passes: 1, interceptionRisk: 0.15 }, new Set())).toEqual({
+      key: "risk",
+      text: "That % is the chance they take the ball on your NEXT pass. Lose it and you lose all banked Chance — and they counter.",
+    });
+    expect(coachTipFor({ ...baseSummary, passes: 1, shotQuality: 4 }, new Set(["risk"]))).toEqual({
+      key: "chance",
+      text: "Chance is your shot's power. Shoot spends it: d20 + Chance vs their keeper. Build it with finishers.",
+    });
+    expect(coachTipFor({ ...baseSummary, passes: 1, puntPressed: true }, new Set(["risk", "chance"]))).toEqual({
+      key: "punt",
+      text: "A punt! Long shots are priced in — work the ball closer and bank Chance for better odds.",
+    });
+    expect(coachTipFor({ ...baseSummary, possession: "them" }, new Set(["risk", "chance", "punt"]))).toEqual({
+      key: "defense",
+      text: "Their turn. Slot defenders to raise the interception % on their next pass — or stand off and let them play.",
+    });
+    expect(coachTipFor({ ...baseSummary, phase: "PUSH_DECISION" }, new Set(["risk", "chance", "punt", "defense"]))).toEqual({
+      key: "push",
+      text: "You have the win. Bank it, or gamble extra time for budget — their attacks hit 2× harder.",
     });
   });
 });

@@ -46,8 +46,9 @@ your possession; even rounds are their possession.
   pass immediately.
 - Your first completed pass in a possession is always safe. Later passes show an
   interception risk before you commit.
-- You can **shoot anytime**. Shooting spends your banked Chance against a distance
-  penalty based on where the ball is.
+- You can **shoot anytime after one completed pass**. Shooting spends your banked
+  Chance against a distance penalty based on where the ball is; 0-Chance punts are
+  legal but low percentage.
 - You can **recycle** with `END_ROUND`: end the possession safely with no shot and no
   counter.
 
@@ -70,7 +71,19 @@ Their possession mirrors the same rhythm:
 5. If they complete enough passes for their style, or reach your box, they shoot.
 
 The match UI surfaces this loop with pass chips, current/interception risk, a live
-shot estimate, and their-chain defense controls.
+shot estimate, their-chain defense controls, a persistent ticker, and one-time coach
+tips.
+
+Opponent intent copy describes your passing posture in chain mode:
+
+- Press: "They press high — every pass is riskier (25% base)"
+- Sit deep: "They sit deep — easy to keep the ball (8% base), harder to finish (+4 DC)"
+- Attack/counter: "They play it balanced — 15% base risk"
+
+The ticker keeps the latest match events visible (passes for both teams,
+interceptions, counters, shot roll math, goals/saves, and possession changes). Coach
+tips are stored as `coach.possession`, `coach.risk`, `coach.chance`, `coach.punt`,
+`coach.defense`, and `coach.push` once dismissed.
 
 ---
 
@@ -109,8 +122,11 @@ d20 + Opponent Chance >= your keeper DC + mirrored zone penalty
 ```
 
 Counter shots are one-roll chances after an interception. Your counter uses
-`COUNTER_CHANCE` plus any nation bonus; their counter uses their per-pass Chance gain
+`COUNTER_CHANCE` (1) plus any nation bonus; their counter uses their per-pass Chance gain
 and is scarier if you lost the ball in your own half.
+
+The opponent panel shows the constant keeper DC. Distance and sit-deep pressure are
+priced only into the Shoot button's live percentage.
 
 Zone penalties:
 
@@ -174,8 +190,8 @@ Through Ball, Clinical Finish x2, Poacher, Tackle x3, Clearance x2, Keeper.
 - **Brazil - "Joga Bonito":** 4 dice instead of 5, but reroll one die each round;
   opponent keeper DC +2. Flair over volume.
 - **Mexico - "La Ola":** an extra die each round; opponent keeper DC +2. Win on volume.
-- **USA - "The Press":** instant counters get +2 to the shot roll. Win the ball and
-  the counter is a real threat - counters are the identity, ~0.6 goals/match vs ~0.3
+- **USA - "The Press":** instant counters get +1 above the universal counter bonus.
+  Win the ball and the counter is a real threat - counters are the identity, ~0.6 goals/match vs ~0.4
   for others. Sits at the top of the win-rate band (~33%) as an approachable pick.
 - **Canada - "Resolute":** opponents have +4% interception risk per pass against you.
   Hard to play through; sits at the top of the win-rate band (~33%) as an approachable pick.
@@ -201,7 +217,7 @@ Your chain:
 - Risk ramp: +6% per completed pass after the first
 - Risk cap: 65%
 - Development gain: +1 Chance per completed pass
-- Counter chance: +0 before nation bonuses
+- Counter chance: +1 before nation bonuses
 - Opponent shallow counter bonus: +3 if you lose it in your half
 
 Their chain:
@@ -215,7 +231,7 @@ Their chain:
 
 Latest probe target readout:
 
-- Run wins: Brazil 23%, Mexico 23%, USA ~33%, Canada ~33% (identity picks ride the ceiling by design)
+- Run wins: Brazil 25%, Mexico 25%, USA ~33%, Canada 35% (identity picks ride the ceiling by design)
 - Passes per chain: 2.01-2.11
 - Intercepted share: 15-20%
 - Goals per match: 1.2-1.6 for you, 0.5-0.6 for opponents
@@ -226,7 +242,7 @@ Latest probe target readout:
 
 ## 9. Known rough edges
 
-- **USA/Canada ride the win-rate ceiling (~33%):** a deliberate user decision —
+- **USA/Canada ride the win-rate ceiling (USA ~33%, Canada 35%):** a deliberate user decision —
   felt nation identities (USA counter threat, Canada interception wall) were chosen
   over strict 15-25% parity. The durable fix is structural identities (like Brazil's
   4-dice reroll) instead of numeric nudges; deferred.

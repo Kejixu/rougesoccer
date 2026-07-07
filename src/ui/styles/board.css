@@ -137,6 +137,36 @@
   font-size: 24px;
 }
 
+.coach-tip {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 12px;
+  max-width: 680px;
+  padding: 10px 12px;
+  border: 1px solid rgba(217, 184, 50, 0.55);
+  border-radius: 8px;
+  background: rgba(31, 40, 28, 0.96);
+  color: var(--ink);
+  font-size: 13px;
+  line-height: 1.35;
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.24);
+}
+
+.coach-tip button {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  flex: 0 0 auto;
+  width: 24px;
+  height: 24px;
+  border: 1px solid rgba(245, 241, 227, 0.22);
+  border-radius: 6px;
+  background: rgba(245, 241, 227, 0.08);
+  color: var(--ink);
+  cursor: pointer;
+}
+
 .match-log {
   display: grid;
   gap: 4px;

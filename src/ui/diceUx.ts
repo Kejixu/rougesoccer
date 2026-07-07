@@ -23,3 +23,45 @@ export function describeChainStatus(input: {
   }
   return `Chance ${input.shotQuality} · shot ${Math.round(input.shootPct * 100)}% · next pass ${Math.round(input.riskPct * 100)}% risk.`;
 }
+
+export type CoachTipKey = "possession" | "risk" | "chance" | "punt" | "defense" | "push";
+
+export interface CoachTip {
+  key: CoachTipKey;
+  text: string;
+}
+
+export const COACH_TIPS: Record<CoachTipKey, string> = {
+  possession: "Cards are passes. Each die you slot plays one — your first pass is always free.",
+  risk: "That % is the chance they take the ball on your NEXT pass. Lose it and you lose all banked Chance — and they counter.",
+  chance: "Chance is your shot's power. Shoot spends it: d20 + Chance vs their keeper. Build it with finishers.",
+  punt: "A punt! Long shots are priced in — work the ball closer and bank Chance for better odds.",
+  defense: "Their turn. Slot defenders to raise the interception % on their next pass — or stand off and let them play.",
+  push: "You have the win. Bank it, or gamble extra time for budget — their attacks hit 2× harder.",
+};
+
+export function coachTipFor(
+  input: {
+    possession: "you" | "them";
+    passes: number;
+    shotQuality: number;
+    interceptionRisk: number;
+    puntPressed: boolean;
+    phase: "ROUND_ACTIVE" | "PUSH_DECISION" | "DONE";
+  },
+  seenKeys: ReadonlySet<CoachTipKey | string>,
+): CoachTip | null {
+  const ordered: [CoachTipKey, boolean][] = [
+    ["risk", input.interceptionRisk > 0],
+    ["chance", input.shotQuality > 0],
+    ["punt", input.puntPressed],
+    ["defense", input.possession === "them"],
+    ["push", input.phase === "PUSH_DECISION"],
+    ["possession", input.possession === "you" && input.passes === 0],
+  ];
+
+  for (const [key, active] of ordered) {
+    if (active && !seenKeys.has(key)) return { key, text: COACH_TIPS[key] };
+  }
+  return null;
+}

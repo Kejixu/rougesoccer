@@ -59,7 +59,7 @@ export const NATION_DICE_KITS: Record<string, NationDiceKit> = {
   usa: {
     identity: "The Press",
     blurb: "Hunt the ball high. Win a tackle and you spring straight into the counter.",
-    mutators: [{ kind: "counterSpring", amount: 2 }],
+    mutators: [{ kind: "counterSpring", amount: 1 }],
   },
   can: {
     identity: "Resolute",

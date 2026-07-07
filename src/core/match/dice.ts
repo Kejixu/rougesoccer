@@ -414,7 +414,6 @@ function assignDie(defs: CardDefMap, draft: DiceMatchState, uid: string, dieInde
 function shoot(defs: CardDefMap, draft: DiceMatchState, events: GameEvent[]): void {
   if (draft.possession !== "you") throw new Error("you don't have the ball");
   if (draft.passes < 1) throw new Error("work at least one pass first");
-  if (draft.shotQuality <= 0) throw new Error("no chance built - bank some Chance first");
   const { dc } = shotEstimate(draft);
   const roll = 1 + Math.floor(rand(draft) * draft.bal.DICE.SHOT_DIE);
   const goal = roll + draft.shotQuality >= dc;
