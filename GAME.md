@@ -174,11 +174,11 @@ Through Ball, Clinical Finish x2, Poacher, Tackle x3, Clearance x2, Keeper.
 - **Brazil - "Joga Bonito":** 4 dice instead of 5, but reroll one die each round;
   opponent keeper DC +2. Flair over volume.
 - **Mexico - "La Ola":** an extra die each round; opponent keeper DC +2. Win on volume.
-- **USA - "The Press":** instant counters get +0.5 to the shot roll. The edge is small
-  after tuning, but preserves the high-press identity without making counters the
-  primary scoring engine.
-- **Canada - "Resolute":** opponents have +1% interception risk against you. The edge
-  is intentionally small because larger values pushed Canada above the win-rate band.
+- **USA - "The Press":** instant counters get +2 to the shot roll. Win the ball and
+  the counter is a real threat - counters are the identity, ~0.6 goals/match vs ~0.3
+  for others. Sits at the top of the win-rate band (~33%) as an approachable pick.
+- **Canada - "Resolute":** opponents have +4% interception risk per pass against you.
+  Hard to play through; sits at the top of the win-rate band (~33%) as an approachable pick.
 
 ---
 
