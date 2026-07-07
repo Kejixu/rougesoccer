@@ -189,7 +189,7 @@ their box 16 - your box 4.
 
 Shot math:
 
-- Their keeper DC: `10 + rating * 0.14 + nation keeper delta`
+- Their keeper DC: `min(18, 10 + rating * 0.14) + nation keeper delta`
 - Your keeper DC: `15`
 - Shot die: d20
 - Sit-deep bonus to their keeper: +4
@@ -215,10 +215,10 @@ Their chain:
 
 Latest probe target readout:
 
-- Run wins: Brazil 23%, Mexico 23%, USA 25%, Canada 30%
+- Run wins: Brazil 23%, Mexico 23%, USA ~33%, Canada ~33% (identity picks ride the ceiling by design)
 - Passes per chain: 2.01-2.11
 - Intercepted share: 15-20%
-- Goals per match: 1.2-1.4 for you, 0.5-0.6 for opponents
+- Goals per match: 1.2-1.6 for you, 0.5-0.6 for opponents
 - Dead attack rounds: 0-2%
 - Stand-off-only defensive rounds: 20-25% (informational; standing off is legal)
 
@@ -226,10 +226,11 @@ Latest probe target readout:
 
 ## 9. Known rough edges
 
-- **Canada remains a little hot:** the final probe has Canada at 30% greedy run wins,
-  above the 15-25% ideal but below the 35% hard ceiling. Larger Canada identity
-  bonuses broke the ceiling; removing the identity entirely only moved the probe to
-  about 28%.
+- **USA/Canada ride the win-rate ceiling (~33%):** a deliberate user decision —
+  felt nation identities (USA counter threat, Canada interception wall) were chosen
+  over strict 15-25% parity. The durable fix is structural identities (like Brazil's
+  4-dice reroll) instead of numeric nudges; deferred.
+
 - **Chains still sit near the floor:** passes per chain are just over 2. Attempts to
   lower risk ramp did not meaningfully create 2.5-3 pass chains and pushed win rates
   around, so this ships as a conservative balance.
