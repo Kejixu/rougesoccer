@@ -633,11 +633,7 @@ export function DiceMatchScreen(props: DiceMatchScreenProps) {
                   <span className="dice-card-name">{def.name}</span>
                   {liveCombo && <span className="combo-tag card-combo">combo</span>}
                   <span className="dice-card-text">{def.levels[Math.min(c.level, def.levels.length - 1)]!.text}</span>
-                  {!defense && m.passes >= 1 && (
-                    <span className="risk-badge card-risk" data-hot={riskNow >= 0.3 ? "true" : "false"}>
-                      P{pressureNow} ({Math.round(riskNow * 100)}%)
-                    </span>
-                  )}
+                  {/* pressure is per-pass, not per-card — it lives once in the status row */}
                 </button>
               );
             })}
