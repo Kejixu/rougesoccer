@@ -33,8 +33,8 @@ export function TitleScreen({
 
       <h2>New campaign</h2>
       <p style={{ color: "var(--ink-dim)", fontSize: 13 }}>
-        Momentum Duel: each round you slot dice into Build-Up, Chance, and Cover.
-        Resolve the duel, reach the box, then shoot.
+        Possession chains: your dice are the energy — drag them onto passes, build a
+        chance, and shoot before the defense takes it off you.
       </p>
       <div style={{ display: "flex", gap: 12, flexWrap: "wrap" }}>
         {PLAYABLE_TEAM_IDS.map((id) => {
