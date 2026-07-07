@@ -988,13 +988,14 @@
 }
 
 .die {
-  width: 52px;
-  height: 52px;
-  border-radius: 12px;
+  width: 62px;
+  height: 62px;
+  border-radius: 14px;
   border: 2px solid #cdd4ce;
-  background: linear-gradient(160deg, #f6f3ea, #d9d3c4);
+  background: linear-gradient(160deg, #fdfaf1 0%, #f6f3ea 45%, #d9d3c4 100%);
+  box-shadow: 0 3px 8px rgba(0, 0, 0, 0.35), inset 0 1px 0 rgba(255, 255, 255, 0.8);
   color: #1c2520;
-  cursor: pointer;
+  cursor: grab;
   display: flex;
   flex-direction: column;
   align-items: center;
