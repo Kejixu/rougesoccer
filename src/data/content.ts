@@ -63,8 +63,8 @@ export const NATION_DICE_KITS: Record<string, NationDiceKit> = {
   },
   can: {
     identity: "Resolute",
-    blurb: "Hard to break down. Opponents claw forward a step at a time against you.",
-    mutators: [{ kind: "oppAdvanceDelta", amount: -2 }],
+    blurb: "Hard to play through. Opponents misplace more passes against you.",
+    mutators: [{ kind: "oppRiskDelta", amount: 0.06 }],
   },
 };
 

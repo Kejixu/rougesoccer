@@ -113,14 +113,13 @@ export type DieSlot =
   | { kind: "parity"; even: boolean };
 
 export type DiceEffect =
-  | { kind: "progress"; amount: number } // push the ball toward their goal
+  | { kind: "progress"; amount: number } // move the ball toward their goal now
   | { kind: "progressFromDie" } // progress equal to the slotted die's value
-  | { kind: "advance"; zones: number } // jump zones directly
-  | { kind: "shotQuality"; amount: number; minZone?: number } // banked chance quality
-  | { kind: "shotQualityFromDie"; minZone?: number }
-  | { kind: "winPossession" } // tackle: flip the ball to you where it is
-  | { kind: "pushBack"; steps: number } // shove the ball up-pitch, they keep it
-  | { kind: "clearance" } // boot the ball back to midfield, they keep it
+  | { kind: "shotQuality"; amount: number } // grow the chain's banked Chance
+  | { kind: "shotQualityFromDie" }
+  | { kind: "safePass"; amount: number } // recycle: lower your NEXT interception check
+  | { kind: "setupNext"; bonus: number } // the next chance effect gains +bonus
+  | { kind: "defend"; amount: number } // their possession: raise their interception risk
   | { kind: "draw"; amount: number };
 
 /** Does a rolled die value satisfy a card's slot requirement? */
@@ -142,14 +141,14 @@ export function dieFitsSlot(value: number, slot: DieSlot): boolean {
 // ---------- nation dice mutators (the variety hook) ----------
 // Each playable nation bends a dice rule. Setup-time mutators (poolDelta,
 // keeperDcDelta) apply once; rerollDie grants a per-round action;
-// oppAdvanceDelta slows their advance; counterSpring springs the ball forward on a tackle.
+// oppRiskDelta makes their passes easier to pick; counterSpring boosts your instant counters.
 
 export type DiceMutator =
   | { kind: "rerollDie"; perRound: number } // Brazil: opt-in single-die reroll
   | { kind: "keeperDcDelta"; amount: number } // raises THEIR keeper (harder for you to score)
   | { kind: "poolDelta"; amount: number } // Mexico +1 die / Brazil -1
-  | { kind: "oppAdvanceDelta"; amount: number } // Canada: negative = they advance fewer steps
-  | { kind: "counterSpring"; amount: number }; // USA: won tackle springs the ball forward
+  | { kind: "oppRiskDelta"; amount: number } // Canada: their passes are riskier
+  | { kind: "counterSpring"; amount: number }; // USA: bonus on your instant counter shot
 
 export interface NationDiceKit {
   identity: string; // "Joga Bonito"
@@ -351,6 +350,7 @@ export type GameEvent =
   // ---- dice mode ----
   | { type: "DICE_ROLLED"; dice: number[] }
   | { type: "DIE_ASSIGNED"; uid: string; die: number }
+  // Legacy UI-only variants retained until the Task 3 UI rewrite removes old lane popups.
   | { type: "LANE_COMMITTED"; uid: string; cardName: string; die: number; buildUp: number; chance: number; cover: number }
   | {
       type: "DUEL_RESOLVED";
@@ -365,11 +365,13 @@ export type GameEvent =
       gotThrough: number;
       shotQualityGained: number;
     }
+  | { type: "PASS_COMPLETED"; uid: string; cardName: string; passes: number; chanceGained: number; shotQuality: number; risked: number }
+  | { type: "CHAIN_INTERCEPTED"; byYou: boolean; passes: number; chanceLost: number }
+  | { type: "COUNTER_SHOT"; byYou: boolean; roll: number; bonus: number; dc: number; goal: boolean }
+  | { type: "OPP_PASS"; passes: number; oppChance: number; risk: number }
+  | { type: "DEFENSE_COMMITTED"; uid: string; cardName: string; die: number; amount: number; total: number }
   | { type: "DIE_REROLLED"; dieIndex: number; from: number; to: number }
-  | { type: "POSSESSION_WON" }
-  | { type: "POSSESSION_LOST" }
   | { type: "BALL_MOVED"; ball: number; toward: "yours" | "theirs" }
-  | { type: "BALL_CLEARED"; ball: number }
   | { type: "OPP_SHOT"; roll: number; danger: number; dc: number; goal: boolean }
   | { type: "SHOT_TAKEN"; roll: number; dc: number; quality: number; goal: boolean }
   | { type: "CARD_FATIGUED"; uids: string[] }
@@ -408,9 +410,12 @@ export interface DiceMatchState {
   ball: number; // 0 = your goal, bal.DICE.PITCH_LEN = their goal
   possession: "you" | "them";
   ownKeeperDC: number; // their shots roll vs this
-  buildUp: number; // current-round lane total that moves the ball on resolution
-  chance: number; // current-round lane total that becomes shot quality on resolution
-  cover: number; // current-round lane total that reduces opponent pressure
+  passes: number; // completed passes in your current chain
+  nextChanceBonus: number; // banked by setupNext, consumed by the next chance effect
+  nextRiskDelta: number; // banked by safePass, consumed by your next interception check
+  defenseCommit: number; // risk you've committed against THEIR chain this possession
+  oppPasses: number;
+  oppChance: number;
   shotQuality: number;
   playerGoals: number;
   oppGoals: number;

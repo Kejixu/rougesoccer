@@ -1,7 +1,7 @@
 // Every tunable number in the game. The active values live in src/data/balance.ts
 // (so the sim harness can sweep them); core only defines the shape and defaults.
 
-import type { Stage } from "./types";
+import type { Stage, StyleId } from "./types";
 
 export interface RarityWeights {
   common: number;
@@ -65,21 +65,33 @@ export interface BalanceConfig {
     POOL_SIZE: number;
     DIE_FACES: number;
     HAND_SIZE: number;
-    PITCH_LEN: number;        // 0 = your goal, PITCH_LEN = their goal
-    MIDFIELD: number;         // kickoff / neutral center
-    ZONE_WIDTH: number;       // 5 zones of this width, for UI + finish gating
-    THEIR_BOX: number;        // ball >= this in your possession -> you may shoot
-    YOUR_BOX: number;         // ball <= this in their possession -> they shoot
-    STEAL_LINE: number;       // hold the ball when pressed only if ball >= this
-    KEEPER_DC_BASE: number;   // their keeper, your shots roll vs it
+    PITCH_LEN: number;          // 0 = your goal, PITCH_LEN = their goal
+    MIDFIELD: number;
+    ZONE_WIDTH: number;         // 5 zones, for zoneOf + DC penalty
+    THEIR_BOX: number;
+    YOUR_BOX: number;
+    KEEPER_DC_BASE: number;
     KEEPER_DC_PER_RATING: number;
-    OWN_KEEPER_DC_BASE: number; // your keeper, their shots roll vs it
-    SHOT_DIE: number;         // d20
-    BUILD_UP_SCALE: number;   // build-up lane points -> pitch steps
-    OPP_ADVANCE_SCALE: number; // intent points -> ball steps toward your goal
-    OPP_DANGER_PER_RATING: number; // their shot quality vs your keeper
-    DANGER_CAP: number; // max opp danger bonus, so d20+danger stays a contest vs ownKeeperDC
-    SIT_DEEP_DC_BONUS: number;
+    OWN_KEEPER_DC_BASE: number;
+    SHOT_DIE: number;           // d20
+    SIT_DEEP_DC_BONUS: number;  // sitDeep posture also hardens their keeper
+    // ---- your chain ----
+    RISK_BASE_PRESS: number;    // their press posture: base interception risk
+    RISK_BASE_BALANCED: number;
+    RISK_BASE_DEEP: number;     // sitDeep posture: easy to keep the ball
+    RISK_RAMP: number;          // added per pass beyond the first
+    RISK_CAP: number;
+    DEVELOPMENT_GAIN: number;   // each chance effect gains +passes * this
+    ZONE_DC_PENALTY: number[];  // indexed by zoneOf(ball): [yourBox, yourThird, mid, theirThird, theirBox]
+    COUNTER_CHANCE: number;     // your instant-counter shot bonus
+    COUNTER_SHALLOW_BONUS: number; // their counter is scarier if you lost it in your half
+    // ---- their chain ----
+    OPP_RISK_BASE: number;      // their base interception risk per pass
+    OPP_RISK_RAMP: number;
+    OPP_PASS_ADVANCE: number;   // ball steps toward your goal per completed opp pass
+    OPP_CHANCE_PER_RATING: number; // their per-pass chance gain = round(rating * this)
+    OPP_CHANCE_CAP: number;     // per-pass gain cap
+    OPP_CHAIN_TARGET: Record<StyleId, number>; // passes they want before shooting
   };
 }
 
@@ -95,7 +107,7 @@ export const DEFAULT_BALANCE: BalanceConfig = {
   MAX_DEFEND_CARDS: 2,
   MAX_DEPLOYED: 3,
   FORM_CAP: 10,
-  MATCH_ROUNDS: 5,
+  MATCH_ROUNDS: 6,
   CLOCK_FLOOR_RATIO: 0.45,
   EXTRA_TIME_CLOCK_MULT: 2.0,
   MAX_EXTRA_ROUNDS: 2,
@@ -160,18 +172,25 @@ export const DEFAULT_BALANCE: BalanceConfig = {
     ZONE_WIDTH: 4,
     THEIR_BOX: 16,
     YOUR_BOX: 4,
-    STEAL_LINE: 12,
     KEEPER_DC_BASE: 9,
     KEEPER_DC_PER_RATING: 0.14,
     OWN_KEEPER_DC_BASE: 14,
     SHOT_DIE: 20,
-    BUILD_UP_SCALE: 0.65,
-    // Opponent pressure is strong enough to reach your third/box and force concedes
-    // (real defensive territory). Safe to be this high because your shot now fires at
-    // duel resolution BEFORE pressure, so pushback no longer pre-empts your chances.
-    OPP_ADVANCE_SCALE: 0.34,
-    OPP_DANGER_PER_RATING: 0.08,
-    DANGER_CAP: 6,
     SIT_DEEP_DC_BONUS: 4,
+    RISK_BASE_PRESS: 0.25,
+    RISK_BASE_BALANCED: 0.15,
+    RISK_BASE_DEEP: 0.08,
+    RISK_RAMP: 0.06,
+    RISK_CAP: 0.65,
+    DEVELOPMENT_GAIN: 1,
+    ZONE_DC_PENALTY: [6, 6, 6, 3, 0],
+    COUNTER_CHANCE: 4,
+    COUNTER_SHALLOW_BONUS: 3,
+    OPP_RISK_BASE: 0.12,
+    OPP_RISK_RAMP: 0.05,
+    OPP_PASS_ADVANCE: 2,
+    OPP_CHANCE_PER_RATING: 0.08,
+    OPP_CHANCE_CAP: 6,
+    OPP_CHAIN_TARGET: { balanced: 3, possession: 4, flair: 4, fortress: 2, counter: 2, highpress: 3 },
   },
 };

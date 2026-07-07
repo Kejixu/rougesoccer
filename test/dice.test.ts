@@ -1,7 +1,14 @@
-// Dice mode: roll determinism, slot fit, pitch advance, shot roll, opponent.
+// Dice mode: roll determinism, slot fit, possession chains, shots, opponent chain.
 
 import { describe, expect, it } from "vitest";
-import { applyDiceAction, createDiceMatch, playableCards } from "../src/core/match/dice";
+import {
+  applyDiceAction,
+  createDiceMatch,
+  interceptionRisk,
+  oppInterceptionRisk,
+  playableCards,
+  shotEstimate,
+} from "../src/core/match/dice";
 import { seedRng } from "../src/core/rng";
 import { DEFAULT_BALANCE } from "../src/core/balance";
 import { dieFitsSlot } from "../src/core/types";
@@ -64,180 +71,203 @@ describe("dice roll", () => {
     expect(a.dice.map((d) => d.value)).toEqual(b.dice.map((d) => d.value));
   });
 
-  it("starts at midfield with no shot quality", () => {
+  it("starts at midfield with no shot quality and an empty chain", () => {
     const m = start(["d_shortpass"]);
     expect(m.ball).toBe(DEFAULT_BALANCE.DICE.MIDFIELD);
     expect(m.possession).toBe("you");
     expect(m.shotQuality).toBe(0);
+    expect(m.passes).toBe(0);
+    expect(m.oppPasses).toBe(0);
   });
 });
 
 describe("slotting dice", () => {
-  it("Short Pass puts the die value into build-up instead of moving immediately", () => {
-    let m = start(["d_shortpass", "d_shortpass", "d_shortpass", "d_shortpass", "d_shortpass"]);
-    m = {
-      ...m,
-      ball: DEFAULT_BALANCE.DICE.MIDFIELD,
-      dice: [{ value: 5, used: false }],
-      hand: [inst("d_shortpass", 0)],
-    };
-    const before = m.ball;
-    m = playWith(m, "d_shortpass");
-    const used = m.dice.filter((d) => d.used).length;
-    expect(used).toBe(1);
-    expect(m.ball).toBe(before);
-    expect(m.buildUp).toBe(5);
-  });
-
-  it("emits a lane commit event explaining what the played card changed", () => {
-    let m = start(["d_shortpass"]);
-    m = {
-      ...m,
-      dice: [{ value: 5, used: false }],
-      hand: [inst("d_shortpass", 0)],
-    };
-    const step = applyDiceAction(DICE_CARD_MAP, m, { type: "ASSIGN_DIE", uid: m.hand[0]!.uid, dieIndex: 0 });
-    const commit = step.events.find((e) => e.type === "LANE_COMMITTED");
-    expect(commit).toMatchObject({
-      type: "LANE_COMMITTED",
-      cardName: "Short Pass",
-      die: 5,
-      buildUp: 5,
-      chance: 0,
-      cover: 0,
-    });
-  });
-
   it("a die that doesn't fit the slot is rejected", () => {
-    const m = start(["d_finish", "d_finish", "d_finish", "d_finish", "d_finish"]);
+    const m = start(["d_finish", "d_finish", "d_finish", "d_finish", "d_finish"], "fit-low");
     const lowDie = m.dice.findIndex((d) => d.value < 5);
-    if (lowDie >= 0) {
-      const card = m.hand[0]!;
-      expect(() =>
-        applyDiceAction(DICE_CARD_MAP, m, { type: "ASSIGN_DIE", uid: card.uid, dieIndex: lowDie }),
-      ).toThrow(/doesn't fit/);
-    }
+    expect(lowDie).toBeGreaterThanOrEqual(0);
+    const card = m.hand[0]!;
+    expect(() => applyDiceAction(DICE_CARD_MAP, m, { type: "ASSIGN_DIE", uid: card.uid, dieIndex: lowDie })).toThrow(
+      /doesn't fit/,
+    );
   });
 
-  it("playableCards reflects which cards have a fitting die", () => {
-    const m = start(["d_tackle", "d_finish", "d_shortpass", "d_clearance", "d_poacher"]);
+  it("playableCards reflects die fit and possession role", () => {
+    const m = start(["d_tackle", "d_finish", "d_shortpass", "d_clearance", "d_poacher"], "playable");
     const playable = playableCards(DICE_CARD_MAP, m);
-    // Short Pass needs a 2+; it's playable iff some unused die is 2 or more AND we have possession
     const sp = m.hand.find((c) => c.defId === "d_shortpass")!;
+    const tackle = m.hand.find((c) => c.defId === "d_tackle")!;
     const hasMid = m.dice.some((d) => !d.used && d.value >= 2);
-    // We start with possession="you", shortpass is an attack card, so roleOk = true
     expect(playable.has(sp.uid)).toBe(hasMid);
+    expect(playable.has(tackle.uid)).toBe(false);
   });
 });
 
-describe("tug-of-war", () => {
-  it("starts at midfield in your possession", () => {
-    const m = start(["d_shortpass"]);
-    expect(m.ball).toBe(DEFAULT_BALANCE.DICE.MIDFIELD);
-    expect(m.possession).toBe("you");
-    expect(m.shotQuality).toBe(0);
+describe("your chain", () => {
+  it("the first pass is always safe and resolves immediately", () => {
+    let m = start(["d_shortpass", "d_shortpass", "d_shortpass", "d_shortpass"], "chain1");
+    m = { ...m, dice: [{ value: 4, used: false }], hand: [inst("d_shortpass", 0)] };
+    const step = applyDiceAction(DICE_CARD_MAP, m, { type: "ASSIGN_DIE", uid: m.hand[0]!.uid, dieIndex: 0 });
+    const pass = step.events.find((e) => e.type === "PASS_COMPLETED");
+    expect(pass).toMatchObject({ type: "PASS_COMPLETED", passes: 1, risked: 0 });
+    expect(step.state.ball).toBe(DEFAULT_BALANCE.DICE.MIDFIELD + 4);
+    expect(step.state.passes).toBe(1);
   });
 
-  it("end round converts build-up score into scaled pitch position and chance into shot quality", () => {
-    let m = start(Array.from({ length: 6 }, () => "d_shortpass"), "adv");
+  it("interceptionRisk is 0 before the first pass, then base + ramp", () => {
+    let m = start(["d_shortpass"], "risk");
+    m = { ...m, intent: { kind: "press" }, passes: 0 };
+    expect(interceptionRisk(m)).toBe(0);
+    m = { ...m, passes: 1 };
+    expect(interceptionRisk(m)).toBeCloseTo(DEFAULT_BALANCE.DICE.RISK_BASE_PRESS, 5);
+    m = { ...m, passes: 3 };
+    expect(interceptionRisk(m)).toBeCloseTo(
+      DEFAULT_BALANCE.DICE.RISK_BASE_PRESS + 2 * DEFAULT_BALANCE.DICE.RISK_RAMP,
+      5,
+    );
+  });
+
+  it("chance effects grow with development: later passes are worth more", () => {
+    let m = start(["d_poacher"], "dev");
     m = {
       ...m,
-      ball: DEFAULT_BALANCE.DICE.MIDFIELD,
-      dice: [
-        { value: 6, used: false },
-        { value: 4, used: false },
-      ],
-      hand: [inst("d_shortpass", 0), inst("d_cross", 1)],
+      passes: 3,
+      nextChanceBonus: 0,
       intent: { kind: "sitDeep", amount: 1 },
+      rng: seedRng("survive-poacher"),
+      dice: [{ value: 2, used: false }],
+      hand: [inst("d_poacher", 0)],
+    };
+    const before = m.shotQuality;
+    const after = applyDiceAction(DICE_CARD_MAP, m, { type: "ASSIGN_DIE", uid: m.hand[0]!.uid, dieIndex: 0 }).state;
+    expect(after.passes).toBe(4);
+    expect(after.shotQuality - before).toBe(5 + 3 * DEFAULT_BALANCE.DICE.DEVELOPMENT_GAIN);
+  });
+
+  it("setupNext banks a bonus for the next chance effect", () => {
+    let m = start(["d_throughball", "d_poacher"], "setup");
+    m = {
+      ...m,
+      passes: 0,
+      intent: { kind: "sitDeep", amount: 1 },
+      rng: seedRng("setup-survive"),
+      dice: [
+        { value: 5, used: false },
+        { value: 2, used: false },
+      ],
+      hand: [inst("d_throughball", 0), inst("d_poacher", 1)],
     };
     m = applyDiceAction(DICE_CARD_MAP, m, { type: "ASSIGN_DIE", uid: m.hand[0]!.uid, dieIndex: 0 }).state;
-    m = applyDiceAction(DICE_CARD_MAP, m, { type: "ASSIGN_DIE", uid: m.hand[0]!.uid, dieIndex: 1 }).state;
-    m = applyDiceAction(DICE_CARD_MAP, m, { type: "END_ROUND" }).state;
-    expect(m.ball).toBe(14);
-    expect(m.shotQuality).toBe(4);
+    expect(m.nextChanceBonus).toBe(4);
+    expect(interceptionRisk(m)).toBeLessThan(1);
+    const sq = m.shotQuality;
+    const after = applyDiceAction(DICE_CARD_MAP, m, { type: "ASSIGN_DIE", uid: m.hand[0]!.uid, dieIndex: 1 }).state;
+    expect(after.passes).toBe(2);
+    expect(after.shotQuality - sq).toBe(5 + 4 + 1 * DEFAULT_BALANCE.DICE.DEVELOPMENT_GAIN);
+    expect(after.nextChanceBonus).toBe(0);
   });
 
-  it("emits a duel resolution event explaining movement, chance, and absorbed pressure", () => {
-    let m = start(["d_shortpass"], "duel-log");
-    m = {
-      ...m,
-      ball: DEFAULT_BALANCE.DICE.MIDFIELD,
-      buildUp: 6,
-      chance: 4,
-      cover: 5,
-      intent: { kind: "attack", points: 12 },
-    };
+  it("you can shoot from midfield at a punt penalty; from the box at none", () => {
+    let m = start(["d_shortpass"], "zones");
+    m = { ...m, passes: 1, shotQuality: 4, ball: DEFAULT_BALANCE.DICE.MIDFIELD, intent: null };
+    expect(shotEstimate(m).dc).toBe(m.keeperDC + 6);
+    m = { ...m, ball: DEFAULT_BALANCE.DICE.THEIR_BOX };
+    expect(shotEstimate(m).dc).toBe(m.keeperDC);
+    const step = applyDiceAction(DICE_CARD_MAP, m, { type: "SHOOT" });
+    expect(step.events.some((e) => e.type === "SHOT_TAKEN")).toBe(true);
+    expect(step.state.round).toBeGreaterThan(m.round);
+  });
+
+  it("an interception loses the whole banked chance and triggers their counter", () => {
+    const base = start(["d_shortpass"], "picked");
+    let sawInterception = false;
+    for (const seed of ["a", "b", "c", "d", "e", "f", "g"]) {
+      const fresh = {
+        ...base,
+        passes: 4,
+        shotQuality: 9,
+        intent: { kind: "press" as const },
+        nextRiskDelta: 10,
+        rng: seedRng(seed),
+        dice: [{ value: 4, used: false }],
+        hand: [inst("d_shortpass", 0)],
+      };
+      const step = applyDiceAction(DICE_CARD_MAP, fresh, { type: "ASSIGN_DIE", uid: fresh.hand[0]!.uid, dieIndex: 0 });
+      const picked = step.events.find((e) => e.type === "CHAIN_INTERCEPTED");
+      if (picked) {
+        sawInterception = true;
+        expect(picked).toMatchObject({ byYou: false, chanceLost: 9 });
+        expect(step.events.some((e) => e.type === "COUNTER_SHOT" && !e.byYou)).toBe(true);
+        expect(step.state.shotQuality).toBe(0);
+        expect(step.state.round).toBeGreaterThan(base.round);
+        break;
+      }
+    }
+    expect(sawInterception).toBe(true);
+  });
+
+  it("END_ROUND recycles safely: possession ends, no shot, no counter", () => {
+    let m = start(["d_shortpass"], "recycle");
+    m = { ...m, passes: 2, shotQuality: 5 };
     const step = applyDiceAction(DICE_CARD_MAP, m, { type: "END_ROUND" });
-    const resolved = step.events.find((e) => e.type === "DUEL_RESOLVED");
-    expect(resolved).toMatchObject({
-      type: "DUEL_RESOLVED",
-      buildUp: 6,
-      chance: 4,
-      cover: 5,
-      ballFrom: 10,
-      ballAfterBuildUp: 14,
-      pressure: 12,
-      absorbed: 5,
-      gotThrough: 7,
-    });
-  });
-
-  it("opponent pressure can move the ball toward your goal even when you start with initiative", () => {
-    let m = start(["d_shortpass"], "initiative-pressure");
-    m = {
-      ...m,
-      ball: DEFAULT_BALANCE.DICE.MIDFIELD,
-      possession: "you",
-      buildUp: 0,
-      cover: 0,
-      intent: { kind: "attack", points: 12 },
-    };
-    m = applyDiceAction(DICE_CARD_MAP, m, { type: "END_ROUND" }).state;
-    expect(m.ball).toBeLessThan(DEFAULT_BALANCE.DICE.MIDFIELD);
-    expect(m.possession).toBe("them");
-  });
-
-  it("you cannot shoot until the ball reaches their box", () => {
-    const m = start(["d_finish"]);
-    expect(m.ball).toBeLessThan(DEFAULT_BALANCE.DICE.THEIR_BOX);
-    expect(() => applyDiceAction(DICE_CARD_MAP, m, { type: "SHOOT" })).toThrow();
+    expect(step.events.some((e) => e.type === "CHAIN_INTERCEPTED" || e.type === "SHOT_TAKEN")).toBe(false);
+    expect(step.state.round).toBeGreaterThan(m.round);
   });
 });
 
-describe("advancing and shooting", () => {
-  it("build-up into the box with a banked chance fires the shot during the duel", () => {
-    let m = start(["d_shortpass"], "advance");
-    m = {
-      ...m,
-      ball: 15,
-      buildUp: 3,
-      chance: 4,
-      intent: { kind: "sitDeep", amount: 1 },
-    };
-    const step = applyDiceAction(DICE_CARD_MAP, m, { type: "END_ROUND" });
-    // reaching the box with a chance IS the shot opportunity — it fires before any
-    // opponent pushback, then the ball restarts from midfield with no leftover quality
-    expect(step.events.some((e) => e.type === "SHOT_TAKEN")).toBe(true);
-    expect(step.state.ball).toBe(DEFAULT_BALANCE.DICE.MIDFIELD);
-    expect(step.state.shotQuality).toBe(0);
+describe("their chain", () => {
+  function theirRound(defIds: string[], seed = "def"): DiceMatchState {
+    let m = start(defIds, seed);
+    m = applyDiceAction(DICE_CARD_MAP, m, { type: "END_ROUND" }).state;
+    expect(m.possession).toBe("them");
+    return m;
+  }
+
+  it("possession alternates: round 1 yours, round 2 theirs", () => {
+    const m = theirRound(["d_tackle", "d_tackle", "d_tackle", "d_tackle"]);
+    expect(m.round).toBe(2);
+    expect(m.oppPasses).toBe(0);
   });
 
-  it("a shot with no quality is rejected", () => {
-    let m = start(Array.from({ length: 12 }, () => "d_shortpass"), "noq");
-    // advance to box without any shot quality
-    for (let guard = 0; guard < 40 && m.phase === "ROUND_ACTIVE" && (m.ball < DEFAULT_BALANCE.DICE.THEIR_BOX || m.possession !== "you"); guard++) {
-      const card = m.hand.find((c) => {
-        const def = DICE_CARD_MAP[c.defId];
-        if (!def?.slot) return false;
-        const slot = def.slot;
-        return m.possession === "you" && m.dice.some((d) => !d.used && dieFitsSlot(d.value, slot));
-      });
-      if (card) m = playWith(m, card.defId);
-      else m = applyDiceAction(DICE_CARD_MAP, m, { type: "END_ROUND" }).state;
+  it("standing off lets their chain advance one pass", () => {
+    const m = theirRound(["d_tackle", "d_tackle", "d_tackle", "d_tackle"], "standoff");
+    const step = applyDiceAction(DICE_CARD_MAP, m, { type: "END_ROUND" });
+    const advanced = step.events.some((e) => e.type === "OPP_PASS");
+    const picked = step.events.some((e) => e.type === "CHAIN_INTERCEPTED" && e.byYou);
+    expect(advanced || picked).toBe(true);
+    if (advanced) expect(step.state.ball).toBeLessThan(m.ball);
+  });
+
+  it("committing a defensive card raises their risk and their next pass happens", () => {
+    let m = theirRound(["d_tackle", "d_tackle", "d_tackle", "d_tackle"], "commit");
+    m = { ...m, dice: [{ value: 2, used: false }], hand: [inst("d_tackle", 0)] };
+    const step = applyDiceAction(DICE_CARD_MAP, m, { type: "ASSIGN_DIE", uid: m.hand[0]!.uid, dieIndex: 0 });
+    const committed = step.events.find((e) => e.type === "DEFENSE_COMMITTED");
+    expect(committed).toMatchObject({ type: "DEFENSE_COMMITTED", amount: 0.18, total: 0.18 });
+    expect(step.events.some((e) => e.type === "OPP_PASS" || e.type === "CHAIN_INTERCEPTED")).toBe(true);
+  });
+
+  it("attack cards cannot be played on their possession", () => {
+    const m = theirRound(["d_shortpass", "d_shortpass", "d_shortpass", "d_shortpass"], "wrongrole");
+    const playable = playableCards(DICE_CARD_MAP, m);
+    expect(playable.size).toBe(0);
+    expect(() => applyDiceAction(DICE_CARD_MAP, m, { type: "ASSIGN_DIE", uid: m.hand[0]!.uid, dieIndex: 0 })).toThrow();
+  });
+
+  it("winning the interception gives you an instant counter shot", () => {
+    let saw = false;
+    for (const seed of ["c1", "c2", "c3", "c4", "c5", "c6"]) {
+      let m = theirRound(["d_tackle", "d_tackle", "d_tackle", "d_tackle"], seed);
+      m = { ...m, defenseCommit: 0.9 };
+      const step = applyDiceAction(DICE_CARD_MAP, m, { type: "END_ROUND" });
+      const counter = step.events.find((e) => e.type === "COUNTER_SHOT");
+      if (counter) {
+        saw = true;
+        expect(counter).toMatchObject({ byYou: true });
+        break;
+      }
     }
-    if (m.ball >= DEFAULT_BALANCE.DICE.THEIR_BOX && m.possession === "you") {
-      expect(() => applyDiceAction(DICE_CARD_MAP, m, { type: "SHOOT" })).toThrow(/shot quality/);
-    }
+    expect(saw).toBe(true);
   });
 });
 
@@ -250,7 +280,6 @@ describe("nation mutators", () => {
     const before = m.dice[0]!.value;
     m = applyDiceAction(DICE_CARD_MAP, m, { type: "REROLL_DIE", dieIndex: 0 }).state;
     expect(m.rerollDieLeft).toBe(0);
-    // the die was redrawn from the seeded stream (value may or may not differ, but budget spent)
     expect(typeof m.dice[0]!.value).toBe("number");
     void before;
     expect(() => applyDiceAction(DICE_CARD_MAP, m, { type: "REROLL_DIE", dieIndex: 1 })).toThrow(/no rerolls/);
@@ -267,27 +296,20 @@ describe("nation mutators", () => {
     expect(mex.dice).toHaveLength(DEFAULT_BALANCE.DICE.POOL_SIZE + 1);
   });
 
-  it("USA counterSpring adds build-up when a tackle is committed", () => {
-    let m = start(["d_tackle", "d_tackle", "d_tackle", "d_tackle"], "def", [{ kind: "counterSpring", amount: 4 }]);
-    m = { ...m, possession: "them", ball: 6 };
-    const idx = m.dice.findIndex((d) => !d.used && d.value <= 2);
-    expect(idx).toBeGreaterThanOrEqual(0); // seed must roll a qualifying die or the test is vacuous
-    if (idx >= 0) {
-      m = applyDiceAction(DICE_CARD_MAP, m, { type: "ASSIGN_DIE", uid: m.hand[0]!.uid, dieIndex: idx }).state;
-      expect(m.buildUp).toBe(4);
-      expect(m.cover).toBeGreaterThan(0);
-      expect(m.ball).toBe(6);
-    }
+  it("USA counterSpring improves your instant counter shot", () => {
+    let m = start(["d_tackle", "d_tackle", "d_tackle", "d_tackle"], "usa", [{ kind: "counterSpring", amount: 3 }]);
+    m = applyDiceAction(DICE_CARD_MAP, m, { type: "END_ROUND" }).state;
+    expect(m.possession).toBe("them");
+    m = { ...m, defenseCommit: 0.9, rng: seedRng("usa-counter") };
+    const step = applyDiceAction(DICE_CARD_MAP, m, { type: "END_ROUND" });
+    const counter = step.events.find((e) => e.type === "COUNTER_SHOT");
+    expect(counter).toMatchObject({ byYou: true, bonus: DEFAULT_BALANCE.DICE.COUNTER_CHANCE + 3 });
   });
 
-  it("Canada oppAdvanceDelta: opponents advance fewer steps", () => {
-    const plainSteps = (delta: number) => {
-      let m = start(["d_clearance"], "can", delta ? [{ kind: "oppAdvanceDelta", amount: delta }] : []);
-      m = { ...m, possession: "them", ball: 12, intent: { kind: "attack", points: 12 } };
-      const after = applyDiceAction(DICE_CARD_MAP, m, { type: "END_ROUND" }).state;
-      return 12 - after.ball;
-    };
-    expect(plainSteps(-2)).toBeLessThan(plainSteps(0));
+  it("Canada oppRiskDelta: opponents misplace more passes", () => {
+    const plain = start(["d_clearance"], "can");
+    const canada = start(["d_clearance"], "can", [{ kind: "oppRiskDelta", amount: 0.06 }]);
+    expect(oppInterceptionRisk(canada)).toBeCloseTo(oppInterceptionRisk(plain) + 0.06, 5);
   });
 
   it("a used die cannot be rerolled", () => {
@@ -296,70 +318,28 @@ describe("nation mutators", () => {
     ]);
     const slot = DICE_CARD_MAP["d_shortpass"]!.slot!;
     const dieIndex = m.dice.findIndex((d) => dieFitsSlot(d.value, slot));
+    expect(dieIndex).toBeGreaterThanOrEqual(0);
     m = applyDiceAction(DICE_CARD_MAP, m, { type: "ASSIGN_DIE", uid: m.hand[0]!.uid, dieIndex }).state;
     expect(() => applyDiceAction(DICE_CARD_MAP, m, { type: "REROLL_DIE", dieIndex })).toThrow(/already used/);
   });
 });
 
-describe("defending", () => {
-  function defendingState(defIds: string[], seed = "def") {
-    let m = start(defIds, seed);
-    m = { ...m, possession: "them", ball: 6 }; // they have it, near your third
-    return m;
-  }
-
-  it("defensive cover reduces opponent pressure when the round resolves", () => {
-    let m = defendingState(["d_tackle", "d_tackle", "d_tackle", "d_tackle"]);
-    m = {
-      ...m,
-      ball: 5,
-      dice: [{ value: 2, used: false }],
-      hand: [inst("d_tackle", 0)],
-      intent: { kind: "attack", points: 12 },
-    };
-    m = applyDiceAction(DICE_CARD_MAP, m, { type: "ASSIGN_DIE", uid: m.hand[0]!.uid, dieIndex: 0 }).state;
-    m = applyDiceAction(DICE_CARD_MAP, m, { type: "END_ROUND" }).state;
-    expect(m.oppGoals).toBe(0);
-    expect(m.ball).toBeGreaterThan(DEFAULT_BALANCE.DICE.YOUR_BOX);
-  });
-
-  it("a Clearance commits cover without moving the ball immediately", () => {
-    let m = defendingState(["d_clearance", "d_clearance", "d_clearance", "d_clearance"]);
-    const idx = m.dice.findIndex((d) => !d.used && d.value <= 3);
-    expect(idx).toBeGreaterThanOrEqual(0); // seed must roll a qualifying die or the test is vacuous
-    if (idx >= 0) {
-      m = applyDiceAction(DICE_CARD_MAP, m, { type: "ASSIGN_DIE", uid: m.hand[0]!.uid, dieIndex: idx }).state;
-      expect(m.cover).toBeGreaterThan(0);
-      expect(m.ball).toBe(6);
-      expect(m.possession).toBe("them");
-    }
-  });
-
-  it("attack and defense cards are both playable while defending", () => {
-    const m = defendingState(["d_shortpass", "d_shortpass", "d_shortpass", "d_shortpass"]);
-    const playable = playableCards(DICE_CARD_MAP, m);
-    expect(playable.size).toBeGreaterThan(0);
-  });
-});
-
 describe("match terminates", () => {
   it("a full dice match reaches DONE", () => {
-    let m = start(Array.from({ length: 14 }, (_, i) => (i % 3 === 0 ? "d_finish" : "d_shortpass")), "term");
-    for (let guard = 0; guard < 200 && m.phase !== "DONE"; guard++) {
+    let m = start(
+      Array.from({ length: 18 }, (_, i) => (i % 5 === 0 ? "d_finish" : i % 4 === 0 ? "d_tackle" : "d_shortpass")),
+      "term",
+    );
+    for (let guard = 0; guard < 300 && m.phase !== "DONE"; guard++) {
       if (m.phase === "PUSH_DECISION") {
         m = applyDiceAction(DICE_CARD_MAP, m, { type: "TAKE_WIN" }).state;
         continue;
       }
-      if (m.ball >= DEFAULT_BALANCE.DICE.THEIR_BOX && m.possession === "you" && m.shotQuality > 0) {
+      if (m.possession === "you" && m.passes >= 1 && m.shotQuality > 0) {
         m = applyDiceAction(DICE_CARD_MAP, m, { type: "SHOOT" }).state;
         continue;
       }
-      const card = m.hand.find((c) => {
-        const def = DICE_CARD_MAP[c.defId];
-        if (!def?.slot) return false;
-        const slot = def.slot;
-        return m.possession === "you" && m.dice.some((d) => !d.used && dieFitsSlot(d.value, slot));
-      });
+      const card = m.hand.find((c) => playableCards(DICE_CARD_MAP, m).has(c.uid));
       if (card) m = playWith(m, card.defId);
       else m = applyDiceAction(DICE_CARD_MAP, m, { type: "END_ROUND" }).state;
     }
