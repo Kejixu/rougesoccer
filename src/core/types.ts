@@ -355,6 +355,7 @@ export type GameEvent =
   | { type: "MULLIGAN_USED"; uids: string[] } // the redrawn hand
   // ---- dice mode ----
   | { type: "DICE_ROLLED"; dice: number[] }
+  | { type: "DICE_CARRIED"; values: number[] }
   | { type: "DIE_ASSIGNED"; uid: string; die: number }
   | { type: "PASS_CHALLENGED"; roll: number; pressure: number; survived: boolean }
   | { type: "OPP_PASS_CHALLENGED"; roll: number; pressure: number; survived: boolean }
@@ -415,6 +416,7 @@ export interface MatchStep {
 export interface Die {
   value: number;
   used: boolean;
+  carried?: boolean;
 }
 
 export interface DiceMatchState {
@@ -439,6 +441,7 @@ export interface DiceMatchState {
   oppGoals: number;
   keeperDC: number;
   dice: Die[];
+  carriedDice: number[];
   intent: Intent | null;
   intentStep: number;
   diePenalty: number;
@@ -552,7 +555,7 @@ export interface StaffOffer {
 }
 
 export interface RunState {
-  version: 5;
+  version: 6;
   seed: string;
   playerTeamId: string;
   stage: Stage;

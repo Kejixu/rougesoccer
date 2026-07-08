@@ -422,7 +422,7 @@ describe("their chain", () => {
     const step = applyDiceAction(DICE_CARD_MAP, m, { type: "END_ROUND" });
     const challenged = step.events.find((e) => e.type === "OPP_PASS_CHALLENGED");
 
-    expect(challenged).toEqual({ type: "OPP_PASS_CHALLENGED", roll: 13, pressure: 6, survived: true });
+    expect(challenged).toEqual({ type: "OPP_PASS_CHALLENGED", roll: 13, pressure: 5, survived: true });
     expect(step.events.findIndex((e) => e.type === "OPP_PASS_CHALLENGED")).toBeLessThan(
       step.events.findIndex((e) => e.type === "OPP_PASS"),
     );

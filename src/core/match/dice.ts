@@ -176,7 +176,13 @@ function startRound(draft: DiceMatchState, events: GameEvent[]): void {
     (draft.mode === "suddendeath" ? -1 : 0);
   const poolSize = Math.max(2, draft.bal.DICE.POOL_SIZE + bonusDice - draft.diePenalty);
   draft.diePenalty = 0;
-  draft.dice = Array.from({ length: poolSize }, () => ({ value: rollDie(draft), used: false }));
+  const rolledDice = Array.from({ length: poolSize }, () => ({ value: rollDie(draft), used: false }));
+  draft.dice = rolledDice;
+  const carriedDice = draft.possession === "you" ? draft.carriedDice.slice(0, draft.bal.DICE.CARRY_MAX) : [];
+  draft.carriedDice = [];
+  if (carriedDice.length > 0) {
+    draft.dice.push(...carriedDice.map((value) => ({ value, used: false, carried: true })));
+  }
 
   draft.rerollDieLeft = mutatorSum(draft.mutators, "rerollDie");
 
@@ -185,7 +191,8 @@ function startRound(draft: DiceMatchState, events: GameEvent[]): void {
   drawCards(draft, handSize - draft.hand.length, events);
 
   events.push({ type: "ROUND_START", round: draft.round, mode: draft.mode });
-  events.push({ type: "DICE_ROLLED", dice: draft.dice.map((d) => d.value) });
+  events.push({ type: "DICE_ROLLED", dice: rolledDice.map((d) => d.value) });
+  if (carriedDice.length > 0) events.push({ type: "DICE_CARRIED", values: carriedDice });
 
   if (draft.possession === "you") {
     const intent = rollIntent(draft as unknown as MatchState);
@@ -231,6 +238,15 @@ function concludeRound(defs: CardDefMap, draft: DiceMatchState, events: GameEven
     draft.discardPile.push(...draft.hand);
     draft.hand = [];
     events.push({ type: "CARDS_DISCARDED", uids, forced: true });
+  }
+  if (draft.possession === "them") {
+    draft.carriedDice = draft.dice
+      .filter((die) => !die.used)
+      .map((die) => die.value)
+      .sort((a, b) => b - a)
+      .slice(0, draft.bal.DICE.CARRY_MAX);
+  } else {
+    draft.carriedDice = [];
   }
   draft.dice = [];
 
@@ -521,6 +537,7 @@ export function createDiceMatch(defs: CardDefMap, cfg: DiceMatchConfig): DiceMat
     oppGoals: 0,
     keeperDC: dc,
     dice: [],
+    carriedDice: [],
     intent: null,
     intentStep: 0,
     diePenalty: 0,

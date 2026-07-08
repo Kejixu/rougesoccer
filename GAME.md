@@ -20,7 +20,7 @@ One run = one World Cup campaign with the team you pick.
 - **Knockout:** R32 -> R16 -> QF -> SF -> **Final** (single elimination).
 - Between matches: **rewards** (pick a card), a **shop** (buy/upgrade/remove cards),
   and **staff hires** (passive perks) each time you advance a stage.
-- Run saves are version **5**. Older saved runs are discarded on load.
+- Run saves are version **6**. Older saved runs are discarded on load.
 - Difficulty ramps every stage (`STAGE_CLOCK_MULT`: GROUP 1.1 -> FINAL 2.4), which
   scales each opponent's rating, keeper, and attack threat.
 
@@ -43,6 +43,8 @@ your possession; even rounds are their possession.
 - The ball is a single integer position (0 = your goal, 20 = their goal). Kickoff is
   **midfield (10)**.
 - Each round rolls a pool of **5 d6 dice** and draws up to **4 cards**.
+  After an opponent possession, up to **2 unused defensive dice** carry into your
+  next attack as extra dice with the same values.
 - A card needs a die that fits its slot. You can drag a die onto a legal card or use
   the click fallbacks; slotting the die spends that exact die and resolves the pass
   immediately.
@@ -67,8 +69,8 @@ Their possession mirrors the same rhythm:
 
 1. Defensive cards are the only cards you can play.
 2. Playing a defender commits interception pressure against their next pass.
-3. Ending the round is a legal **stand off**: you do not commit a defender, and their
-   next pass happens undefended.
+3. Ending the round is a legal **stand off**: you do not commit a defender, their
+   next pass happens undefended, and unused dice can bank into your next attack.
 4. If you intercept them, you get one instant counter shot.
 5. If they complete enough passes for their style, or reach your box, they shoot.
 
@@ -97,6 +99,9 @@ There is no lane duel or delayed resolve step. Each die assignment is the action
   possession.
 - **Their rounds:** defensive cards are playable; attack cards wait for your
   possession.
+- **Fresh legs:** when their possession ends, the highest unused dice values carry
+  into your next attack, capped at 2. Committing defenders spends dice now; standing
+  off can bank them for later.
 - **Draw effects** happen immediately.
 - **Setup effects** (`setupNext`) bank a bonus for the next Chance-gaining card.
 - **Safe-pass effects** reduce your next interception pressure.
@@ -218,7 +223,7 @@ Through Ball, Clinical Finish x2, Poacher, Tackle x3, Clearance x2, Keeper.
 
 ## 8. Key numbers (`balance.ts -> DICE`)
 
-Pool 5 dice - d6 - hand 4 - 6 regulation rounds - pitch 0-20 - midfield 10 -
+Pool 5 dice - carry max 2 - d6 - hand 4 - 6 regulation rounds - pitch 0-20 - midfield 10 -
 their box 16 - your box 4.
 
 Shot math:
@@ -243,7 +248,7 @@ Your chain:
 
 Their chain:
 
-- Opponent base interception risk: 12%
+- Opponent base interception risk: 8%
 - Opponent risk ramp: +5% per completed pass
 - Visible pressure: same d20 pressure roll as your challenged passes
 - Opponent pass advance: 2 steps toward your goal
@@ -253,11 +258,11 @@ Their chain:
 
 Latest probe target readout:
 
-- Run wins: Brazil 30%, Mexico 10%, USA 35%, Canada 33%
-- Passes per chain: 1.95-2.03
-- Intercepted share: 18-21%
-- Goals per match: 1.3-1.7 for you, 0.5-0.7 for opponents
-- Dead attack rounds: 1-2%
+- Run wins: Brazil 15%, Mexico 15%, USA 23%, Canada 30%
+- Passes per chain: 2.03-2.10
+- Intercepted share: 16-20%
+- Goals per match: 1.5-1.7 for you, 0.6-0.7 for opponents
+- Dead attack rounds: 0-1%
 - Stand-off-only defensive rounds: 22-25% (informational; standing off is legal)
 
 ---

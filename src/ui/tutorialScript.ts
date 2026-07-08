@@ -76,7 +76,7 @@ export const TUTORIAL_STEPS: TutorialStep[] = [
     lock: { kind: "endRound" },
     title: "Their ball. Stand off.",
     what: "They chain passes just like you; watch their Chance grow.",
-    why: "Standing off costs nothing - but each completed pass makes their eventual shot stronger. You decide when it's worth spending dice to stop them.",
+    why: "Standing off banks up to 2 unused dice for your next attack - but each completed pass makes their eventual shot stronger. You decide when it's worth spending dice to stop them.",
   },
   {
     id: "commit-keeper",
@@ -110,7 +110,7 @@ export const TUTORIAL_STEPS: TutorialStep[] = [
     id: "weather-it",
     lock: { kind: "standOffUntilRoundEnds" },
     title: "Weather it.",
-    why: "They're far from your goal and must gamble. Sometimes the best defense is patience - save your dice when the threat is small.",
+    why: "They're far from your goal and must gamble. Sometimes the best defense is patience - save your dice when the threat is small and carry fresh legs into the attack.",
   },
   {
     id: "bank-it-again",
@@ -137,7 +137,7 @@ export const TUTORIAL_STEPS: TutorialStep[] = [
     id: "see-it-out",
     lock: { kind: "standOffUntilRoundEnds" },
     title: "See it out.",
-    why: "Last round; they need two. Let them waste it.",
+    why: "Last round; they need two. Let them waste it. In normal rounds, the same patience banks unused dice for your next attack.",
   },
   {
     id: "whistle-question",

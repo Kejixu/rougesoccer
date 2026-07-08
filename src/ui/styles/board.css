@@ -988,6 +988,7 @@
 }
 
 .die {
+  position: relative;
   width: 62px;
   height: 62px;
   border-radius: 14px;
@@ -1003,6 +1004,26 @@
   font: inherit;
   transition: transform 0.1s ease, box-shadow 0.1s ease;
   animation: die-in 0.25s ease;
+}
+
+.die.carried {
+  border-color: #76b7d8;
+  background: linear-gradient(160deg, #f4fbff 0%, #edf7fa 45%, #c9dfe8 100%);
+}
+
+.die.carried::after {
+  content: "fresh";
+  position: absolute;
+  right: 4px;
+  bottom: 3px;
+  padding: 1px 4px;
+  border-radius: 999px;
+  background: #164d66;
+  color: #e7f8ff;
+  font-size: 9px;
+  font-weight: 900;
+  line-height: 1.2;
+  text-transform: uppercase;
 }
 
 @keyframes die-in {

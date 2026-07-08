@@ -63,6 +63,7 @@ export interface BalanceConfig {
   // ---- dice mode (Dicey-Dungeons match loop) ----
   DICE: {
     POOL_SIZE: number;
+    CARRY_MAX: number;
     DIE_FACES: number;
     HAND_SIZE: number;
     PITCH_LEN: number;          // 0 = your goal, PITCH_LEN = their goal
@@ -165,6 +166,7 @@ export const DEFAULT_BALANCE: BalanceConfig = {
 
   DICE: {
     POOL_SIZE: 5,
+    CARRY_MAX: 2,
     DIE_FACES: 6,
     HAND_SIZE: 4,
     PITCH_LEN: 20,
@@ -186,7 +188,7 @@ export const DEFAULT_BALANCE: BalanceConfig = {
     ZONE_DC_PENALTY: [6, 6, 6, 3, 0],
     COUNTER_CHANCE: 1,
     COUNTER_SHALLOW_BONUS: 3,
-    OPP_RISK_BASE: 0.12,
+    OPP_RISK_BASE: 0.08,
     OPP_RISK_RAMP: 0.05,
     OPP_PASS_ADVANCE: 2,
     OPP_CHANCE_PER_RATING: 0.03,

@@ -94,6 +94,11 @@ function eventLine(e: GameEvent): string | null {
       return e.goals > 0 ? `Goal for you. Score ${e.total}.` : `They score. Their total ${e.total}.`;
     case "DIE_REROLLED":
       return `Rerolled die ${e.dieIndex + 1}: ${e.from} -> ${e.to}.`;
+    case "DICE_CARRIED": {
+      const values = e.values.map((value) => `a ${value}`);
+      const list = values.length === 1 ? values[0] : `${values.slice(0, -1).join(", ")} and ${values.at(-1)}`;
+      return `Fresh legs: carried ${list}.`;
+    }
     case "PUSH_DECISION":
       return `Full time: you lead ${e.playerGoals}-${e.oppGoals}. Bank it or push.`;
     default:
@@ -411,6 +416,8 @@ export function DiceMatchScreen(props: DiceMatchScreenProps) {
   const shootDisabled = m.possession !== "you" || m.passes < 1 || !tutorialAllows({ kind: "shoot" });
   const endRoundDisabled = !tutorialAllows({ kind: "endRound" });
   const shootLabel = `⚽ Shoot (${Math.round(shotNow.p * 100)}%)${m.possession === "you" && m.passes < 1 ? " — make a pass first" : ""}`;
+  const bankingDice =
+    m.possession === "them" ? Math.min(m.bal.DICE.CARRY_MAX, m.dice.filter((die) => !die.used).length) : 0;
 
   return (
     <main className="board">
@@ -504,6 +511,7 @@ export function DiceMatchScreen(props: DiceMatchScreenProps) {
           <span>Their pass {m.oppPasses}</span>
           <span>Chance {m.oppChance}</span>
           <span>Committed +{Math.round(m.defenseCommit * 100)}%</span>
+          <span data-testid="fresh-legs-bank">banking {bankingDice} dice</span>
           <span className="risk-badge" data-hot={theirRisk >= 0.3 ? "true" : "false"}>
             pressure {theirPressure} ({Math.round(theirRisk * 100)}%)
           </span>
@@ -559,11 +567,12 @@ export function DiceMatchScreen(props: DiceMatchScreenProps) {
               <button
                 key={`${i}-${rollKey}-${rerolled ? rerollFx.n : 0}`}
                 type="button"
-                className={`die${d.used ? " used" : ""}${selectedDie === i ? " selected" : ""}${draggingDie?.dieIndex === i ? " dragging" : ""}${rerolled ? " rerolled" : ""}${rerolled && rerollFx.lucky ? " lucky" : ""}`}
+                className={`die${d.used ? " used" : ""}${d.carried ? " carried" : ""}${selectedDie === i ? " selected" : ""}${draggingDie?.dieIndex === i ? " dragging" : ""}${rerolled ? " rerolled" : ""}${rerolled && rerollFx.lucky ? " lucky" : ""}`}
                 style={{ animationDelay: rerolled ? "0ms" : `${i * 55}ms` }}
                 data-testid={`die-${i}`}
                 data-value={d.value}
                 data-used={d.used ? "true" : "false"}
+                data-carried={d.carried ? "true" : "false"}
                 disabled={d.used}
                 onClick={() => {
                   if (suppressDieClickRef.current) {
@@ -671,7 +680,7 @@ export function DiceMatchScreen(props: DiceMatchScreenProps) {
               disabled={endRoundDisabled}
               onClick={() => act({ type: "END_ROUND" })}
             >
-              {m.possession === "you" ? "Recycle possession" : "Stand off"}
+              {m.possession === "you" ? "Recycle possession" : `Stand off (bank ${bankingDice})`}
             </button>
           </div>
         </>

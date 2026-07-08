@@ -4,7 +4,7 @@ export const CHAIN_GLOSSARY: Record<string, string> = {
   Chance: "Chance is your banked shot bonus for this possession.",
   Risk: "Risk becomes d20 pressure on the next pass.",
   Recycle: "Recycle ends your possession safely without shooting.",
-  "Stand off": "Stand off lets their next pass happen without committing a card.",
+  "Stand off": "Stand off lets their next pass happen without committing a card, banking up to 2 unused dice for your next attack.",
   Counter: "A counter is an instant shot after an interception.",
   Combo: "A combo is a linked pass sequence that earns a risk or Chance bonus.",
 };
@@ -39,7 +39,7 @@ export const COACH_TIPS: Record<CoachTipKey, string> = {
   risk: "Pressure is the d20 number they tackle on for your NEXT pass. Lose it and you lose all banked Chance — and they counter.",
   chance: "Chance is your shot's power. Shoot spends it: d20 + Chance vs their keeper. Build it with finishers.",
   punt: "A punt! Long shots are priced in — work the ball closer and bank Chance for better odds.",
-  defense: "Their turn. Slot defenders to raise the interception % on their next pass — or stand off and let them play.",
+  defense: "Their turn. Unused dice carry to your attack, up to 2. Stand off to bank energy; commit defenders to spend it on safety now.",
   push: "You have the win. Bank it, or gamble extra time for budget — their attacks hit 2× harder.",
   combo: "A combo! Passes that flow like a real move — midfield wide, wing to striker — earn bonuses. Sequence your passes.",
 };

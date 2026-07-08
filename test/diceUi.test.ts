@@ -74,7 +74,7 @@ describe("dice UX copy", () => {
       Chance: "Chance is your banked shot bonus for this possession.",
       Risk: "Risk becomes d20 pressure on the next pass.",
       Recycle: "Recycle ends your possession safely without shooting.",
-      "Stand off": "Stand off lets their next pass happen without committing a card.",
+      "Stand off": "Stand off lets their next pass happen without committing a card, banking up to 2 unused dice for your next attack.",
       Counter: "A counter is an instant shot after an interception.",
       Combo: "A combo is a linked pass sequence that earns a risk or Chance bonus.",
     });
@@ -115,7 +115,7 @@ describe("coach tips", () => {
     });
     expect(coachTipFor({ ...baseSummary, possession: "them" }, new Set(["risk", "chance", "punt"]))).toEqual({
       key: "defense",
-      text: "Their turn. Slot defenders to raise the interception % on their next pass — or stand off and let them play.",
+      text: "Their turn. Unused dice carry to your attack, up to 2. Stand off to bank energy; commit defenders to spend it on safety now.",
     });
     expect(coachTipFor({ ...baseSummary, phase: "PUSH_DECISION" }, new Set(["risk", "chance", "punt", "defense"]))).toEqual({
       key: "push",
