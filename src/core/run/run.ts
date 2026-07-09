@@ -65,7 +65,7 @@ function pickGroupOpponents(draft: RunState, content: ContentBundle): string[] {
 export function createRun(content: ContentBundle, seed: string, playerTeamId: string): RunState {
   team(content, playerTeamId); // validate
   const state: RunState = {
-    version: 4,
+    version: 6,
     seed,
     playerTeamId,
     stage: "GROUP",

@@ -138,6 +138,11 @@ export function dieFitsSlot(value: number, slot: DieSlot): boolean {
   }
 }
 
+/** Convert a raw interception fraction into the visible d20 pressure target. */
+export function pressureOf(risk: number): number {
+  return Math.max(0, Math.min(20, Math.round(risk * 20)));
+}
+
 // ---------- nation dice mutators (the variety hook) ----------
 // Each playable nation bends a dice rule. Setup-time mutators (poolDelta,
 // keeperDcDelta) apply once; rerollDie grants a per-round action;
@@ -198,6 +203,7 @@ export interface PlayDef {
 export interface CardLevelStats {
   power?: number; // base shot points when committed to an attack
   defense?: number; // clock reduction while deployed
+  diceEffects?: DiceEffect[]; // dice-mode effects at this level; defaults to CardDef.diceEffects
   text: string;
 }
 
@@ -349,7 +355,10 @@ export type GameEvent =
   | { type: "MULLIGAN_USED"; uids: string[] } // the redrawn hand
   // ---- dice mode ----
   | { type: "DICE_ROLLED"; dice: number[] }
+  | { type: "DICE_CARRIED"; values: number[] }
   | { type: "DIE_ASSIGNED"; uid: string; die: number }
+  | { type: "PASS_CHALLENGED"; roll: number; pressure: number; survived: boolean }
+  | { type: "OPP_PASS_CHALLENGED"; roll: number; pressure: number; survived: boolean }
   // Legacy UI-only variants retained until the Task 3 UI rewrite removes old lane popups.
   | { type: "LANE_COMMITTED"; uid: string; cardName: string; die: number; buildUp: number; chance: number; cover: number }
   | {
@@ -365,7 +374,16 @@ export type GameEvent =
       gotThrough: number;
       shotQualityGained: number;
     }
-  | { type: "PASS_COMPLETED"; uid: string; cardName: string; passes: number; chanceGained: number; shotQuality: number; risked: number }
+  | {
+      type: "PASS_COMPLETED";
+      uid: string;
+      cardName: string;
+      passes: number;
+      chanceGained: number;
+      shotQuality: number;
+      risked: number;
+      combo?: string;
+    }
   | { type: "CHAIN_INTERCEPTED"; byYou: boolean; passes: number; chanceLost: number }
   | { type: "COUNTER_SHOT"; byYou: boolean; roll: number; bonus: number; dc: number; goal: boolean }
   | { type: "OPP_PASS"; passes: number; oppChance: number; risk: number }
@@ -398,6 +416,7 @@ export interface MatchStep {
 export interface Die {
   value: number;
   used: boolean;
+  carried?: boolean;
 }
 
 export interface DiceMatchState {
@@ -411,6 +430,7 @@ export interface DiceMatchState {
   possession: "you" | "them";
   ownKeeperDC: number; // their shots roll vs this
   passes: number; // completed passes in your current chain
+  lastPassPosition: Position | null; // previous completed pass in your current chain
   nextChanceBonus: number; // banked by setupNext, consumed by the next chance effect
   nextRiskDelta: number; // banked by safePass, consumed by your next interception check
   defenseCommit: number; // risk you've committed against THEIR chain this possession
@@ -421,6 +441,7 @@ export interface DiceMatchState {
   oppGoals: number;
   keeperDC: number;
   dice: Die[];
+  carriedDice: number[];
   intent: Intent | null;
   intentStep: number;
   diePenalty: number;
@@ -534,7 +555,7 @@ export interface StaffOffer {
 }
 
 export interface RunState {
-  version: 4;
+  version: 6;
   seed: string;
   playerTeamId: string;
   stage: Stage;

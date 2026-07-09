@@ -3,7 +3,9 @@
 import { describe, expect, it } from "vitest";
 import {
   applyDiceAction,
+  comboFor,
   createDiceMatch,
+  effectsFor,
   interceptionRisk,
   oppInterceptionRisk,
   playableCards,
@@ -11,8 +13,10 @@ import {
 } from "../src/core/match/dice";
 import { seedRng } from "../src/core/rng";
 import { DEFAULT_BALANCE } from "../src/core/balance";
-import { dieFitsSlot } from "../src/core/types";
+import { dieFitsSlot, pressureOf } from "../src/core/types";
 import type { CardInstance, DiceMatchState, OppInfo } from "../src/core/types";
+import { applyRunAction, createRun } from "../src/core/run/run";
+import { makeContent } from "../src/data/content";
 import { DICE_CARD_MAP } from "../src/data/diceCards";
 
 const OPP: OppInfo = { teamId: "qat", name: "Qatar", attackRating: 12, style: "balanced", tier: 4 };
@@ -55,6 +59,110 @@ describe("dice slot fit", () => {
     expect(dieFitsSlot(4, { kind: "parity", even: true })).toBe(true);
     expect(dieFitsSlot(3, { kind: "parity", even: true })).toBe(false);
     expect(dieFitsSlot(1, { kind: "any" })).toBe(true);
+  });
+});
+
+describe("dice card levels", () => {
+  it("effectsFor resolves level-specific dice effects without changing the base definition", () => {
+    expect(effectsFor(DICE_CARD_MAP.d_drivingrun!, 0)).toEqual([{ kind: "progress", amount: 4 }]);
+    expect(effectsFor(DICE_CARD_MAP.d_drivingrun!, 1)).toEqual([{ kind: "progress", amount: 5 }]);
+    expect(effectsFor(DICE_CARD_MAP.d_drivingrun!, 2)).toEqual([{ kind: "progress", amount: 6 }]);
+    expect(effectsFor(DICE_CARD_MAP.d_drivingrun!, 99)).toEqual([{ kind: "progress", amount: 6 }]);
+    expect(DICE_CARD_MAP.d_drivingrun!.diceEffects).toEqual([{ kind: "progress", amount: 4 }]);
+  });
+
+  it("TRAIN_CARD upgrades the instance effect used by the live dice match", () => {
+    const content = makeContent(DEFAULT_BALANCE);
+    let run = createRun(content, "train-live-effect", "usa");
+    const card = run.deck.find((c) => c.defId === "d_shortpass")!;
+    run = { ...run, resources: { ...run.resources, budget: 999 } };
+
+    run = applyRunAction(content, run, { type: "TRAIN_CARD", uid: card.uid }).state;
+    expect(run.deck.find((c) => c.uid === card.uid)?.level).toBe(1);
+
+    run = applyRunAction(content, run, { type: "START_MATCH" }).state;
+    const upgraded = run.deck.find((c) => c.uid === card.uid)!;
+    const match = run.activeMatch!;
+    run = {
+      ...run,
+      activeMatch: {
+        ...match,
+        ball: DEFAULT_BALANCE.DICE.MIDFIELD,
+        passes: 0,
+        dice: [{ value: 4, used: false }],
+        hand: [{ ...upgraded, formPower: 0, fatigued: false }],
+      },
+    };
+
+    const step = applyRunAction(content, run, {
+      type: "MATCH_ACTION",
+      action: { type: "ASSIGN_DIE", uid: upgraded.uid, dieIndex: 0 },
+    });
+    expect(step.state.activeMatch?.ball).toBe(DEFAULT_BALANCE.DICE.MIDFIELD + 5);
+  });
+});
+
+describe("position combos", () => {
+  it("comboFor recognizes only the approved footballing links", () => {
+    expect(comboFor(null, "WG")).toBeNull();
+    expect(comboFor("MF", "WG")).toEqual({ label: "Switch of play", chance: 0, riskDelta: -0.08 });
+    expect(comboFor("WG", "ST")).toEqual({ label: "Delivered onto the run", chance: 3, riskDelta: 0 });
+    expect(comboFor("MF", "ST")).toEqual({ label: "Through the middle", chance: 2, riskDelta: 0 });
+    expect(comboFor("WG", "MF")).toBeNull();
+    expect(comboFor("ST", "WG")).toBeNull();
+  });
+
+  it("applies combo risk bonuses to the next pass and records the last pass position", () => {
+    const base = start(["d_flankrun"], "combo-risk");
+    const m = {
+      ...base,
+      passes: 1,
+      lastPassPosition: "MF" as const,
+      nextRiskDelta: -10,
+      intent: { kind: "sitDeep" as const, amount: 1 },
+      rng: seedRng("combo-risk-survives"),
+      dice: [{ value: 4, used: false }],
+      hand: [inst("d_flankrun", 0)],
+    };
+
+    const step = applyDiceAction(DICE_CARD_MAP, m, { type: "ASSIGN_DIE", uid: m.hand[0]!.uid, dieIndex: 0 });
+    expect(step.events).toContainEqual(expect.objectContaining({ type: "PASS_COMPLETED", combo: "Switch of play" }));
+    expect(step.state.nextRiskDelta).toBeCloseTo(-0.08, 5);
+    expect(step.state.lastPassPosition).toBe("WG");
+  });
+
+  it("adds combo chance into the same pass-completed accounting", () => {
+    const base = start(["d_poacher"], "combo-chance");
+    const m = {
+      ...base,
+      passes: 1,
+      lastPassPosition: "WG" as const,
+      nextRiskDelta: -10,
+      intent: { kind: "sitDeep" as const, amount: 1 },
+      rng: seedRng("combo-chance-survives"),
+      dice: [{ value: 2, used: false }],
+      hand: [inst("d_poacher", 0)],
+    };
+
+    const step = applyDiceAction(DICE_CARD_MAP, m, { type: "ASSIGN_DIE", uid: m.hand[0]!.uid, dieIndex: 0 });
+    expect(step.events).toContainEqual(
+      expect.objectContaining({ type: "PASS_COMPLETED", combo: "Delivered onto the run", chanceGained: 9 }),
+    );
+    expect(step.state.shotQuality).toBe(9);
+    expect(step.state.lastPassPosition).toBe("ST");
+  });
+
+  it("resets lastPassPosition when a new possession starts", () => {
+    const m = {
+      ...start(["d_shortpass"], "combo-reset"),
+      passes: 1,
+      lastPassPosition: "MF" as const,
+      hand: [],
+    };
+
+    const step = applyDiceAction(DICE_CARD_MAP, m, { type: "END_ROUND" });
+    expect(step.state.possession).toBe("them");
+    expect(step.state.lastPassPosition).toBeNull();
   });
 });
 
@@ -127,6 +235,46 @@ describe("your chain", () => {
     );
   });
 
+  it("pressureOf quantizes raw interception risk to d20 pressure", () => {
+    expect(pressureOf(0)).toBe(0);
+    expect(pressureOf(0.02)).toBe(0);
+    expect(pressureOf(0.225)).toBe(5);
+    expect(pressureOf(0.65)).toBe(13);
+    expect(pressureOf(0.99)).toBe(20);
+  });
+
+  it("emits PASS_CHALLENGED and uses the quantized d20 outcome for your challenged pass", () => {
+    const m = {
+      ...start(["d_shortpass"], "pressure-quantized"),
+      passes: 1,
+      intent: { kind: "press" as const },
+      nextRiskDelta: -0.045,
+      rng: seedRng("q-20"),
+      dice: [{ value: 4, used: false }],
+      hand: [inst("d_shortpass", 0)],
+      shotQuality: 7,
+    };
+
+    expect(interceptionRisk(m)).toBeCloseTo(0.225, 5);
+    const step = applyDiceAction(DICE_CARD_MAP, m, { type: "ASSIGN_DIE", uid: m.hand[0]!.uid, dieIndex: 0 });
+
+    expect(step.events[2]).toEqual({ type: "PASS_CHALLENGED", roll: 5, pressure: 5, survived: false });
+    expect(step.events).toContainEqual(expect.objectContaining({ type: "CHAIN_INTERCEPTED", byYou: false, chanceLost: 7 }));
+  });
+
+  it("does not emit PASS_CHALLENGED for the free first pass", () => {
+    const m = {
+      ...start(["d_shortpass"], "first-pass-no-pressure"),
+      passes: 0,
+      rng: seedRng("first-pass-no-pressure-action"),
+      dice: [{ value: 4, used: false }],
+      hand: [inst("d_shortpass", 0)],
+    };
+
+    const step = applyDiceAction(DICE_CARD_MAP, m, { type: "ASSIGN_DIE", uid: m.hand[0]!.uid, dieIndex: 0 });
+    expect(step.events.some((e) => e.type === "PASS_CHALLENGED")).toBe(false);
+  });
+
   it("chance effects grow with development: later passes are worth more", () => {
     let m = start(["d_poacher"], "dev");
     m = {
@@ -161,9 +309,11 @@ describe("your chain", () => {
     expect(m.nextChanceBonus).toBe(4);
     expect(interceptionRisk(m)).toBeLessThan(1);
     const sq = m.shotQuality;
-    const after = applyDiceAction(DICE_CARD_MAP, m, { type: "ASSIGN_DIE", uid: m.hand[0]!.uid, dieIndex: 1 }).state;
+    const step = applyDiceAction(DICE_CARD_MAP, m, { type: "ASSIGN_DIE", uid: m.hand[0]!.uid, dieIndex: 1 });
+    const after = step.state;
     expect(after.passes).toBe(2);
-    expect(after.shotQuality - sq).toBe(5 + 4 + 1 * DEFAULT_BALANCE.DICE.DEVELOPMENT_GAIN);
+    expect(step.events).toContainEqual(expect.objectContaining({ type: "PASS_COMPLETED", combo: "Through the middle" }));
+    expect(after.shotQuality - sq).toBe(5 + 4 + 2 + 1 * DEFAULT_BALANCE.DICE.DEVELOPMENT_GAIN);
     expect(after.nextChanceBonus).toBe(0);
   });
 
@@ -175,6 +325,21 @@ describe("your chain", () => {
     expect(shotEstimate(m).dc).toBe(m.keeperDC);
     const step = applyDiceAction(DICE_CARD_MAP, m, { type: "SHOOT" });
     expect(step.events.some((e) => e.type === "SHOT_TAKEN")).toBe(true);
+    expect(step.state.round).toBeGreaterThan(m.round);
+  });
+
+  it("allows a zero-Chance punt after at least one completed pass", () => {
+    const m = {
+      ...start(["d_shortpass"], "punt"),
+      passes: 1,
+      shotQuality: 0,
+      ball: DEFAULT_BALANCE.DICE.MIDFIELD,
+      intent: null,
+    };
+    const step = applyDiceAction(DICE_CARD_MAP, m, { type: "SHOOT" });
+    expect(step.events).toContainEqual(
+      expect.objectContaining({ type: "SHOT_TAKEN", quality: 0, dc: m.keeperDC + 6 }),
+    );
     expect(step.state.round).toBeGreaterThan(m.round);
   });
 
@@ -245,6 +410,22 @@ describe("their chain", () => {
     const committed = step.events.find((e) => e.type === "DEFENSE_COMMITTED");
     expect(committed).toMatchObject({ type: "DEFENSE_COMMITTED", amount: 0.18, total: 0.18 });
     expect(step.events.some((e) => e.type === "OPP_PASS" || e.type === "CHAIN_INTERCEPTED")).toBe(true);
+  });
+
+  it("emits OPP_PASS_CHALLENGED before resolving their pass", () => {
+    let m = theirRound(["d_tackle", "d_tackle", "d_tackle", "d_tackle"], "opp-pressure");
+    m = {
+      ...m,
+      rng: seedRng("s-32"),
+      defenseCommit: 0.18,
+    };
+    const step = applyDiceAction(DICE_CARD_MAP, m, { type: "END_ROUND" });
+    const challenged = step.events.find((e) => e.type === "OPP_PASS_CHALLENGED");
+
+    expect(challenged).toEqual({ type: "OPP_PASS_CHALLENGED", roll: 13, pressure: 5, survived: true });
+    expect(step.events.findIndex((e) => e.type === "OPP_PASS_CHALLENGED")).toBeLessThan(
+      step.events.findIndex((e) => e.type === "OPP_PASS"),
+    );
   });
 
   it("attack cards cannot be played on their possession", () => {

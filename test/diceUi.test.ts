@@ -1,5 +1,30 @@
 import { describe, expect, it } from "vitest";
-import { CHAIN_GLOSSARY, describeChainStatus } from "../src/ui/diceUx";
+import { CHAIN_GLOSSARY, coachTipFor, describeChainStatus } from "../src/ui/diceUx";
+import { dieDropTargets } from "../src/ui/diceDropTargets";
+import { createDiceMatch } from "../src/core/match/dice";
+import { seedRng } from "../src/core/rng";
+import { DEFAULT_BALANCE } from "../src/core/balance";
+import type { CardInstance, DiceMatchState, OppInfo } from "../src/core/types";
+import { DICE_CARD_MAP } from "../src/data/diceCards";
+
+const OPP: OppInfo = { teamId: "qat", name: "Qatar", attackRating: 12, style: "balanced", tier: 4 };
+
+function inst(defId: string, i: number): CardInstance {
+  return { uid: `ui-${defId}-${i}`, defId, level: 0, formPower: 0, fatigued: false };
+}
+
+function start(defIds: string[], seed = "dice-ui"): DiceMatchState {
+  return createDiceMatch(DICE_CARD_MAP, {
+    opp: OPP,
+    styleEffects: [],
+    plays: [],
+    context: "group",
+    deck: defIds.map((id, i) => inst(id, i)),
+    mutators: [],
+    rng: seedRng(seed),
+    balance: DEFAULT_BALANCE,
+  }).state;
+}
 
 describe("dice UX copy", () => {
   it("explains that your first pass is safe", () => {
@@ -27,7 +52,7 @@ describe("dice UX copy", () => {
         oppChance: 0,
         shootPct: 0.65,
       }),
-    ).toBe("Chance 7 · shot 65% · next pass 28% risk.");
+    ).toBe("Chance 7 · shot 65% · next pass pressure 6 (28%).");
   });
 
   it("summarizes their chain and the defense choice", () => {
@@ -47,10 +72,104 @@ describe("dice UX copy", () => {
   it("defines the chain glossary terms", () => {
     expect(CHAIN_GLOSSARY).toEqual({
       Chance: "Chance is your banked shot bonus for this possession.",
-      Risk: "Risk is the interception chance on the next pass.",
+      Risk: "Risk becomes d20 pressure on the next pass.",
       Recycle: "Recycle ends your possession safely without shooting.",
-      "Stand off": "Stand off lets their next pass happen without committing a card.",
+      "Stand off": "Stand off lets their next pass happen without committing a card, banking up to 2 unused dice for your next attack.",
       Counter: "A counter is an instant shot after an interception.",
+      Combo: "A combo is a linked pass sequence that earns a risk or Chance bonus.",
     });
+  });
+});
+
+describe("coach tips", () => {
+  const baseSummary = {
+    possession: "you" as const,
+    passes: 0,
+      shotQuality: 0,
+      interceptionRisk: 0,
+      puntPressed: false,
+      phase: "ROUND_ACTIVE" as const,
+      comboTriggered: false,
+    };
+
+  it("shows the first-possession tip once", () => {
+    expect(coachTipFor(baseSummary, new Set())).toEqual({
+      key: "possession",
+      text: "Cards are passes. Each die you slot plays one — your first pass is always free.",
+    });
+    expect(coachTipFor(baseSummary, new Set(["possession"]))).toBeNull();
+  });
+
+  it("prioritizes risk, chance, punt, defense, and push triggers when unseen", () => {
+    expect(coachTipFor({ ...baseSummary, passes: 1, interceptionRisk: 0.15 }, new Set())).toEqual({
+      key: "risk",
+      text: "Pressure is the d20 number they tackle on for your NEXT pass. Lose it and you lose all banked Chance — and they counter.",
+    });
+    expect(coachTipFor({ ...baseSummary, passes: 1, shotQuality: 4 }, new Set(["risk"]))).toEqual({
+      key: "chance",
+      text: "Chance is your shot's power. Shoot spends it: d20 + Chance vs their keeper. Build it with finishers.",
+    });
+    expect(coachTipFor({ ...baseSummary, passes: 1, puntPressed: true }, new Set(["risk", "chance"]))).toEqual({
+      key: "punt",
+      text: "A punt! Long shots are priced in — work the ball closer and bank Chance for better odds.",
+    });
+    expect(coachTipFor({ ...baseSummary, possession: "them" }, new Set(["risk", "chance", "punt"]))).toEqual({
+      key: "defense",
+      text: "Their turn. Unused dice carry to your attack, up to 2. Stand off to bank energy; commit defenders to spend it on safety now.",
+    });
+    expect(coachTipFor({ ...baseSummary, phase: "PUSH_DECISION" }, new Set(["risk", "chance", "punt", "defense"]))).toEqual({
+      key: "push",
+      text: "You have the win. Bank it, or gamble extra time for budget — their attacks hit 2× harder.",
+    });
+  });
+
+  it("shows the combo tip the first time a combo triggers", () => {
+    expect(coachTipFor({ ...baseSummary, comboTriggered: true }, new Set())).toEqual({
+      key: "combo",
+      text: "A combo! Passes that flow like a real move — midfield wide, wing to striker — earn bonuses. Sequence your passes.",
+    });
+    expect(coachTipFor({ ...baseSummary, comboTriggered: true }, new Set(["combo"]))).toEqual({
+      key: "possession",
+      text: "Cards are passes. Each die you slot plays one — your first pass is always free.",
+    });
+  });
+});
+
+describe("die drop targets", () => {
+  it("returns only cards that the dragged die can legally activate", () => {
+    const m = {
+      ...start(["d_shortpass", "d_finish", "d_tackle"], "drop-targets"),
+      possession: "you" as const,
+      dice: [{ value: 4, used: false }],
+      hand: [inst("d_shortpass", 0), inst("d_finish", 1), inst("d_tackle", 2)],
+    };
+
+    expect(dieDropTargets(DICE_CARD_MAP, m, 0)).toEqual(new Set(["ui-d_shortpass-0"]));
+  });
+
+  it("returns no targets for a used die or missing die", () => {
+    const m = {
+      ...start(["d_shortpass"], "drop-used"),
+      dice: [{ value: 4, used: true }],
+      hand: [inst("d_shortpass", 0)],
+    };
+
+    expect(dieDropTargets(DICE_CARD_MAP, m, 0)).toEqual(new Set());
+    expect(dieDropTargets(DICE_CARD_MAP, m, 9)).toEqual(new Set());
+  });
+
+  it("respects their possession defensive role and tutorial play-card locks", () => {
+    const m = {
+      ...start(["d_clearance", "d_tackle", "d_shortpass"], "drop-tutorial"),
+      possession: "them" as const,
+      dice: [{ value: 2, used: false }],
+      hand: [inst("d_clearance", 0), inst("d_tackle", 1), inst("d_shortpass", 2)],
+    };
+
+    expect(dieDropTargets(DICE_CARD_MAP, m, 0)).toEqual(new Set(["ui-d_clearance-0", "ui-d_tackle-1"]));
+    expect(dieDropTargets(DICE_CARD_MAP, m, 0, { kind: "playCard", defId: "d_tackle" })).toEqual(
+      new Set(["ui-d_tackle-1"]),
+    );
+    expect(dieDropTargets(DICE_CARD_MAP, m, 0, { kind: "endRound" })).toEqual(new Set());
   });
 });

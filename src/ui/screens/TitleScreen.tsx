@@ -6,10 +6,12 @@ export function TitleScreen({
   hasSave,
   onNewRun,
   onContinue,
+  onTutorial,
 }: {
   hasSave: boolean;
   onNewRun: (teamId: string, seed: string) => void;
   onContinue: () => void;
+  onTutorial: () => void;
 }) {
   const [teamId, setTeamId] = useState<string>(PLAYABLE_TEAM_IDS[0]);
   const [seed, setSeed] = useState<string>("");
@@ -31,8 +33,8 @@ export function TitleScreen({
 
       <h2>New campaign</h2>
       <p style={{ color: "var(--ink-dim)", fontSize: 13 }}>
-        Momentum Duel: each round you slot dice into Build-Up, Chance, and Cover.
-        Resolve the duel, reach the box, then shoot.
+        Possession chains: your dice are the energy — drag them onto passes, build a
+        chance, and shoot before the defense takes it off you.
       </p>
       <div style={{ display: "flex", gap: 12, flexWrap: "wrap" }}>
         {PLAYABLE_TEAM_IDS.map((id) => {
@@ -70,12 +72,17 @@ export function TitleScreen({
           />
         </label>
       </p>
-      <button type="button" className="btn"
-        data-testid="start-run"
-        onClick={() => onNewRun(teamId, seed || `run-${Math.random().toString(36).slice(2, 10)}`)}
-      >
-        Start the campaign
-      </button>
+      <p style={{ display: "flex", gap: 12, flexWrap: "wrap" }}>
+        <button type="button" className="btn btn--primary"
+          data-testid="start-run"
+          onClick={() => onNewRun(teamId, seed || `run-${Math.random().toString(36).slice(2, 10)}`)}
+        >
+          Start the campaign
+        </button>
+        <button type="button" className="btn btn--primary" data-testid="start-tutorial" onClick={onTutorial}>
+          Learn the game (5 min)
+        </button>
+      </p>
     </main>
   );
 }
