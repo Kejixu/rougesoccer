@@ -158,6 +158,7 @@ interface ChainChip {
   chanceGained: number;
   risked: number;
   combo?: string;
+  die?: number; // the die spent on this pass — the receipt
 }
 
 interface DraggingDie {
@@ -269,6 +270,9 @@ export function DiceMatchScreen(props: DiceMatchScreenProps) {
     if (events.some((e) => e.type === "ROUND_START")) chainRef.current = [];
     const completed = events.filter((e): e is Extract<GameEvent, { type: "PASS_COMPLETED" }> => e.type === "PASS_COMPLETED");
     if (completed.length > 0) {
+      const dieByUid = new Map(
+        events.filter((e): e is Extract<GameEvent, { type: "DIE_ASSIGNED" }> => e.type === "DIE_ASSIGNED").map((e) => [e.uid, e.die]),
+      );
       chainRef.current = [
         ...chainRef.current,
         ...completed.map((e) => ({
@@ -278,6 +282,7 @@ export function DiceMatchScreen(props: DiceMatchScreenProps) {
           chanceGained: e.chanceGained,
           risked: e.risked,
           combo: e.combo,
+          die: dieByUid.get(e.uid),
         })),
       ];
     }
@@ -487,6 +492,7 @@ export function DiceMatchScreen(props: DiceMatchScreenProps) {
             ) : (
               chainEntries.map((chip, i) => (
                 <span key={`${chip.uid}-${i}`} className="chain-chip">
+                  {chip.die !== undefined && <span className="chip-die">{PIPS[chip.die]}</span>}
                   {chip.passes}. {chip.cardName}
                   {chip.chanceGained > 0 && <strong>+{chip.chanceGained}</strong>}
                   {chip.combo && <em className="combo-tag">{chip.combo}</em>}

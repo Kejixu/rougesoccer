@@ -1275,3 +1275,12 @@
   font-weight: 900;
   color: var(--accent-2);
 }
+
+.chip-die {
+  display: inline-block;
+  margin-right: 4px;
+  font-size: 15px;
+  line-height: 1;
+  color: var(--ink);
+  transform: translateY(1px);
+}
