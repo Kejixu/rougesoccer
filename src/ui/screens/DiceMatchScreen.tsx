@@ -32,6 +32,16 @@ function intentText(intent: Intent): { icon: string; text: string } {
   }
 }
 
+function GoalFrame() {
+  return (
+    <svg viewBox="0 0 26 44" aria-hidden="true">
+      <path d="M24 2 H6 V42 H24" strokeWidth="2.5" />
+      <path d="M6 8 H20 M6 15 H20 M6 22 H20 M6 29 H20 M6 36 H20" strokeWidth="0.8" opacity="0.55" />
+      <path d="M10 2 V42 M15 2 V42 M20 2 V42" strokeWidth="0.8" opacity="0.55" />
+    </svg>
+  );
+}
+
 function PitchTrack({
   ball,
   possession,
@@ -44,7 +54,7 @@ function PitchTrack({
   const ballZone = zoneOf(ball, bal);
   return (
     <div className="pitch-track" data-testid="pitch">
-      <div className="goal-end goal-end--yours">🥅</div>
+      <div className="goal-end goal-end--yours"><GoalFrame /></div>
       {ZONE_NAMES.map((name, i) => (
         <div
           key={name}
@@ -58,7 +68,7 @@ function PitchTrack({
           )}
         </div>
       ))}
-      <div className="goal-end goal-end--theirs">🥅</div>
+      <div className="goal-end goal-end--theirs"><GoalFrame /></div>
     </div>
   );
 }
@@ -252,6 +262,7 @@ export function DiceMatchScreen(props: DiceMatchScreenProps) {
 
   // A fresh roll remounts the dice so they cascade in; a reroll spins the one die.
   const [rollKey, setRollKey] = useState(0);
+  const [celebration, setCelebration] = useState<"goal" | "concede" | null>(null);
   const [rerollFx, setRerollFx] = useState<{ i: number; lucky: boolean; n: number } | null>(null);
   const fxNonce = useRef(0);
   const lastBatchRef = useRef<GameEvent[] | null>(null);
@@ -262,6 +273,11 @@ export function DiceMatchScreen(props: DiceMatchScreenProps) {
     lastBatchRef.current = events;
     const nextLines = events.map(eventLine).filter((line): line is string => line !== null);
     if (nextLines.length > 0) setTickerLines((prev) => [...nextLines.reverse(), ...prev].slice(0, 8));
+    const goalEv = events.find((e): e is Extract<GameEvent, { type: "GOAL_SCORED" }> => e.type === "GOAL_SCORED");
+    if (goalEv) {
+      setCelebration(goalEv.goals > 0 ? "goal" : "concede");
+      setTimeout(() => setCelebration(null), 1800);
+    }
     if (events.some((e) => e.type === "DICE_ROLLED")) {
       fxNonce.current += 1;
       setRollKey(fxNonce.current);
@@ -427,6 +443,23 @@ export function DiceMatchScreen(props: DiceMatchScreenProps) {
   return (
     <main className="board">
       <ScorePopups events={events} />
+      {celebration === "goal" && (
+        <div className="confetti-layer celebration" aria-hidden="true">
+          {Array.from({ length: 36 }, (_, i) => (
+            <span
+              key={i}
+              className="confetti"
+              style={{
+                left: `${(i * 137) % 100}%`,
+                background: ["#ffd34d", "#4dd07a", "#f2efe6", "#6ec3ff"][i % 4],
+                animationDuration: `${1 + ((i * 7) % 10) / 10}s`,
+                animationDelay: `${((i * 13) % 6) / 10}s`,
+              }}
+            />
+          ))}
+        </div>
+      )}
+      {celebration === "concede" && <div className="concede-flash" aria-hidden="true" />}
 
       <div className="scoreboard panel">
         <div>
@@ -640,6 +673,7 @@ export function DiceMatchScreen(props: DiceMatchScreenProps) {
                   className={`dice-card role-${role}${cardPlayable ? "" : " unplayable"}${cardHighlighted ? " tutorial-highlight" : ""}${dropClass}`}
                   data-testid={`card-${def.id}`}
                   data-uid={c.uid}
+                  data-rarity={def.rarity}
                   data-playable={cardPlayable ? "true" : "false"}
                   disabled={!cardPlayable}
                   onClick={() => onCardClick(c.uid, def.id)}
@@ -670,6 +704,7 @@ export function DiceMatchScreen(props: DiceMatchScreenProps) {
               type="button"
               className={`btn btn--primary${tutorialHighlights({ kind: "shoot" }) ? " tutorial-highlight" : ""}`}
               data-testid="shoot"
+              data-hot={!shootDisabled && shotNow.p >= 0.6 ? "true" : "false"}
               disabled={shootDisabled}
               title="Roll a d20 + Chance vs the keeper's DC"
               onClick={() => {

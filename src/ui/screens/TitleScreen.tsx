@@ -45,6 +45,7 @@ export function TitleScreen({
               type="button"
               key={id}
               className="kit-card"
+              data-team={id}
               data-selected={teamId === id ? "true" : undefined}
               data-testid={`pick-team-${id}`}
               onClick={() => setTeamId(id)}

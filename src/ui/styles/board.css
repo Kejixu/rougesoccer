@@ -19,9 +19,15 @@
 
 .scoreboard .score {
   font-family: var(--font-display);
-  font-size: 44px;
+  font-size: 50px;
   font-weight: 800;
   line-height: 1;
+  text-shadow: 0 2px 0 rgba(0, 0, 0, 0.45), 0 6px 18px rgba(0, 0, 0, 0.35);
+}
+
+.scoreboard {
+  border-bottom: 3px solid var(--accent);
+  background: linear-gradient(180deg, var(--surface-2), var(--surface));
 }
 
 .scoreboard .score .goals {
@@ -781,9 +787,11 @@
   padding: 6px;
   align-items: stretch;
   border-radius: 14px;
-  background: linear-gradient(180deg, #1d4a2a 0%, #173d22 100%);
-  border: 2px solid rgba(245, 241, 227, 0.35);
-  box-shadow: inset 0 0 40px rgba(0, 0, 0, 0.35);
+  background:
+    radial-gradient(ellipse 120% 90% at 50% -30%, rgba(255, 255, 255, 0.07) 0%, transparent 55%),
+    linear-gradient(180deg, #1f5230 0%, #173d22 100%);
+  border: 2px solid rgba(245, 241, 227, 0.4);
+  box-shadow: inset 0 0 46px rgba(0, 0, 0, 0.4), 0 4px 18px rgba(0, 0, 0, 0.3);
 }
 
 .pitch-zone {
@@ -826,6 +834,12 @@
   color: var(--ink);
   box-shadow: inset 0 0 0 2px rgba(255, 211, 77, 0.55);
   border-radius: 8px;
+  animation: zone-arrive 0.45s ease;
+}
+
+@keyframes zone-arrive {
+  0% { background: rgba(255, 211, 77, 0.32); }
+  100% { background: rgba(255, 211, 77, 0.12); }
 }
 
 .pitch-zone.box.current {
@@ -1217,11 +1231,16 @@
   display: flex;
   align-items: center;
   justify-content: center;
-  font-size: 26px;
-  padding: 0 6px;
-  filter: grayscale(1) brightness(1.7); /* white goal frames, not red emoji */
-  opacity: 0.9;
+  padding: 0 4px;
+  opacity: 0.95;
   flex-shrink: 0;
+}
+
+.goal-end svg {
+  width: 26px;
+  height: 44px;
+  stroke: rgba(245, 241, 227, 0.85);
+  fill: none;
 }
 
 .goal-end--yours {
@@ -1283,4 +1302,73 @@
   line-height: 1;
   color: var(--ink);
   transform: translateY(1px);
+}
+
+/* ---- goal celebration + concede flash ---- */
+
+.confetti-layer.celebration .confetti {
+  animation-iteration-count: 1;
+  animation-fill-mode: forwards;
+}
+
+.concede-flash {
+  position: fixed;
+  inset: 0;
+  pointer-events: none;
+  z-index: 40;
+  background: radial-gradient(ellipse at 50% 100%, rgba(255, 93, 93, 0.28) 0%, transparent 60%);
+  animation: concede-fade 1.6s ease forwards;
+}
+
+@keyframes concede-fade {
+  0% { opacity: 1; }
+  100% { opacity: 0; }
+}
+
+/* ---- rare card sheen (recruited from the Panini foil idea) ---- */
+
+.dice-card[data-rarity="rare"] {
+  border-color: color-mix(in srgb, var(--rare) 55%, var(--role));
+}
+
+.dice-card[data-rarity="rare"]::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  border-radius: 10px;
+  pointer-events: none;
+  background: linear-gradient(115deg, transparent 30%, rgba(110, 195, 255, 0.16) 45%, transparent 60%);
+  background-size: 250% 100%;
+  animation: card-sheen 3.2s ease-in-out infinite;
+}
+
+@keyframes card-sheen {
+  0%, 60% { background-position: 120% 0; }
+  100% { background-position: -60% 0; }
+}
+
+/* ---- hero SHOOT: pulses when the odds are hot ---- */
+
+.action-bar .btn--primary[data-hot="true"] {
+  animation: shoot-hot 1.1s ease-in-out infinite;
+  box-shadow: 0 0 18px rgba(255, 211, 77, 0.45);
+}
+
+@keyframes shoot-hot {
+  50% { transform: scale(1.05); box-shadow: 0 0 26px rgba(255, 211, 77, 0.7); }
+}
+
+/* ---- nation colors on the team picker ---- */
+
+.kit-card {
+  border-top: 4px solid transparent;
+}
+
+.kit-card[data-team="bra"] { border-top-color: #ffdf00; }
+.kit-card[data-team="usa"] { border-top-color: #b22234; }
+.kit-card[data-team="mex"] { border-top-color: #006847; }
+.kit-card[data-team="can"] { border-top-color: #ff2b2b; }
+
+.kit-card[data-selected="true"] {
+  box-shadow: 0 0 0 2px var(--accent), 0 8px 24px rgba(0, 0, 0, 0.35);
 }

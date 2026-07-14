@@ -1,6 +1,9 @@
 :root {
   --bg: #0e1a12;
-  --bg-vignette: radial-gradient(ellipse at 50% 30%, #16281b 0%, #0e1a12 70%);
+  --bg-vignette:
+    radial-gradient(ellipse 55% 40% at 18% -5%, rgba(245, 241, 227, 0.055) 0%, transparent 60%),
+    radial-gradient(ellipse 55% 40% at 82% -5%, rgba(245, 241, 227, 0.055) 0%, transparent 60%),
+    radial-gradient(ellipse at 50% 30%, #16281b 0%, #0e1a12 70%);
   --surface: #14241a;
   --surface-2: #1b2f22;
   --ink: #f2efe6;
