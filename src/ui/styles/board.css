@@ -1372,3 +1372,37 @@
 .kit-card[data-selected="true"] {
   box-shadow: 0 0 0 2px var(--accent), 0 8px 24px rgba(0, 0, 0, 0.35);
 }
+
+/* ---- call the play: docked dice + run button ---- */
+
+.die.docked {
+  opacity: 0.35;
+  outline: 2px dashed rgba(255, 211, 77, 0.5);
+  outline-offset: 2px;
+}
+
+.docked-die {
+  position: absolute;
+  top: -14px;
+  left: -10px;
+  width: 32px;
+  height: 32px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 22px;
+  border-radius: 9px;
+  background: linear-gradient(160deg, #fdfaf1, #d9d3c4);
+  color: #1c2520;
+  border: 2px solid var(--accent);
+  box-shadow: 0 4px 10px rgba(0, 0, 0, 0.45);
+  z-index: 3;
+}
+
+.run-play {
+  min-width: 150px;
+}
+
+.run-play:disabled {
+  opacity: 0.45;
+}

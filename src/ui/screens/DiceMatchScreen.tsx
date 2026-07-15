@@ -263,9 +263,15 @@ export function DiceMatchScreen(props: DiceMatchScreenProps) {
   // A fresh roll remounts the dice so they cascade in; a reroll spins the one die.
   const [rollKey, setRollKey] = useState(0);
   const [celebration, setCelebration] = useState<"goal" | "concede" | null>(null);
+  // Call the play: dice dock onto cards (pure UI), then RUN executes the sequence.
+  const [docked, setDocked] = useState<{ uid: string; dieIndex: number }[]>([]);
+  const [running, setRunning] = useState(false);
+  const runningRef = useRef(false);
   const [rerollFx, setRerollFx] = useState<{ i: number; lucky: boolean; n: number } | null>(null);
   const fxNonce = useRef(0);
   const lastBatchRef = useRef<GameEvent[] | null>(null);
+  const latestMatchRef = useRef<DiceMatchState | null>(null);
+  latestMatchRef.current = m;
   useEffect(() => {
     // StrictMode double-runs mount effects with the SAME events array; appending
     // twice duplicated ticker/chip entries. Process each event batch exactly once.
@@ -283,7 +289,10 @@ export function DiceMatchScreen(props: DiceMatchScreenProps) {
       setRollKey(fxNonce.current);
       setSelectedDie(null);
     }
-    if (events.some((e) => e.type === "ROUND_START")) chainRef.current = [];
+    if (events.some((e) => e.type === "ROUND_START")) {
+      chainRef.current = [];
+      setDocked([]);
+    }
     const completed = events.filter((e): e is Extract<GameEvent, { type: "PASS_COMPLETED" }> => e.type === "PASS_COMPLETED");
     if (completed.length > 0) {
       const dieByUid = new Map(
@@ -337,7 +346,8 @@ export function DiceMatchScreen(props: DiceMatchScreenProps) {
     shootPct: shotNow.p,
   });
   const playable = playableCards(content.defs, m);
-  const dragTargets = draggingDie ? dieDropTargets(content.defs, m, draggingDie.dieIndex, tutorial?.step.lock) : null;
+  const activeDieIndex = draggingDie?.dieIndex ?? (selectedDie !== null && !m.dice[selectedDie]?.used ? selectedDie : null);
+  const dragTargets = activeDieIndex !== null ? dieDropTargets(content.defs, m, activeDieIndex, tutorial?.step.lock) : null;
 
   const selVal = selectedDie !== null ? m.dice[selectedDie]?.value : undefined;
   const coachTip = tutorial
@@ -364,18 +374,66 @@ export function DiceMatchScreen(props: DiceMatchScreenProps) {
     return playable.has(uid);
   };
 
+  const dockDie = (uid: string, dieIndex: number) => {
+    setDocked((d) => [...d.filter((x) => x.uid !== uid && x.dieIndex !== dieIndex), { uid, dieIndex }]);
+    setSelectedDie(null);
+  };
+
+  const undock = (uid: string) => setDocked((d) => d.filter((x) => x.uid !== uid));
+
   const onCardClick = (uid: string, defId: string) => {
+    if (running) return;
     if (!tutorialAllows({ kind: "playCard", defId })) return;
+    if (docked.some((x) => x.uid === uid)) {
+      undock(uid); // tap a docked card to take the die back
+      return;
+    }
     const slot = content.defs[defId]!.slot!;
     let dieIndex = selectedDie;
     if (dieIndex === null || m.dice[dieIndex]?.used || !dieFitsSlot(m.dice[dieIndex]!.value, slot)) {
-      // auto-pick the smart die: scaling cards take the highest, flat cards the
-      // lowest fitting die so your 5s and 6s stay free for finishing
+      if (!tutorial) return; // dice-first: pick up or select a die before touching a card
+      // tutorial keeps the guided instant play so locked steps stay one click
       dieIndex = bestDieFor(content.defs, m, uid);
       if (dieIndex < 0) return;
+      act({ type: "ASSIGN_DIE", uid, dieIndex });
+      setSelectedDie(null);
+      return;
     }
-    act({ type: "ASSIGN_DIE", uid, dieIndex });
-    setSelectedDie(null);
+    dockDie(uid, dieIndex);
+  };
+
+  // RUN PLAY: execute the docked sequence; stop early if the possession/round ends
+  const runPlay = () => {
+    if (running || docked.length === 0) return;
+    runningRef.current = true;
+    setRunning(true);
+    const queue = [...docked];
+    setDocked([]);
+    const startRound = m.round;
+    const step = (i: number, prev: DiceMatchState) => {
+      if (!runningRef.current || i >= queue.length) {
+        runningRef.current = false;
+        setRunning(false);
+        return;
+      }
+      const play = queue[i]!;
+      // re-validate against the latest state (a tackle may have ended the possession)
+      const cur = latestMatchRef.current ?? prev;
+      if (cur.round !== startRound || cur.phase !== "ROUND_ACTIVE" || cur.possession !== "you") {
+        runningRef.current = false;
+        setRunning(false);
+        return;
+      }
+      const die = cur.dice[play.dieIndex];
+      const inHand = cur.hand.some((c) => c.uid === play.uid);
+      if (!die || die.used || !inHand) {
+        step(i + 1, cur);
+        return;
+      }
+      act({ type: "ASSIGN_DIE", uid: play.uid, dieIndex: play.dieIndex });
+      setTimeout(() => step(i + 1, cur), 700);
+    };
+    step(0, m);
   };
 
   const onDiePointerDown = (e: PointerEvent<HTMLButtonElement>, dieIndex: number, value: number) => {
@@ -415,10 +473,16 @@ export function DiceMatchScreen(props: DiceMatchScreenProps) {
     if (!active || active.pointerId !== e.pointerId) return;
     const target = document.elementFromPoint(e.clientX, e.clientY);
     const uid = target instanceof HTMLElement ? target.closest<HTMLElement>("[data-uid]")?.dataset.uid : undefined;
-    if (uid && dragTargets?.has(uid)) {
+    if (uid && dragTargets?.has(uid) && !running) {
       suppressDieClickRef.current = true;
-      act({ type: "ASSIGN_DIE", uid, dieIndex: active.dieIndex });
-      setSelectedDie(null);
+      if (m.possession === "you" && !tutorial) {
+        const card = m.hand.find((c) => c.uid === uid);
+        if (card && docked.some((x) => x.uid === uid)) undock(uid);
+        dockDie(uid, active.dieIndex);
+      } else {
+        act({ type: "ASSIGN_DIE", uid, dieIndex: active.dieIndex });
+        setSelectedDie(null);
+      }
     } else if (active.moved) {
       suppressDieClickRef.current = true;
       setSelectedDie(null);
@@ -606,7 +670,7 @@ export function DiceMatchScreen(props: DiceMatchScreenProps) {
               <button
                 key={`${i}-${rollKey}-${rerolled ? rerollFx.n : 0}`}
                 type="button"
-                className={`die${d.used ? " used" : ""}${d.carried ? " carried" : ""}${selectedDie === i ? " selected" : ""}${draggingDie?.dieIndex === i ? " dragging" : ""}${rerolled ? " rerolled" : ""}${rerolled && rerollFx.lucky ? " lucky" : ""}`}
+                className={`die${d.used ? " used" : ""}${d.carried ? " carried" : ""}${docked.some((x) => x.dieIndex === i) ? " docked" : ""}${selectedDie === i ? " selected" : ""}${draggingDie?.dieIndex === i ? " dragging" : ""}${rerolled ? " rerolled" : ""}${rerolled && rerollFx.lucky ? " lucky" : ""}`}
                 style={{ animationDelay: rerolled ? "0ms" : `${i * 55}ms` }}
                 data-testid={`die-${i}`}
                 data-value={d.value}
@@ -649,7 +713,7 @@ export function DiceMatchScreen(props: DiceMatchScreenProps) {
                 ? "select a die to reroll it, or click a card to play"
                 : selectedDie !== null
                   ? `die ${selVal} selected — reroll it or click a card`
-                  : "click a die, then a card (or just click a card)"}
+                  : "pick up a die — it lights the cards it can play. Dock, then Run."}
             </span>
           </div>
 
@@ -678,6 +742,14 @@ export function DiceMatchScreen(props: DiceMatchScreenProps) {
                   disabled={!cardPlayable}
                   onClick={() => onCardClick(c.uid, def.id)}
                 >
+                  {(() => {
+                    const dock = docked.find((x) => x.uid === c.uid);
+                    return dock !== undefined && m.dice[dock.dieIndex] ? (
+                      <span className="docked-die" title="tap to take the die back">
+                        {PIPS[m.dice[dock.dieIndex]!.value]}
+                      </span>
+                    ) : null;
+                  })()}
                   <span className="dice-card-slot">{def.slot ? slotLabel(def.slot) : "—"}</span>
                   <span className="dice-card-name">{def.name}</span>
                   {liveCombo && <span className="combo-tag card-combo">combo</span>}
@@ -700,6 +772,17 @@ export function DiceMatchScreen(props: DiceMatchScreenProps) {
           )}
 
           <div className="action-bar">
+            {m.possession === "you" && !tutorial && (
+              <button
+                type="button"
+                className="btn btn--primary run-play"
+                data-testid="run-play"
+                disabled={docked.length === 0 || running}
+                onClick={runPlay}
+              >
+                {running ? "Running…" : `▶ Run play (${docked.length})`}
+              </button>
+            )}
             <button
               type="button"
               className={`btn btn--primary${tutorialHighlights({ kind: "shoot" }) ? " tutorial-highlight" : ""}`}
