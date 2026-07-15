@@ -464,9 +464,7 @@ export type DiceMatchAction =
   | { type: "ASSIGN_DIE"; uid: string; dieIndex: number }
   | { type: "REROLL_DIE"; dieIndex: number } // Brazil: opt-in single-die reroll
   | { type: "SHOOT" }
-  | { type: "END_ROUND" }
-  | { type: "EXTRA_TIME" }
-  | { type: "TAKE_WIN" };
+  | { type: "END_ROUND" };
 
 export interface DiceMatchStep {
   state: DiceMatchState;
@@ -555,7 +553,7 @@ export interface StaffOffer {
 }
 
 export interface RunState {
-  version: 6;
+  version: 7;
   seed: string;
   playerTeamId: string;
   stage: Stage;

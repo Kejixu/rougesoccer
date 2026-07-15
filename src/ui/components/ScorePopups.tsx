@@ -215,12 +215,18 @@ export function ScorePopups({ events }: { events: GameEvent[] }) {
           },
         });
         delay += 600;
-      } else if (e.type === "ET_SURVIVED") {
+      } else if (e.type === "SUDDEN_DEATH_START") {
         staged.push({
           delay,
-          popup: { id: nextId++, kind: "info", text: `Survived! +${e.budget} budget, +${e.scout} scout` },
+          popup: { id: nextId++, kind: "info", text: "EXTRA TIME — next goal wins." },
         });
         delay += 600;
+      } else if (e.type === "MATCH_END") {
+        staged.push({
+          delay,
+          popup: { id: nextId++, kind: e.result === "win" ? "goal" : e.result === "loss" ? "concede" : "info", text: "FULL TIME" },
+        });
+        delay += 800;
       } else if (e.type === "SHOOTOUT") {
         staged.push({
           delay,

@@ -27,7 +27,7 @@ export function describeChainStatus(input: {
   return `Chance ${input.shotQuality} · shot ${Math.round(input.shootPct * 100)}% · next pass pressure ${pressureOf(input.riskPct)} (${Math.round(input.riskPct * 100)}%).`;
 }
 
-export type CoachTipKey = "possession" | "risk" | "chance" | "punt" | "defense" | "push" | "combo";
+export type CoachTipKey = "possession" | "risk" | "chance" | "punt" | "defense" | "combo";
 
 export interface CoachTip {
   key: CoachTipKey;
@@ -40,7 +40,6 @@ export const COACH_TIPS: Record<CoachTipKey, string> = {
   chance: "Chance is your shot's power. Shoot spends it: d20 + Chance vs their keeper. Build it with finishers.",
   punt: "A punt! Long shots are priced in — work the ball closer and bank Chance for better odds.",
   defense: "Their turn. Unused dice carry to your attack, up to 2. Stand off to bank energy; commit defenders to spend it on safety now.",
-  push: "You have the win. Bank it, or gamble extra time for budget — their attacks hit 2× harder.",
   combo: "A combo! Passes that flow like a real move — midfield wide, wing to striker — earn bonuses. Sequence your passes.",
 };
 
@@ -51,7 +50,6 @@ export function coachTipFor(
     shotQuality: number;
     interceptionRisk: number;
     puntPressed: boolean;
-    phase: "ROUND_ACTIVE" | "PUSH_DECISION" | "DONE";
     comboTriggered: boolean;
   },
   seenKeys: ReadonlySet<CoachTipKey | string>,
@@ -62,7 +60,6 @@ export function coachTipFor(
     ["chance", input.shotQuality > 0],
     ["punt", input.puntPressed],
     ["defense", input.possession === "them"],
-    ["push", input.phase === "PUSH_DECISION"],
     ["possession", input.possession === "you" && input.passes === 0],
   ];
 

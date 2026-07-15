@@ -54,7 +54,7 @@ describe("guided tutorial lock matching", () => {
       ["safety-valve", { kind: "playCard", defId: "d_sideways" }],
       ["kill-the-ball", { kind: "endRound" }],
       ["see-it-out", { kind: "standOffUntilRoundEnds" }],
-      ["whistle-question", { kind: "takeWin" }],
+      ["whistle-question", { kind: "next" }],
       ["loop", { kind: "next" }],
     ]);
   });
@@ -69,8 +69,6 @@ describe("guided tutorial lock matching", () => {
     expect(tutorialLockAllows({ kind: "shoot" }, { kind: "endRound" })).toBe(false);
     expect(tutorialLockAllows({ kind: "endRound" }, { kind: "endRound" })).toBe(true);
     expect(tutorialLockAllows({ kind: "endRound" }, { kind: "shoot" })).toBe(false);
-    expect(tutorialLockAllows({ kind: "takeWin" }, { kind: "takeWin" })).toBe(true);
-    expect(tutorialLockAllows({ kind: "takeWin" }, { kind: "extraTime" })).toBe(false);
     expect(tutorialLockAllows({ kind: "next" }, { kind: "next" })).toBe(true);
     expect(tutorialLockAllows({ kind: "next" }, { kind: "endRound" })).toBe(false);
     expect(tutorialLockAllows({ kind: "standOffUntilRoundEnds" }, { kind: "endRound" })).toBe(true);
@@ -78,7 +76,7 @@ describe("guided tutorial lock matching", () => {
   });
 
   it("lists all regular coach-tip keys for completion and skip marking", () => {
-    expect(COACH_TIP_KEYS).toEqual(["possession", "risk", "chance", "punt", "defense", "push", "combo"]);
+    expect(COACH_TIP_KEYS).toEqual(["possession", "risk", "chance", "punt", "defense", "combo"]);
   });
 });
 
@@ -171,14 +169,6 @@ describe("guided tutorial golden seed", () => {
     }
     expect(state.playerGoals).toBe(beforeRound6Goals.player);
     expect(state.oppGoals).toBe(beforeRound6Goals.opp);
-    expect(state.phase).toBe("PUSH_DECISION");
-    expect(state.playerGoals).toBe(2);
-    expect(state.oppGoals).toBe(0);
-    expect(beats.some((e) => e.type === "PUSH_DECISION" && e.playerGoals === 2 && e.oppGoals === 0)).toBe(true);
-
-    step = act(state, { type: "TAKE_WIN" });
-    state = step.state;
-    beats.push(...step.events);
     expect(state.phase).toBe("DONE");
     expect(state.result).toBe("win");
     expect(state.playerGoals).toBe(2);

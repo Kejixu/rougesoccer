@@ -88,7 +88,6 @@ describe("coach tips", () => {
       shotQuality: 0,
       interceptionRisk: 0,
       puntPressed: false,
-      phase: "ROUND_ACTIVE" as const,
       comboTriggered: false,
     };
 
@@ -100,7 +99,7 @@ describe("coach tips", () => {
     expect(coachTipFor(baseSummary, new Set(["possession"]))).toBeNull();
   });
 
-  it("prioritizes risk, chance, punt, defense, and push triggers when unseen", () => {
+  it("prioritizes risk, chance, punt, and defense triggers when unseen", () => {
     expect(coachTipFor({ ...baseSummary, passes: 1, interceptionRisk: 0.15 }, new Set())).toEqual({
       key: "risk",
       text: "Pressure is the d20 number they tackle on for your NEXT pass. Lose it and you lose all banked Chance — and they counter.",
@@ -116,10 +115,6 @@ describe("coach tips", () => {
     expect(coachTipFor({ ...baseSummary, possession: "them" }, new Set(["risk", "chance", "punt"]))).toEqual({
       key: "defense",
       text: "Their turn. Unused dice carry to your attack, up to 2. Stand off to bank energy; commit defenders to spend it on safety now.",
-    });
-    expect(coachTipFor({ ...baseSummary, phase: "PUSH_DECISION" }, new Set(["risk", "chance", "punt", "defense"]))).toEqual({
-      key: "push",
-      text: "You have the win. Bank it, or gamble extra time for budget — their attacks hit 2× harder.",
     });
   });
 

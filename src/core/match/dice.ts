@@ -231,7 +231,7 @@ function enterSuddenDeath(draft: DiceMatchState, events: GameEvent[]): void {
 }
 
 // Close out the current possession: clear the hand and dice, then advance to
-// the next round, the push decision, or the result.
+// the next round or the result.
 function concludeRound(defs: CardDefMap, draft: DiceMatchState, events: GameEvent[]): void {
   if (draft.hand.length > 0) {
     const uids = draft.hand.map((c) => c.uid);
@@ -258,26 +258,7 @@ function concludeRound(defs: CardDefMap, draft: DiceMatchState, events: GameEven
       if (draft.round < draft.bal.MATCH_ROUNDS) {
         startRound(draft, events);
       } else if (leading) {
-        draft.phase = "PUSH_DECISION";
-        events.push({ type: "PUSH_DECISION", playerGoals: draft.playerGoals, oppGoals: draft.oppGoals });
-      } else if (tied) {
-        if (draft.context === "group") finish(draft, "draw", events);
-        else enterSuddenDeath(draft, events);
-      } else {
-        finish(draft, "loss", events);
-      }
-      return;
-    case "extratime":
-      if (leading) {
-        draft.earned.budget += draft.bal.ET_BUDGET_REWARD;
-        draft.earned.scout += draft.bal.ET_SCOUT_REWARD;
-        events.push({ type: "ET_SURVIVED", budget: draft.bal.ET_BUDGET_REWARD, scout: draft.bal.ET_SCOUT_REWARD });
-        if (draft.extraRoundsPlayed < draft.bal.MAX_EXTRA_ROUNDS) {
-          draft.phase = "PUSH_DECISION";
-          events.push({ type: "PUSH_DECISION", playerGoals: draft.playerGoals, oppGoals: draft.oppGoals });
-        } else {
-          finish(draft, "win", events);
-        }
+        finish(draft, "win", events);
       } else if (tied) {
         if (draft.context === "group") finish(draft, "draw", events);
         else enterSuddenDeath(draft, events);
@@ -590,19 +571,6 @@ export function applyDiceAction(defs: CardDefMap, state: DiceMatchState, action:
     case "END_ROUND":
       assertPhase(draft, "ROUND_ACTIVE");
       endRound(defs, draft, events);
-      break;
-    case "TAKE_WIN":
-      assertPhase(draft, "PUSH_DECISION");
-      finish(draft, "win", events);
-      break;
-    case "EXTRA_TIME":
-      assertPhase(draft, "PUSH_DECISION");
-      if (draft.extraRoundsPlayed >= draft.bal.MAX_EXTRA_ROUNDS) throw new Error("no extra time remaining");
-      draft.mode = "extratime";
-      draft.extraRoundsPlayed += 1;
-      draft.phase = "ROUND_ACTIVE";
-      events.push({ type: "EXTRA_TIME_START", round: draft.round + 1 });
-      startRound(draft, events);
       break;
   }
 

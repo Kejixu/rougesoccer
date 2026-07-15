@@ -9,7 +9,6 @@ export interface MatchRecord {
   playerGoals: number;
   oppGoals: number;
   result: "win" | "draw" | "loss";
-  pushedRounds: number;
 }
 
 export interface RunRecord {
@@ -32,8 +31,6 @@ export interface Report {
   minnowLossRate: number; // losses vs tier 4
   avgGoalsFor: number;
   avgGoalsAgainst: number;
-  pushRate: number; // share of won matches where the bot pushed
-  pushBackfireRate: number; // pushed matches that ended in draw/loss
   cardStats: { defId: string; picks: number; winRateWhenPicked: number; delta: number }[];
 }
 
@@ -54,8 +51,6 @@ export function aggregate(strategy: string, records: RunRecord[]): Report {
   const nearLoss = allMatches.filter((m) => Math.abs(m.playerGoals - m.oppGoals) <= 1);
   const minnowMatches = allMatches.filter((m) => m.oppTier === 4);
   const minnowLosses = minnowMatches.filter((m) => m.result === "loss");
-  const pushed = allMatches.filter((m) => m.pushedRounds > 0);
-  const pushedBad = pushed.filter((m) => m.result !== "win");
 
   const cardOutcome = new Map<string, { picks: number; winRuns: number }>();
   for (const r of records) {
@@ -91,8 +86,6 @@ export function aggregate(strategy: string, records: RunRecord[]): Report {
     avgGoalsAgainst: allMatches.length
       ? allMatches.reduce((s, m) => s + m.oppGoals, 0) / allMatches.length
       : 0,
-    pushRate: allMatches.length ? pushed.length / allMatches.length : 0,
-    pushBackfireRate: pushed.length ? pushedBad.length / pushed.length : 0,
     cardStats,
   };
 }
@@ -113,9 +106,6 @@ export function formatReport(report: Report): string {
   lines.push(`minnow loss rate    ${pct(report.minnowLossRate)}   (target >5%: no free matches)`);
   lines.push(
     `avg score           ${report.avgGoalsFor.toFixed(2)} - ${report.avgGoalsAgainst.toFixed(2)}`,
-  );
-  lines.push(
-    `push rate           ${pct(report.pushRate)}   backfire ${pct(report.pushBackfireRate)}`,
   );
   lines.push(`card pick -> run-win delta:`);
   for (const c of report.cardStats) {

@@ -64,7 +64,10 @@ export const NATION_DICE_KITS: Record<string, NationDiceKit> = {
   can: {
     identity: "Resolute",
     blurb: "Hard to play through. Opponents misplace more passes against you.",
-    mutators: [{ kind: "oppRiskDelta", amount: 0.04 }],
+    mutators: [
+      { kind: "oppRiskDelta", amount: 0.04 },
+      { kind: "keeperDcDelta", amount: 1 },
+    ],
   },
 };
 

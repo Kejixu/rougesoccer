@@ -25,13 +25,8 @@ function roleOf(def: CardDef): Role {
 function diceAction(
   content: ContentBundle,
   m: DiceMatchState,
-  opts: { greed: number; riskTolerance: number; pushLead: number },
+  opts: { greed: number; riskTolerance: number },
 ): DiceMatchAction {
-  if (m.phase === "PUSH_DECISION") {
-    const lead = m.playerGoals - m.oppGoals;
-    if (lead >= opts.pushLead && m.extraRoundsPlayed < m.bal.MAX_EXTRA_ROUNDS) return { type: "EXTRA_TIME" };
-    return { type: "TAKE_WIN" };
-  }
   if (m.rerollDieLeft > 0) {
     const worst = m.dice.map((d, i) => ({ d, i })).filter((x) => !x.d.used && x.d.value === 1)[0];
     if (worst) return { type: "REROLL_DIE", dieIndex: worst.i };
@@ -139,7 +134,7 @@ function greedyRunAction(content: ContentBundle, r: RunState): RunAction {
 export function makeGreedyBot(): Bot {
   return {
     name: "greedy",
-    matchAction: (content, m) => diceAction(content, m, { greed: 0.62, riskTolerance: 0.3, pushLead: 2 }),
+    matchAction: (content, m) => diceAction(content, m, { greed: 0.62, riskTolerance: 0.3 }),
     runAction: greedyRunAction,
   };
 }
@@ -147,7 +142,7 @@ export function makeGreedyBot(): Bot {
 export function makeDefensiveBot(): Bot {
   return {
     name: "defensive",
-    matchAction: (content, m) => diceAction(content, m, { greed: 0.5, riskTolerance: 0.22, pushLead: 99 }),
+    matchAction: (content, m) => diceAction(content, m, { greed: 0.5, riskTolerance: 0.22 }),
     runAction: greedyRunAction,
   };
 }
@@ -155,7 +150,7 @@ export function makeDefensiveBot(): Bot {
 export function makePushLuckyBot(): Bot {
   return {
     name: "pushlucky",
-    matchAction: (content, m) => diceAction(content, m, { greed: 0.78, riskTolerance: 0.42, pushLead: 1 }),
+    matchAction: (content, m) => diceAction(content, m, { greed: 0.78, riskTolerance: 0.42 }),
     runAction: greedyRunAction,
   };
 }
@@ -164,9 +159,6 @@ export function makeRandomBot(): Bot {
   return {
     name: "random",
     matchAction: (content, m) => {
-      if (m.phase === "PUSH_DECISION") {
-        return (m.playerGoals + m.round) % 2 === 0 ? { type: "EXTRA_TIME" } : { type: "TAKE_WIN" };
-      }
       const playable = [...playableCards(content.defs, m)];
       if (m.possession === "them" && (m.round + m.oppPasses) % 2 === 1) return { type: "END_ROUND" };
       if (m.passes >= 2 && m.shotQuality > 0 && (m.round + m.passes) % 3 === 0) {

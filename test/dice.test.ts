@@ -487,10 +487,12 @@ describe("nation mutators", () => {
     expect(counter).toMatchObject({ byYou: true, bonus: DEFAULT_BALANCE.DICE.COUNTER_CHANCE + 3 });
   });
 
-  it("Canada oppRiskDelta: opponents misplace more passes", () => {
+  it("Canada keeps Resolute defense with a one-DC finishing tax", () => {
     const plain = start(["d_clearance"], "can");
-    const canada = start(["d_clearance"], "can", [{ kind: "oppRiskDelta", amount: 0.06 }]);
-    expect(oppInterceptionRisk(canada)).toBeCloseTo(oppInterceptionRisk(plain) + 0.06, 5);
+    const mutators = makeContent().nationDiceKits?.can?.mutators ?? [];
+    const canada = start(["d_clearance"], "can", mutators);
+    expect(oppInterceptionRisk(canada)).toBeCloseTo(oppInterceptionRisk(plain) + 0.04, 5);
+    expect(canada.keeperDC).toBe(plain.keeperDC + 1);
   });
 
   it("a used die cannot be rerolled", () => {
@@ -506,16 +508,62 @@ describe("nation mutators", () => {
 });
 
 describe("match terminates", () => {
+  it("ends a regulation lead at full time without a push decision", () => {
+    const m = {
+      ...start(["d_shortpass"], "full-time-lead"),
+      round: DEFAULT_BALANCE.MATCH_ROUNDS,
+      possession: "you" as const,
+      playerGoals: 1,
+      oppGoals: 0,
+      hand: [],
+      dice: [],
+    };
+
+    const step = applyDiceAction(DICE_CARD_MAP, m, { type: "END_ROUND" });
+
+    expect(step.state.phase).toBe("DONE");
+    expect(step.state.result).toBe("win");
+    expect(step.state.extraRoundsPlayed).toBe(0);
+    expect(step.events).toContainEqual({ type: "MATCH_END", result: "win", playerGoals: 1, oppGoals: 0 });
+    expect(step.events.some((event) => event.type === "PUSH_DECISION")).toBe(false);
+  });
+
+  it("takes a tied knockout through golden-goal extra time and then a shootout", () => {
+    const regulation = {
+      ...start(["d_shortpass"], "golden-goal-shootout"),
+      context: "knockout" as const,
+      round: DEFAULT_BALANCE.MATCH_ROUNDS,
+      possession: "you" as const,
+      playerGoals: 0,
+      oppGoals: 0,
+      hand: [],
+      dice: [],
+    };
+
+    let step = applyDiceAction(DICE_CARD_MAP, regulation, { type: "END_ROUND" });
+    expect(step.state.mode).toBe("suddendeath");
+    expect(step.state.phase).toBe("ROUND_ACTIVE");
+    expect(step.events).toContainEqual({ type: "SUDDEN_DEATH_START" });
+
+    for (let round = 0; round < DEFAULT_BALANCE.MAX_SUDDEN_DEATH_ROUNDS; round++) {
+      step = applyDiceAction(
+        DICE_CARD_MAP,
+        { ...step.state, possession: "you", hand: [], dice: [], playerGoals: 0, oppGoals: 0 },
+        { type: "END_ROUND" },
+      );
+    }
+
+    expect(step.state.phase).toBe("DONE");
+    expect(step.events.some((event) => event.type === "SHOOTOUT")).toBe(true);
+    expect(step.events.some((event) => event.type === "MATCH_END")).toBe(true);
+  });
+
   it("a full dice match reaches DONE", () => {
     let m = start(
       Array.from({ length: 18 }, (_, i) => (i % 5 === 0 ? "d_finish" : i % 4 === 0 ? "d_tackle" : "d_shortpass")),
       "term",
     );
     for (let guard = 0; guard < 300 && m.phase !== "DONE"; guard++) {
-      if (m.phase === "PUSH_DECISION") {
-        m = applyDiceAction(DICE_CARD_MAP, m, { type: "TAKE_WIN" }).state;
-        continue;
-      }
       if (m.possession === "you" && m.passes >= 1 && m.shotQuality > 0) {
         m = applyDiceAction(DICE_CARD_MAP, m, { type: "SHOOT" }).state;
         continue;

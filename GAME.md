@@ -1,6 +1,6 @@
 # RogueSoccer - how it actually plays (current build)
 
-This describes the game **as the code plays it today** on the Momentum Duel branch,
+This describes the game **as the code plays it today** on the Full Time branch,
 not older design intent. It is the shared reference: if something here is wrong or
 feels off, that is the thing to change. Source of truth = `src/core/match/dice.ts`,
 `src/core/balance.ts` (`DICE`), `src/data/diceCards.ts`, `src/data/content.ts`,
@@ -20,7 +20,7 @@ One run = one World Cup campaign with the team you pick.
 - **Knockout:** R32 -> R16 -> QF -> SF -> **Final** (single elimination).
 - Between matches: **rewards** (pick a card), a **shop** (buy/upgrade/remove cards),
   and **staff hires** (passive perks) each time you advance a stage.
-- Run saves are version **6**. Older saved runs are discarded on load.
+- Run saves are version **7**. Older saved runs are discarded on load.
 - Difficulty ramps every stage (`STAGE_CLOCK_MULT`: GROUP 1.1 -> FINAL 2.4), which
   scales each opponent's rating, keeper, and attack threat.
 
@@ -87,7 +87,7 @@ Opponent intent copy describes your passing posture in chain mode:
 The ticker keeps the latest match events visible (pressure rolls, passes for both
 teams, interceptions, counters, shot roll math, goals/saves, and possession
 changes). Coach tips are stored as `coach.possession`, `coach.risk`, `coach.chance`,
-`coach.punt`, `coach.defense`, and `coach.push` once dismissed.
+`coach.punt`, `coach.defense`, and `coach.combo` once dismissed.
 
 ---
 
@@ -114,8 +114,8 @@ There is no lane duel or delayed resolve step. Each die assignment is the action
 - **Shots** immediately end the possession and reset the ball to midfield.
 
 At the end of a possession, remaining hand cards are discarded, dice clear, and the
-next round starts unless the match has reached a result, a push decision, sudden
-death, or a shootout.
+next round starts unless the match has reached a result, knockout extra time, or a
+shootout.
 
 ---
 
@@ -156,10 +156,10 @@ Zone penalties:
 
 After round 6 (regulation):
 
-- **Leading ->** push-your-luck: **bank the win**, or **extra time**. Extra-time
-  pressure is riskier, but each round survived in the lead pays budget + scout.
-- **Tied ->** a **draw** in the group, or **sudden death** in a knockout. After three
-  sudden-death rounds, the match goes to a penalty shootout roll.
+- **Leading ->** the full-time whistle: **win** immediately.
+- **Tied ->** a **draw** in the group, or **extra time (golden goal)** in a knockout.
+  The first goal wins; if three alternating extra-time possessions stay scoreless,
+  the match goes to a penalty shootout roll.
 - **Trailing ->** loss / elimination.
 
 ---
@@ -214,17 +214,20 @@ Through Ball, Clinical Finish x2, Poacher, Tackle x3, Clearance x2, Keeper.
   opponent keeper DC +2. Flair over volume.
 - **Mexico - "La Ola":** an extra die each round; opponent keeper DC +2. Win on volume.
 - **USA - "The Press":** instant counters get +1 above the universal counter bonus.
-  Win the ball and the counter is a real threat - counters are the identity, ~0.6 goals/match vs ~0.4
-  for others. Sits at the top of the win-rate band (~35%) as an approachable pick.
-- **Canada - "Resolute":** opponents have +4% interception risk per pass against you.
-  Hard to play through; sits near the top of the win-rate band (~33%) as an approachable pick.
+  Win the ball and the counter is a real threat - counters are the identity, ~0.47
+  goals/match versus ~0.31-0.36 for the other nations. Sits at the top of the
+  win-rate band (35%) as an approachable pick.
+- **Canada - "Resolute":** opponents have +4% interception risk per pass against you;
+  the opposing keeper gains +1 DC. Hard to play through, with a small finishing tax to
+  keep the defensive identity inside the win-rate band.
 
 ---
 
 ## 8. Key numbers (`balance.ts -> DICE`)
 
-Pool 5 dice - carry max 2 - d6 - hand 4 - 6 regulation rounds - pitch 0-20 - midfield 10 -
-their box 16 - your box 4.
+Pool 5 dice - carry max 2 - d6 - hand 4 - 6 regulation rounds - up to 3 golden-goal
+extra-time possessions in tied knockouts - pitch 0-20 - midfield 10 - their box 16 -
+your box 4.
 
 Shot math:
 
@@ -258,26 +261,25 @@ Their chain:
 
 Latest probe target readout:
 
-- Run wins: Brazil 15%, Mexico 15%, USA 23%, Canada 30%
-- Passes per chain: 2.03-2.10
-- Intercepted share: 16-20%
-- Goals per match: 1.5-1.7 for you, 0.6-0.7 for opponents
+- Run wins: Brazil 23%, Mexico 28%, USA 35%, Canada 30%
+- Passes per chain: 2.04-2.11
+- Intercepted share: 17-20%
+- Goals per match: 1.3-1.5 for you, 0.5-0.6 for opponents
 - Dead attack rounds: 0-1%
-- Stand-off-only defensive rounds: 22-25% (informational; standing off is legal)
+- Stand-off-only defensive rounds: 18-26% (informational; standing off is legal)
 
 ---
 
 ## 9. Known rough edges
 
-- **USA/Canada ride the win-rate ceiling (USA 35%, Canada 33%):** a deliberate user decision -
-  felt nation identities (USA counter threat, Canada interception wall) were chosen
-  over strict 15-25% parity. The durable fix is structural identities (like Brazil's
-  4-dice reroll) instead of numeric nudges; deferred.
+- **USA rides the win-rate ceiling (35%):** its felt counter identity is deliberately
+  stronger than strict 15-25% parity. Canada returned to 30% after its defensive
+  identity received a +1 opposing-keeper finishing tax.
 
 - **Chains still sit near the floor:** passes per chain are just over 2. Attempts to
-  lower risk ramp did not meaningfully create 2.5-3 pass chains and pushed win rates
+  lower risk ramp did not meaningfully create 2.5-3 pass chains and moved win rates
   around, so this ships as a conservative balance.
 - **Counters are still prominent for identity picks:** player counter goals sit roughly
-  0.4 for Brazil, 0.36 for Mexico, 0.59 for USA, and 0.64 for Canada.
+  0.36 for Brazil, 0.33 for Mexico, 0.47 for USA, and 0.31 for Canada.
 - **Screamer's long-range specialization is not special-cased:** it is currently a
   flat +8 Chance card; distance is handled only by the shared zone penalty table.

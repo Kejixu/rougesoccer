@@ -4,7 +4,7 @@
 
 import type { RunState } from "../core/types";
 
-const RUN_KEY = "rougesoccer:run:v6";
+const RUN_KEY = "rougesoccer:run:v7";
 
 export function saveRun(state: RunState | null): void {
   try {
@@ -20,7 +20,7 @@ export function loadRun(): RunState | null {
     const raw = localStorage.getItem(RUN_KEY);
     if (!raw) return null;
     const parsed = JSON.parse(raw) as RunState;
-    if (parsed.version !== 6 || parsed.phase === undefined) return null;
+    if (parsed.version !== 7 || parsed.phase === undefined) return null;
     if (parsed.phase === "DONE") return null; // finished runs don't resume
     return parsed;
   } catch {

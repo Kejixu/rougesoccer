@@ -37,7 +37,6 @@ export function simulateRun(
           playerGoals: state.lastMatch.playerGoals,
           oppGoals: state.lastMatch.oppGoals,
           result: state.lastMatch.result,
-          pushedRounds: state.lastMatch.pushedRounds,
         });
       }
     } else {

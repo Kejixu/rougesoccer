@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { applyDiceAction } from "../core/match/dice";
 import { applyRunAction, createRun } from "../core/run/run";
 import type { DiceMatchAction, DiceMatchState, GameEvent, RunAction, RunState } from "../core/types";
@@ -40,10 +40,6 @@ function tutorialIntentForAction(state: DiceMatchState, action: DiceMatchAction)
       return { kind: "shoot" };
     case "END_ROUND":
       return { kind: "endRound" };
-    case "TAKE_WIN":
-      return { kind: "takeWin" };
-    case "EXTRA_TIME":
-      return { kind: "extraTime" };
     case "REROLL_DIE":
       return { kind: "rerollDie" };
   }
@@ -59,14 +55,16 @@ function shouldAdvanceTutorialStep(
   if (!step) return false;
   const intent = tutorialIntentForAction(before, action);
   if (!tutorialLockAllows(step.lock, intent)) return false;
-  // A stand-off phase ends when the round advances OR the match leaves
-  // ROUND_ACTIVE (round 6 flows into PUSH_DECISION without a round change).
+  // A stand-off phase ends when the round advances OR the match ends at full time.
   if (step.lock.kind === "standOffUntilRoundEnds") return after.round !== before.round || after.phase !== before.phase;
   return step.lock.kind !== "next";
 }
 
 export function App() {
   const [run, setRun] = useState<RunState | null>(null);
+  const runRef = useRef<RunState | null>(null);
+  const fullTimeTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  runRef.current = run;
   const [savedRun] = useState<RunState | null>(() => loadRun());
   const [showShop, setShowShop] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -81,20 +79,43 @@ export function App() {
     return () => clearTimeout(t);
   }, [error]);
 
+  useEffect(
+    () => () => {
+      if (fullTimeTimerRef.current) clearTimeout(fullTimeTimerRef.current);
+    },
+    [],
+  );
+
   const dispatch = (action: RunAction) => {
-    setRun((current) => {
-      if (!current) return current;
-      try {
-        const step = applyRunAction(content, current, action);
-        saveRun(step.state.phase === "DONE" ? null : step.state);
-        setError(null);
-        setEvents(step.events);
-        return step.state;
-      } catch (e) {
-        setError(e instanceof Error ? e.message : String(e));
-        return current;
+    const current = runRef.current;
+    if (!current) return;
+    try {
+      const finalMatch =
+        action.type === "MATCH_ACTION" && current.activeMatch
+          ? applyDiceAction(content.defs, current.activeMatch, action.action)
+          : null;
+      const step = applyRunAction(content, current, action);
+      saveRun(step.state.phase === "DONE" ? null : step.state);
+      setError(null);
+      setEvents(step.events);
+
+      if (finalMatch?.state.phase === "DONE") {
+        const fullTimeRun: RunState = { ...current, activeMatch: finalMatch.state };
+        runRef.current = fullTimeRun;
+        setRun(fullTimeRun);
+        if (fullTimeTimerRef.current) clearTimeout(fullTimeTimerRef.current);
+        fullTimeTimerRef.current = setTimeout(() => {
+          runRef.current = step.state;
+          setRun(step.state);
+          fullTimeTimerRef.current = null;
+        }, 5000);
+      } else {
+        runRef.current = step.state;
+        setRun(step.state);
       }
-    });
+    } catch (e) {
+      setError(e instanceof Error ? e.message : String(e));
+    }
   };
 
   const startNewRun = (teamId: string, seed: string) => {

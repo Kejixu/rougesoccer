@@ -109,8 +109,10 @@ function eventLine(e: GameEvent): string | null {
       const list = values.length === 1 ? values[0] : `${values.slice(0, -1).join(", ")} and ${values.at(-1)}`;
       return `Fresh legs: carried ${list}.`;
     }
-    case "PUSH_DECISION":
-      return `Full time: you lead ${e.playerGoals}-${e.oppGoals}. Bank it or push.`;
+    case "SUDDEN_DEATH_START":
+      return "EXTRA TIME — next goal wins.";
+    case "MATCH_END":
+      return `FULL TIME — ${e.playerGoals}-${e.oppGoals}.`;
     default:
       return null;
   }
@@ -359,7 +361,6 @@ export function DiceMatchScreen(props: DiceMatchScreenProps) {
           shotQuality: m.shotQuality,
           interceptionRisk: riskNow,
           puntPressed,
-          phase: m.phase as DiceMatchState["phase"],
           comboTriggered: events.some((e) => e.type === "PASS_COMPLETED" && Boolean(e.combo)),
         },
         seenCoachKeys,
@@ -534,11 +535,11 @@ export function DiceMatchScreen(props: DiceMatchScreenProps) {
           </div>
         </div>
         <div style={{ textAlign: "right" }} data-testid="match-status">
-          {m.mode === "regulation"
+          {m.phase === "DONE"
+            ? "FULL TIME"
+            : m.mode === "regulation"
             ? `Round ${m.round} of ${m.bal.MATCH_ROUNDS}`
-            : m.mode === "extratime"
-              ? `EXTRA TIME — round ${m.round}`
-              : `SUDDEN DEATH ${m.suddenDeathRoundsPlayed + 1}`}
+            : `EXTRA TIME — golden goal (${m.suddenDeathRoundsPlayed + 1})`}
         </div>
       </div>
 
@@ -624,40 +625,6 @@ export function DiceMatchScreen(props: DiceMatchScreenProps) {
       <ChainGlossary />
       <MatchTicker lines={tickerLines} />
       {tutorial && <TutorialOverlay tutorial={tutorial} />}
-
-      {m.phase === "PUSH_DECISION" && (
-        <div className="push-modal-backdrop" data-testid="push-decision">
-          <div className="push-modal">
-            <h2>
-              You have the win ({m.playerGoals}–{m.oppGoals})
-            </h2>
-            <p>
-              Extra time: their threat hits {m.bal.EXTRA_TIME_CLOCK_MULT}× harder, but each round you
-              survive in the lead pays <strong>+{m.bal.ET_BUDGET_REWARD} budget</strong>.
-            </p>
-            <p style={{ display: "flex", gap: 12, justifyContent: "center" }}>
-              <button
-                type="button"
-                className={`btn${tutorialHighlights({ kind: "takeWin" }) ? " tutorial-highlight" : ""}`}
-                data-testid="take-win"
-                disabled={!tutorialAllows({ kind: "takeWin" })}
-                onClick={() => act({ type: "TAKE_WIN" })}
-              >
-                Bank the win
-              </button>
-              <button
-                type="button"
-                className="btn btn--primary"
-                data-testid="extra-time"
-                disabled={Boolean(tutorial)}
-                onClick={() => act({ type: "EXTRA_TIME" })}
-              >
-                Go for glory
-              </button>
-            </p>
-          </div>
-        </div>
-      )}
 
       {m.phase === "ROUND_ACTIVE" && (
         <>

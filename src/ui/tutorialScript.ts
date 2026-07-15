@@ -9,7 +9,6 @@ export type TutorialLock =
   | { kind: "playCard"; defId: string }
   | { kind: "shoot" }
   | { kind: "endRound" }
-  | { kind: "takeWin" }
   | { kind: "next" }
   | { kind: "standOffUntilRoundEnds" };
 
@@ -17,9 +16,7 @@ export type TutorialActionIntent =
   | { kind: "playCard"; defId: string }
   | { kind: "shoot" }
   | { kind: "endRound" }
-  | { kind: "takeWin" }
   | { kind: "next" }
-  | { kind: "extraTime" }
   | { kind: "rerollDie" };
 
 export interface TutorialStep {
@@ -30,7 +27,7 @@ export interface TutorialStep {
   why: string;
 }
 
-export const COACH_TIP_KEYS: CoachTipKey[] = ["possession", "risk", "chance", "punt", "defense", "push", "combo"];
+export const COACH_TIP_KEYS: CoachTipKey[] = ["possession", "risk", "chance", "punt", "defense", "combo"];
 
 export const TUTORIAL_OPP: OppInfo = {
   teamId: "qat",
@@ -141,10 +138,10 @@ export const TUTORIAL_STEPS: TutorialStep[] = [
   },
   {
     id: "whistle-question",
-    lock: { kind: "takeWin" },
-    title: "The whistle question.",
-    what: "Push-your-luck - bank the win, or extra time for bonus budget with their threat doubled.",
-    why: "Budget buys cards later, but a lead is worth 3 points NOW. Take the win.",
+    lock: { kind: "next" },
+    title: "Full time!",
+    what: "You held the lead to the whistle — that's the win.",
+    why: "Ties in the knockouts go to extra time and penalties; in the groups a draw shares the points. Win in regulation and none of that can hurt you.",
   },
   {
     id: "loop",
