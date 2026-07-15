@@ -20,7 +20,7 @@ One run = one World Cup campaign with the team you pick.
 - **Knockout:** R32 -> R16 -> QF -> SF -> **Final** (single elimination).
 - Between matches: **rewards** (pick a card), a **shop** (buy/upgrade/remove cards),
   and **staff hires** (passive perks) each time you advance a stage.
-- Run saves are version **7**. Older saved runs are discarded on load.
+- Run saves are version **8**. Older saved runs are discarded on load.
 - Difficulty ramps every stage (`STAGE_CLOCK_MULT`: GROUP 1.1 -> FINAL 2.4), which
   scales each opponent's rating, keeper, and attack threat.
 
@@ -90,7 +90,8 @@ Opponent intent copy describes your passing posture in chain mode:
 The ticker keeps the latest match events visible (pressure rolls, passes for both
 teams, interceptions, counters, shot roll math, goals/saves, and possession
 changes). Coach tips are stored as `coach.possession`, `coach.risk`, `coach.chance`,
-`coach.punt`, `coach.defense`, and `coach.combo` once dismissed.
+`coach.punt`, `coach.defense`, `coach.combo`, `coach.corner`, and `coach.rattled`
+once dismissed.
 
 ---
 
@@ -114,7 +115,8 @@ There is no lane duel or delayed resolve step. Each die assignment is the action
   quantized to d20 pressure with `round(risk * 20)`, and the pass survives when the
   d20 roll is higher than pressure. The first pass of your possession is still free.
 - **Interceptions** immediately end the possession after the counter shot.
-- **Shots** immediately end the possession and reset the ball to midfield.
+- **Shots** normally end the possession and reset the ball to midfield. A close save
+  can instead leave the same possession live for one corner delivery.
 
 At the end of a possession, remaining hand cards are discarded, dice clear, and the
 next round starts unless the match has reached a result, knockout extra time, or a
@@ -127,7 +129,7 @@ shootout.
 Your shot:
 
 ```
-d20 + Shot Quality >= their keeper DC + zone penalty + sit-deep bonus
+d20 + Shot Quality >= their keeper DC + zone penalty + sit-deep bonus - rattled bonus
 ```
 
 Their shot:
@@ -141,7 +143,26 @@ Counter shots are one-roll chances after an interception. Your counter uses
 and is scarier if you lost the ball in your own half.
 
 The opponent panel shows the constant keeper DC. Distance and sit-deep pressure are
-priced only into the Shoot button's live percentage.
+priced only into the Shoot button's live percentage. When the keeper is rattled, its
+badge shows the temporary -2 DC and `shotEstimate` includes it in the live percentage.
+
+### Set pieces and the rattled keeper
+
+Only a missed player `SHOOT` can start a set piece. Let
+`margin = dc - (d20 + Shot Quality)`:
+
+- A miss by 4 or less earns a corner. Chance resets to 0, the ball stays put, and
+  the possession remains live.
+- A miss by 2 or less also rattles the keeper. Your next regular shot or player
+  counter gets -2 DC once, then the flag clears whether that shot scores or misses.
+  The flag persists across possessions until used.
+- A corner allows exactly one fitting attack card and unused die. Its normal Chance,
+  development, setup, movement, and combo effects resolve, then a headed shot fires
+  automatically. The header always ends the possession and cannot earn another
+  corner. A close header can re-rattle the keeper.
+- `Clear it` ends a corner without a card or shot when there is no useful delivery.
+- Player counter misses, opponent shots, and opponent counters do not create corners
+  or rattle states. Symmetric opponent set pieces are future work.
 
 Zone penalties:
 
@@ -234,11 +255,13 @@ your box 4.
 
 Shot math:
 
-- Their keeper DC: `min(18, 10 + rating * 0.14) + nation keeper delta`
+- Their keeper DC: `min(18, 11 + rating * 0.14) + nation keeper delta`
 - Your keeper DC: `15`
 - Shot die: d20
 - Sit-deep bonus to their keeper: +4
 - Zone DC penalty: `[6, 6, 6, 3, 0]`
+- Corner window: missed player shots by 4 or less
+- Rattled window: missed player shots by 2 or less; next player shot gets -2 DC
 
 Your chain:
 
@@ -264,25 +287,29 @@ Their chain:
 
 Latest probe target readout:
 
-- Run wins: Brazil 23%, Mexico 28%, USA 35%, Canada 30%
-- Passes per chain: 2.04-2.11
-- Intercepted share: 17-20%
-- Goals per match: 1.3-1.5 for you, 0.5-0.6 for opponents
+- Run wins: Brazil 20%, Mexico 25%, USA 30%, Canada 25%
+- Passes per chain: 2.06-2.15
+- Intercepted share: 19-22%
+- Goals per match: 1.2-1.5 for you, 0.5-0.6 for opponents
 - Dead attack rounds: 0-1%
 - Stand-off-only defensive rounds: 18-26% (informational; standing off is legal)
+- Corners per match: 0.25-0.36
+- Rattled conversions per match: 0.06-0.08
+
+Set-piece value initially pushed Mexico to 40% run wins and Canada to 38%. The one
+balance knob moved was `KEEPER_DC_BASE`, 10 -> 11; the figures above are the rerun.
 
 ---
 
 ## 9. Known rough edges
 
-- **USA rides the win-rate ceiling (35%):** its felt counter identity is deliberately
-  stronger than strict 15-25% parity. Canada returned to 30% after its defensive
-  identity received a +1 opposing-keeper finishing tax.
+- **Set pieces are player-side only:** close opponent misses do not currently create
+  corners or rattle your keeper. A symmetric version is future work.
 
 - **Chains still sit near the floor:** passes per chain are just over 2. Attempts to
   lower risk ramp did not meaningfully create 2.5-3 pass chains and moved win rates
   around, so this ships as a conservative balance.
 - **Counters are still prominent for identity picks:** player counter goals sit roughly
-  0.36 for Brazil, 0.33 for Mexico, 0.47 for USA, and 0.31 for Canada.
+  0.31 for Brazil, 0.27 for Mexico, 0.49 for USA, and 0.26 for Canada.
 - **Screamer's long-range specialization is not special-cased:** it is currently a
   flat +8 Chance card; distance is handled only by the shared zone penalty table.

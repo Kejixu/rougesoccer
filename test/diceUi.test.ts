@@ -77,6 +77,8 @@ describe("dice UX copy", () => {
       "Stand off": "Stand off lets their next pass happen without committing a card, banking up to 2 unused dice for your next attack.",
       Counter: "A counter is an instant shot after an interception.",
       Combo: "A combo is a linked pass sequence that earns a risk or Chance bonus.",
+      Corner: "A corner gives you one card delivery, then an automatic headed shot.",
+      Rattled: "A rattled keeper has -2 DC against your next regular or counter shot, once.",
     });
   });
 });
@@ -89,6 +91,8 @@ describe("coach tips", () => {
       interceptionRisk: 0,
       puntPressed: false,
       comboTriggered: false,
+      corner: false,
+      keeperRattled: false,
     };
 
   it("shows the first-possession tip once", () => {
@@ -127,6 +131,25 @@ describe("coach tips", () => {
       key: "possession",
       text: "Cards are passes. Each die you slot plays one — your first pass is always free.",
     });
+  });
+
+  it("shows the two set-piece tips once with corner instructions first", () => {
+    expect(coachTipFor({ ...baseSummary, corner: true, keeperRattled: true }, new Set())).toEqual({
+      key: "corner",
+      text: "A save close to the mark goes out for a corner — one delivery, then the header. Bank Chance with your best card.",
+    });
+    expect(
+      coachTipFor({ ...baseSummary, corner: true, keeperRattled: true }, new Set(["corner"])),
+    ).toEqual({
+      key: "rattled",
+      text: "You hit him hard — the keeper's shaken. Your next shot gets -2 DC: shoot again while he's down.",
+    });
+    expect(
+      coachTipFor(
+        { ...baseSummary, corner: true, keeperRattled: true },
+        new Set(["corner", "rattled", "possession"]),
+      ),
+    ).toBeNull();
   });
 });
 

@@ -76,6 +76,8 @@ export interface BalanceConfig {
     OWN_KEEPER_DC_BASE: number;
     SHOT_DIE: number;           // d20
     SIT_DEEP_DC_BONUS: number;  // sitDeep posture also hardens their keeper
+    CORNER_WINDOW: number;      // missed by this much or less: one corner delivery
+    RATTLE_WINDOW: number;      // missed by this much or less: keeper rattled too
     // ---- your chain ----
     RISK_BASE_PRESS: number;    // their press posture: base interception risk
     RISK_BASE_BALANCED: number;
@@ -174,11 +176,14 @@ export const DEFAULT_BALANCE: BalanceConfig = {
     ZONE_WIDTH: 4,
     THEIR_BOX: 16,
     YOUR_BOX: 4,
-    KEEPER_DC_BASE: 10,
+    // Set-piece value refund tune: 10 -> 11 to keep all nations within the 10-35% run-win band.
+    KEEPER_DC_BASE: 11,
     KEEPER_DC_PER_RATING: 0.14,
     OWN_KEEPER_DC_BASE: 15,
     SHOT_DIE: 20,
     SIT_DEEP_DC_BONUS: 4,
+    CORNER_WINDOW: 4,
+    RATTLE_WINDOW: 2,
     RISK_BASE_PRESS: 0.27,
     RISK_BASE_BALANCED: 0.17,
     RISK_BASE_DEEP: 0.1,

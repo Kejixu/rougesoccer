@@ -46,13 +46,6 @@ function diceAction(
     return { type: "END_ROUND" };
   }
 
-  // your chain: shoot when the estimate is good enough or the next pass is too hot
-  const est = shotEstimate(m);
-  const risk = interceptionRisk(m);
-  const canShoot = m.passes >= 1 && m.shotQuality > 0;
-  if (canShoot && (est.p >= opts.greed || risk >= opts.riskTolerance)) return { type: "SHOOT" };
-
-  // order: setup > chance-when-developed > progress; else anything playable
   const byRole = (want: (def: CardDef) => boolean): DiceMatchAction | null => {
     for (const c of m.hand) {
       if (!playable.has(c.uid)) continue;
@@ -64,6 +57,22 @@ function diceAction(
     return null;
   };
   const effs = (d: CardDef) => d.diceEffects ?? [];
+
+  if (m.corner) {
+    return (
+      byRole((d) => effs(d).some((e) => e.kind === "shotQuality" || e.kind === "shotQualityFromDie")) ??
+      byRole(() => true) ?? { type: "END_ROUND" }
+    );
+  }
+
+  // your chain: shoot when the estimate is good enough or the next pass is too hot
+  const est = shotEstimate(m);
+  const risk = interceptionRisk(m);
+  const canShoot = m.passes >= 1 && m.shotQuality > 0;
+  const greed = opts.greed - (m.keeperRattled ? 0.05 : 0);
+  if (canShoot && (est.p >= greed || risk >= opts.riskTolerance)) return { type: "SHOOT" };
+
+  // order: setup > chance-when-developed > progress; else anything playable
   const pick =
     (m.passes >= 1 ? byRole((d) => effs(d).some((e) => e.kind === "setupNext")) : null) ??
     (m.passes >= 1
@@ -161,7 +170,7 @@ export function makeRandomBot(): Bot {
     matchAction: (content, m) => {
       const playable = [...playableCards(content.defs, m)];
       if (m.possession === "them" && (m.round + m.oppPasses) % 2 === 1) return { type: "END_ROUND" };
-      if (m.passes >= 2 && m.shotQuality > 0 && (m.round + m.passes) % 3 === 0) {
+      if (!m.corner && m.passes >= 2 && m.shotQuality > 0 && (m.round + m.passes) % 3 === 0) {
         return { type: "SHOOT" };
       }
       if (playable.length === 0) return { type: "END_ROUND" };

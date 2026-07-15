@@ -34,6 +34,9 @@ interface MatchStats {
   oppIntercepted: number; // you picked their chain
   counterGoalsFor: number;
   counterGoalsAgainst: number;
+  corners: number;
+  rattledConversions: number; // goals scored on a shot while the keeper was rattled
+  rattledPending: boolean;
 }
 
 const ROLE_OF: Record<string, "defend" | "progress" | "finish"> = {};
@@ -97,6 +100,9 @@ function probe(team: string, seed: string): { matches: MatchStats[]; result: str
         oppIntercepted: 0,
         counterGoalsFor: 0,
         counterGoalsAgainst: 0,
+        corners: 0,
+        rattledConversions: 0,
+        rattledPending: false,
       };
     }
     lastMatchActive = inMatch;
@@ -146,6 +152,8 @@ function probe(team: string, seed: string): { matches: MatchStats[]; result: str
         if (e.type === "SHOT_TAKEN") {
           c.shots++;
           c.shotRolls.push({ roll: e.roll, quality: e.quality, dc: e.dc, goal: e.goal });
+          if (c.rattledPending && e.goal) c.rattledConversions++;
+          c.rattledPending = false;
         }
         if (e.type === "PASS_COMPLETED") {
           if (e.passes === 1) c.chains++;
@@ -157,11 +165,17 @@ function probe(team: string, seed: string): { matches: MatchStats[]; result: str
         }
         if (e.type === "COUNTER_SHOT") {
           if (e.byYou) c.shots++;
+          if (e.byYou) {
+            if (c.rattledPending && e.goal) c.rattledConversions++;
+            c.rattledPending = false;
+          }
           if (e.goal) {
             if (e.byYou) c.counterGoalsFor++;
             else c.counterGoalsAgainst++;
           }
         }
+        if (e.type === "CORNER_EARNED") c.corners++;
+        if (e.type === "KEEPER_RATTLED") c.rattledPending = true;
         if (e.type === "DIE_REROLLED") c.rerolls++;
         if (e.type === "MATCH_END") {
           c.goalsFor = e.playerGoals;
@@ -201,7 +215,9 @@ function summarize(team: string) {
     intercepted = 0,
     oppIntercepted = 0,
     counterGoalsFor = 0,
-    counterGoalsAgainst = 0;
+    counterGoalsAgainst = 0,
+    corners = 0,
+    rattledConversions = 0;
   for (let i = 0; i < N; i++) {
     const { matches, result } = probe(team, `${team}-fun-${i}`);
     if (result === "won") wins++;
@@ -228,6 +244,8 @@ function summarize(team: string) {
       oppIntercepted += m.oppIntercepted;
       counterGoalsFor += m.counterGoalsFor;
       counterGoalsAgainst += m.counterGoalsAgainst;
+      corners += m.corners;
+      rattledConversions += m.rattledConversions;
       for (const s of m.shotRolls) {
         const total = s.roll + s.quality;
         const margin = total - s.dc;
@@ -257,6 +275,8 @@ function summarize(team: string) {
     oppGoalsPerMatch: (goalsAg / matchCount).toFixed(1),
     counterGoalsFor: (counterGoalsFor / matchCount).toFixed(2),
     counterGoalsAgainst: (counterGoalsAgainst / matchCount).toFixed(2),
+    cornersPerMatch: (corners / matchCount).toFixed(2),
+    rattledConversions: (rattledConversions / matchCount).toFixed(2),
     nearMissPerMatch: (nearMiss / matchCount).toFixed(2),
   };
 }

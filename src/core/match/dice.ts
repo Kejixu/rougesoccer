@@ -26,6 +26,7 @@ import {
 } from "../types";
 
 export const ZONE_NAMES = ["Your Box", "Your Third", "Midfield", "Their Third", "Their Box"];
+const RATTLED_DC_REDUCTION = 2;
 
 // ---------- rng / pile helpers ----------
 
@@ -137,7 +138,7 @@ export function oppShotEstimate(state: DiceMatchState): { dc: number; p: number 
 export function shotEstimate(state: DiceMatchState): { dc: number; p: number } {
   const zonePen = state.bal.DICE.ZONE_DC_PENALTY[zoneOf(state.ball, state.bal)] ?? 0;
   const sitDeep = state.intent?.kind === "sitDeep" ? state.bal.DICE.SIT_DEEP_DC_BONUS : 0;
-  const dc = state.keeperDC + zonePen + sitDeep;
+  const dc = state.keeperDC + zonePen + sitDeep - (state.keeperRattled ? RATTLED_DC_REDUCTION : 0);
   const p = Math.max(
     0.05,
     Math.min(0.95, (state.bal.DICE.SHOT_DIE - dc + 1 + state.shotQuality) / state.bal.DICE.SHOT_DIE),
@@ -174,6 +175,7 @@ function resetChain(draft: DiceMatchState): void {
   draft.oppPasses = 0;
   draft.oppChance = 0;
   draft.shotQuality = 0;
+  draft.corner = false;
 }
 
 function startRound(draft: DiceMatchState, events: GameEvent[]): void {
@@ -356,8 +358,10 @@ function oppPassAttempt(defs: CardDefMap, draft: DiceMatchState, events: GameEve
       events.push({ type: "CHAIN_INTERCEPTED", byYou: true, passes: draft.oppPasses, chanceLost: draft.oppChance });
       const bonus = draft.bal.DICE.COUNTER_CHANCE + mutatorSum(draft.mutators, "counterSpring");
       const counterRoll = 1 + Math.floor(rand(draft) * draft.bal.DICE.SHOT_DIE);
-      const goal = counterRoll + bonus >= draft.keeperDC;
-      events.push({ type: "COUNTER_SHOT", byYou: true, roll: counterRoll, bonus, dc: draft.keeperDC, goal });
+      const counterDC = draft.keeperDC - (draft.keeperRattled ? RATTLED_DC_REDUCTION : 0);
+      const goal = counterRoll + bonus >= counterDC;
+      events.push({ type: "COUNTER_SHOT", byYou: true, roll: counterRoll, bonus, dc: counterDC, goal });
+      draft.keeperRattled = false;
       if (goal) {
         draft.playerGoals += 1;
         events.push({ type: "GOAL_SCORED", goals: 1, total: draft.playerGoals });
@@ -425,6 +429,33 @@ function assignDie(defs: CardDefMap, draft: DiceMatchState, uid: string, dieInde
     return;
   }
 
+  if (draft.corner) {
+    const combo = def.position ? comboFor(draft.lastPassPosition, def.position) : null;
+    let gained = 0;
+    let comboChance = combo?.chance ?? 0;
+    if (combo?.riskDelta) draft.nextRiskDelta += combo.riskDelta;
+    for (const eff of effectsFor(def, inst.level)) {
+      const extra = comboChance > 0 && (eff.kind === "shotQuality" || eff.kind === "shotQualityFromDie") ? comboChance : 0;
+      gained += applyDiceEffect(draft, eff, die.value, events, extra);
+      if (extra > 0) comboChance = 0;
+    }
+    draft.passes += 1;
+    if (def.position) draft.lastPassPosition = def.position;
+    events.push({
+      type: "PASS_COMPLETED",
+      uid,
+      cardName: def.name,
+      passes: draft.passes,
+      chanceGained: gained,
+      shotQuality: draft.shotQuality,
+      risked: 0,
+      combo: combo?.label,
+    });
+    discard();
+    shoot(defs, draft, events, true);
+    return;
+  }
+
   const combo = def.position ? comboFor(draft.lastPassPosition, def.position) : null;
   const risk = interceptionRisk(draft);
   draft.nextRiskDelta = 0;
@@ -463,18 +494,45 @@ function assignDie(defs: CardDefMap, draft: DiceMatchState, uid: string, dieInde
   discard();
 }
 
-function shoot(defs: CardDefMap, draft: DiceMatchState, events: GameEvent[]): void {
+function shoot(defs: CardDefMap, draft: DiceMatchState, events: GameEvent[], automaticCorner = false): void {
   if (draft.possession !== "you") throw new Error("you don't have the ball");
   if (draft.passes < 1) throw new Error("work at least one pass first");
+  if (draft.corner && !automaticCorner) throw new Error("deliver the corner before the header");
+  const fromCorner = draft.corner;
   const { dc } = shotEstimate(draft);
   const roll = 1 + Math.floor(rand(draft) * draft.bal.DICE.SHOT_DIE);
-  const goal = roll + draft.shotQuality >= dc;
-  events.push({ type: "SHOT_TAKEN", roll, dc, quality: draft.shotQuality, goal });
+  const quality = draft.shotQuality;
+  const goal = roll + quality >= dc;
+  events.push({
+    type: "SHOT_TAKEN",
+    roll,
+    dc,
+    quality,
+    goal,
+    ...(fromCorner ? { corner: true as const } : {}),
+  });
+  draft.keeperRattled = false;
   if (goal) {
     draft.playerGoals += 1;
     events.push({ type: "GOAL_SCORED", goals: 1, total: draft.playerGoals });
   }
   draft.shotQuality = 0;
+  if (!goal) {
+    const margin = dc - (roll + quality);
+    if (!fromCorner && margin <= draft.bal.DICE.CORNER_WINDOW) {
+      draft.corner = true;
+      events.push({ type: "CORNER_EARNED", margin });
+      if (margin <= draft.bal.DICE.RATTLE_WINDOW) {
+        draft.keeperRattled = true;
+        events.push({ type: "KEEPER_RATTLED" });
+      }
+      return;
+    }
+    if (fromCorner && margin <= draft.bal.DICE.RATTLE_WINDOW) {
+      draft.keeperRattled = true;
+      events.push({ type: "KEEPER_RATTLED" });
+    }
+  }
   draft.ball = draft.bal.DICE.MIDFIELD;
   concludeRound(defs, draft, events);
 }
@@ -524,6 +582,8 @@ export function createDiceMatch(defs: CardDefMap, cfg: DiceMatchConfig): DiceMat
     oppPasses: 0,
     oppChance: 0,
     shotQuality: 0,
+    keeperRattled: false,
+    corner: false,
     playerGoals: 0,
     oppGoals: 0,
     keeperDC: dc,

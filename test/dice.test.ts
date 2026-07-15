@@ -380,6 +380,157 @@ describe("your chain", () => {
   });
 });
 
+describe("set pieces", () => {
+  const rngStateForRoll: Record<number, number> = {
+    5: 15,
+    6: 0,
+    7: 24,
+    8: 18,
+    9: 14,
+    10: 58,
+    11: 6,
+    12: 13,
+  };
+
+  function readyShot(margin: 1 | 2 | 3 | 4 | 5): DiceMatchState {
+    const base = start(["d_drivingrun", "d_quickcombo", "d_shortpass", "d_poacher"], `margin-${margin}`);
+    const roll = base.keeperDC - margin;
+    return {
+      ...base,
+      ball: DEFAULT_BALANCE.DICE.THEIR_BOX,
+      passes: 1,
+      shotQuality: 0,
+      intent: null,
+      rng: { s: rngStateForRoll[roll]! },
+    };
+  }
+
+  it.each([
+    { margin: 5 as const, corner: false, rattled: false },
+    { margin: 4 as const, corner: true, rattled: false },
+    { margin: 3 as const, corner: true, rattled: false },
+    { margin: 2 as const, corner: true, rattled: true },
+    { margin: 1 as const, corner: true, rattled: true },
+  ])("nests corner and rattled windows for a miss by $margin", ({ margin, corner, rattled }) => {
+    const before = readyShot(margin);
+    const step = applyDiceAction(DICE_CARD_MAP, before, { type: "SHOOT" });
+
+    expect(step.events.some((event) => event.type === "CORNER_EARNED")).toBe(corner);
+    expect(step.events.some((event) => event.type === "KEEPER_RATTLED")).toBe(rattled);
+    expect(step.state.corner).toBe(corner);
+    expect(step.state.keeperRattled).toBe(rattled);
+    if (corner) {
+      expect(step.events).toContainEqual({ type: "CORNER_EARNED", margin });
+      expect(step.state.round).toBe(before.round);
+      expect(step.state.ball).toBe(before.ball);
+      expect(step.state.shotQuality).toBe(0);
+    } else {
+      expect(step.state.round).toBeGreaterThan(before.round);
+    }
+  });
+
+  it("plays one corner delivery, then immediately takes the automatic header", () => {
+    const before = {
+      ...readyShot(4),
+      corner: true,
+      rng: { s: 36 }, // header roll 20
+      dice: [{ value: 4, used: false }],
+      hand: [inst("d_quickcombo", 0)],
+    };
+
+    const step = applyDiceAction(DICE_CARD_MAP, before, {
+      type: "ASSIGN_DIE",
+      uid: before.hand[0]!.uid,
+      dieIndex: 0,
+    });
+
+    expect(step.events).toContainEqual(expect.objectContaining({ type: "PASS_COMPLETED", chanceGained: 3 }));
+    expect(step.events).toContainEqual(
+      expect.objectContaining({ type: "SHOT_TAKEN", corner: true, quality: 3, goal: true }),
+    );
+    expect(step.state.round).toBeGreaterThan(before.round);
+    expect(step.state.corner).toBe(false);
+  });
+
+  it("computes the miss margin from roll plus banked Chance", () => {
+    const before = {
+      ...readyShot(4),
+      shotQuality: 3,
+      rng: { s: rngStateForRoll[readyShot(4).keeperDC - 4 - 3]! },
+    };
+
+    const step = applyDiceAction(DICE_CARD_MAP, before, { type: "SHOOT" });
+    expect(step.events).toContainEqual({ type: "CORNER_EARNED", margin: 4 });
+    expect(step.state.corner).toBe(true);
+  });
+
+  it("lets the player clear an unplayable corner without taking a shot", () => {
+    const before = { ...readyShot(4), corner: true, hand: [], dice: [] };
+    const step = applyDiceAction(DICE_CARD_MAP, before, { type: "END_ROUND" });
+
+    expect(step.events.some((event) => event.type === "SHOT_TAKEN")).toBe(false);
+    expect(step.state.round).toBeGreaterThan(before.round);
+    expect(step.state.corner).toBe(false);
+  });
+
+  it("applies the rattled keeper DC once and clears it after a regular shot", () => {
+    const before = {
+      ...readyShot(2),
+      keeperRattled: true,
+      rng: { s: rngStateForRoll[readyShot(2).keeperDC - 2]! },
+    };
+
+    expect(shotEstimate(before).dc).toBe(before.keeperDC - 2);
+    const step = applyDiceAction(DICE_CARD_MAP, before, { type: "SHOOT" });
+    expect(step.events).toContainEqual(
+      expect.objectContaining({ type: "SHOT_TAKEN", dc: before.keeperDC - 2, goal: true }),
+    );
+    expect(step.state.keeperRattled).toBe(false);
+  });
+
+  it("applies rattled once to your counter shot and clears it", () => {
+    const before = {
+      ...start(["d_tackle"], "rattled-counter"),
+      round: 2,
+      possession: "them" as const,
+      keeperRattled: true,
+      defenseCommit: 0.9,
+      rng: { s: 0 }, // their challenged pass fails, then your counter resolves
+      hand: [],
+      dice: [],
+    };
+
+    const step = applyDiceAction(DICE_CARD_MAP, before, { type: "END_ROUND" });
+    expect(step.events).toContainEqual(
+      expect.objectContaining({ type: "COUNTER_SHOT", byYou: true, dc: before.keeperDC - 2 }),
+    );
+    expect(step.state.keeperRattled).toBe(false);
+  });
+
+  it("never chains another corner from the automatic corner header", () => {
+    const before = {
+      ...readyShot(4),
+      corner: true,
+      rng: { s: 18 }, // header misses by 4
+      dice: [{ value: 4, used: false }],
+      hand: [inst("d_drivingrun", 0)],
+    };
+
+    const step = applyDiceAction(DICE_CARD_MAP, before, {
+      type: "ASSIGN_DIE",
+      uid: before.hand[0]!.uid,
+      dieIndex: 0,
+    });
+
+    expect(step.events).toContainEqual(
+      expect.objectContaining({ type: "SHOT_TAKEN", corner: true, goal: false }),
+    );
+    expect(step.events.some((event) => event.type === "CORNER_EARNED")).toBe(false);
+    expect(step.state.round).toBeGreaterThan(before.round);
+    expect(step.state.corner).toBe(false);
+  });
+});
+
 describe("their chain", () => {
   function theirRound(defIds: string[], seed = "def"): DiceMatchState {
     let m = start(defIds, seed);

@@ -167,6 +167,18 @@ export function ScorePopups({ events }: { events: GameEvent[] }) {
           },
         });
         delay += 520;
+      } else if (e.type === "CORNER_EARNED") {
+        staged.push({
+          delay,
+          popup: { id: nextId++, kind: "info", text: "CORNER!" },
+        });
+        delay += 600;
+      } else if (e.type === "KEEPER_RATTLED") {
+        staged.push({
+          delay,
+          popup: { id: nextId++, kind: "info", text: "The keeper's rattled!" },
+        });
+        delay += 600;
       } else if (e.type === "OPP_SHOT") {
         staged.push({
           delay,

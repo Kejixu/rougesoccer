@@ -7,6 +7,8 @@ export const CHAIN_GLOSSARY: Record<string, string> = {
   "Stand off": "Stand off lets their next pass happen without committing a card, banking up to 2 unused dice for your next attack.",
   Counter: "A counter is an instant shot after an interception.",
   Combo: "A combo is a linked pass sequence that earns a risk or Chance bonus.",
+  Corner: "A corner gives you one card delivery, then an automatic headed shot.",
+  Rattled: "A rattled keeper has -2 DC against your next regular or counter shot, once.",
 };
 
 export function describeChainStatus(input: {
@@ -27,7 +29,9 @@ export function describeChainStatus(input: {
   return `Chance ${input.shotQuality} · shot ${Math.round(input.shootPct * 100)}% · next pass pressure ${pressureOf(input.riskPct)} (${Math.round(input.riskPct * 100)}%).`;
 }
 
-export type CoachTipKey = "possession" | "risk" | "chance" | "punt" | "defense" | "combo";
+export type CoachTipKey = "possession" | "risk" | "chance" | "punt" | "defense" | "combo" | "corner" | "rattled";
+
+export const SET_PIECE_COACH_TIP_KEYS: CoachTipKey[] = ["corner", "rattled"];
 
 export interface CoachTip {
   key: CoachTipKey;
@@ -41,6 +45,8 @@ export const COACH_TIPS: Record<CoachTipKey, string> = {
   punt: "A punt! Long shots are priced in — work the ball closer and bank Chance for better odds.",
   defense: "Their turn. Unused dice carry to your attack, up to 2. Stand off to bank energy; commit defenders to spend it on safety now.",
   combo: "A combo! Passes that flow like a real move — midfield wide, wing to striker — earn bonuses. Sequence your passes.",
+  corner: "A save close to the mark goes out for a corner — one delivery, then the header. Bank Chance with your best card.",
+  rattled: "You hit him hard — the keeper's shaken. Your next shot gets -2 DC: shoot again while he's down.",
 };
 
 export function coachTipFor(
@@ -51,10 +57,14 @@ export function coachTipFor(
     interceptionRisk: number;
     puntPressed: boolean;
     comboTriggered: boolean;
+    corner: boolean;
+    keeperRattled: boolean;
   },
   seenKeys: ReadonlySet<CoachTipKey | string>,
 ): CoachTip | null {
   const ordered: [CoachTipKey, boolean][] = [
+    ["corner", input.corner],
+    ["rattled", input.keeperRattled],
     ["combo", input.comboTriggered],
     ["risk", input.interceptionRisk > 0],
     ["chance", input.shotQuality > 0],

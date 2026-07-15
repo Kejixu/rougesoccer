@@ -391,7 +391,9 @@ export type GameEvent =
   | { type: "DIE_REROLLED"; dieIndex: number; from: number; to: number }
   | { type: "BALL_MOVED"; ball: number; toward: "yours" | "theirs" }
   | { type: "OPP_SHOT"; roll: number; danger: number; dc: number; goal: boolean }
-  | { type: "SHOT_TAKEN"; roll: number; dc: number; quality: number; goal: boolean }
+  | { type: "SHOT_TAKEN"; roll: number; dc: number; quality: number; goal: boolean; corner?: true }
+  | { type: "CORNER_EARNED"; margin: number }
+  | { type: "KEEPER_RATTLED" }
   | { type: "CARD_FATIGUED"; uids: string[] }
   | { type: "CARDS_DISCARDED"; uids: string[]; forced: boolean }
   | { type: "PUSH_DECISION"; playerGoals: number; oppGoals: number }
@@ -437,6 +439,8 @@ export interface DiceMatchState {
   oppPasses: number;
   oppChance: number;
   shotQuality: number;
+  keeperRattled: boolean; // persists until your next regular or counter shot resolves
+  corner: boolean; // one attack-card delivery remains in this possession
   playerGoals: number;
   oppGoals: number;
   keeperDC: number;
@@ -553,7 +557,7 @@ export interface StaffOffer {
 }
 
 export interface RunState {
-  version: 7;
+  version: 8;
   seed: string;
   playerTeamId: string;
   stage: Stage;

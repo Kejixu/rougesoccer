@@ -52,6 +52,25 @@
   max-width: 420px;
 }
 
+.rattled-badge {
+  display: inline-block;
+  margin-left: 8px;
+  padding: 2px 7px;
+  border: 1px solid var(--accent);
+  border-radius: 999px;
+  color: var(--accent);
+  font-weight: 800;
+  text-transform: uppercase;
+}
+
+.corner-banner {
+  padding: 10px 14px;
+  border-color: var(--accent);
+  background: color-mix(in srgb, var(--accent) 14%, var(--surface));
+  text-align: center;
+  letter-spacing: 0.04em;
+}
+
 .round-pips {
   display: flex;
   gap: 6px;

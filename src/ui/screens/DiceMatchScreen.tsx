@@ -13,7 +13,13 @@ import {
 } from "../../core/types";
 import { ZONE_NAMES, bestDieFor, comboFor, interceptionRisk, oppInterceptionRisk, oppShotEstimate, playableCards, shotEstimate, zoneOf } from "../../core/match/dice";
 import { ScorePopups } from "../components/ScorePopups";
-import { CHAIN_GLOSSARY, coachTipFor, describeChainStatus, type CoachTipKey } from "../diceUx";
+import {
+  CHAIN_GLOSSARY,
+  SET_PIECE_COACH_TIP_KEYS,
+  coachTipFor,
+  describeChainStatus,
+  type CoachTipKey,
+} from "../diceUx";
 import { dieDropTargets } from "../diceDropTargets";
 import { COACH_TIP_KEYS, tutorialLockAllows, type TutorialActionIntent, type TutorialStep } from "../tutorialScript";
 
@@ -97,7 +103,11 @@ function eventLine(e: GameEvent): string | null {
     case "COUNTER_SHOT":
       return `${e.byYou ? "Your" : "Their"} counter: d20 ${e.roll} + ${e.bonus} vs ${e.dc} = ${e.goal ? "goal" : "saved"}.`;
     case "SHOT_TAKEN":
-      return `Shot: d20 ${e.roll} + ${e.quality} vs ${e.dc} = ${e.goal ? "goal" : "saved"}.`;
+      return `${e.corner ? "Corner header" : "Shot"}: d20 ${e.roll} + ${e.quality} vs ${e.dc} = ${e.goal ? "goal" : "saved"}.`;
+    case "CORNER_EARNED":
+      return `Parried out! Corner — missed by ${e.margin}.`;
+    case "KEEPER_RATTLED":
+      return "The keeper's rattled — -2 DC on your next shot.";
     case "OPP_SHOT":
       return `Their shot: d20 ${e.roll} + ${e.danger} vs ${e.dc} = ${e.goal ? "goal" : "saved"}.`;
     case "GOAL_SCORED":
@@ -137,7 +147,11 @@ function coachStorageKey(key: CoachTipKey): string {
 
 function readSeenCoachKeys(): Set<CoachTipKey> {
   if (typeof localStorage === "undefined") return new Set();
-  return new Set(COACH_TIP_KEYS.filter((key) => localStorage.getItem(coachStorageKey(key)) === "1"));
+  return new Set(
+    [...COACH_TIP_KEYS, ...SET_PIECE_COACH_TIP_KEYS].filter(
+      (key) => localStorage.getItem(coachStorageKey(key)) === "1",
+    ),
+  );
 }
 
 function persistCoachKey(key: CoachTipKey): void {
@@ -295,6 +309,9 @@ export function DiceMatchScreen(props: DiceMatchScreenProps) {
       chainRef.current = [];
       setDocked([]);
     }
+    if (events.some((e) => e.type === "CORNER_EARNED")) {
+      setDocked((prev) => prev.slice(0, 1));
+    }
     const completed = events.filter((e): e is Extract<GameEvent, { type: "PASS_COMPLETED" }> => e.type === "PASS_COMPLETED");
     if (completed.length > 0) {
       const dieByUid = new Map(
@@ -362,6 +379,8 @@ export function DiceMatchScreen(props: DiceMatchScreenProps) {
           interceptionRisk: riskNow,
           puntPressed,
           comboTriggered: events.some((e) => e.type === "PASS_COMPLETED" && Boolean(e.combo)),
+          corner: m.corner,
+          keeperRattled: m.keeperRattled,
         },
         seenCoachKeys,
       );
@@ -376,7 +395,10 @@ export function DiceMatchScreen(props: DiceMatchScreenProps) {
   };
 
   const dockDie = (uid: string, dieIndex: number) => {
-    setDocked((d) => [...d.filter((x) => x.uid !== uid && x.dieIndex !== dieIndex), { uid, dieIndex }]);
+    setDocked((d) => {
+      const next = [...d.filter((x) => x.uid !== uid && x.dieIndex !== dieIndex), { uid, dieIndex }];
+      return m.corner ? next.slice(-1) : next;
+    });
     setSelectedDie(null);
   };
 
@@ -498,7 +520,7 @@ export function DiceMatchScreen(props: DiceMatchScreenProps) {
     setDraggingDie(null);
   };
 
-  const shootDisabled = m.possession !== "you" || m.passes < 1 || !tutorialAllows({ kind: "shoot" });
+  const shootDisabled = m.corner || m.possession !== "you" || m.passes < 1 || !tutorialAllows({ kind: "shoot" });
   const endRoundDisabled = !tutorialAllows({ kind: "endRound" });
   const shootLabel = `⚽ Shoot (${Math.round(shotNow.p * 100)}%)${m.possession === "you" && m.passes < 1 ? " — make a pass first" : ""}`;
   const bankingDice =
@@ -532,6 +554,11 @@ export function DiceMatchScreen(props: DiceMatchScreenProps) {
           </div>
           <div className="opp-blurb" data-testid="opp-panel">
             tier {m.opp.tier} · coach {coach} · <strong>{style.name}</strong> · keeper DC {dcNow}
+            {m.keeperRattled && (
+              <span className="rattled-badge" data-testid="rattled-badge">
+                keeper rattled -2
+              </span>
+            )}
           </div>
         </div>
         <div style={{ textAlign: "right" }} data-testid="match-status">
@@ -544,6 +571,12 @@ export function DiceMatchScreen(props: DiceMatchScreenProps) {
       </div>
 
       <PitchTrack ball={m.ball} possession={m.possession} bal={m.bal} />
+
+      {m.corner && (
+        <div className="corner-banner panel" data-testid="corner-banner">
+          <strong>CORNER!</strong> One delivery — make it count
+        </div>
+      )}
 
       <div className="dice-stat-row">
         <span className="shotq-badge" data-testid="shot-quality">
@@ -749,7 +782,7 @@ export function DiceMatchScreen(props: DiceMatchScreenProps) {
                 disabled={docked.length === 0 || running}
                 onClick={runPlay}
               >
-                {running ? "Running…" : `▶ Run play (${docked.length})`}
+                {m.corner ? "▶ Take the corner" : running ? "Running…" : `▶ Run play (${docked.length})`}
               </button>
             )}
             <button
@@ -773,7 +806,7 @@ export function DiceMatchScreen(props: DiceMatchScreenProps) {
               disabled={endRoundDisabled}
               onClick={() => act({ type: "END_ROUND" })}
             >
-              {m.possession === "you" ? "Recycle possession" : `Stand off (bank ${bankingDice})`}
+              {m.corner ? "Clear it" : m.possession === "you" ? "Recycle possession" : `Stand off (bank ${bankingDice})`}
             </button>
           </div>
         </>
