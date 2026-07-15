@@ -11,7 +11,7 @@ import {
   type RunAction,
   type RunState,
 } from "../../core/types";
-import { ZONE_NAMES, bestDieFor, comboFor, interceptionRisk, oppInterceptionRisk, playableCards, shotEstimate, zoneOf } from "../../core/match/dice";
+import { ZONE_NAMES, bestDieFor, comboFor, interceptionRisk, oppInterceptionRisk, oppShotEstimate, playableCards, shotEstimate, zoneOf } from "../../core/match/dice";
 import { ScorePopups } from "../components/ScorePopups";
 import { CHAIN_GLOSSARY, coachTipFor, describeChainStatus, type CoachTipKey } from "../diceUx";
 import { dieDropTargets } from "../diceDropTargets";
@@ -613,6 +613,9 @@ export function DiceMatchScreen(props: DiceMatchScreenProps) {
         <div className="their-chain panel" data-testid="their-chain">
           <span>Their pass {m.oppPasses}</span>
           <span>Chance {m.oppChance}</span>
+          <span className="their-shot-odds" data-testid="their-shot-odds" title="if their chain finished right now">
+            their shot ~{Math.round(oppShotEstimate(m).p * 100)}%
+          </span>
           <span>Committed +{Math.round(m.defenseCommit * 100)}%</span>
           <span data-testid="fresh-legs-bank">banking {bankingDice} dice</span>
           <span className="risk-badge" data-hot={theirRisk >= 0.3 ? "true" : "false"}>

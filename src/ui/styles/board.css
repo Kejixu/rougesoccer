@@ -1384,3 +1384,20 @@
 .run-play:disabled {
   opacity: 0.45;
 }
+
+/* ---- pre-match threat line + their live shot odds ---- */
+
+.threat-line {
+  font-size: 13px;
+  color: var(--ink-dim);
+}
+
+.threat-stars {
+  color: var(--accent);
+  letter-spacing: 2px;
+}
+
+.their-shot-odds {
+  font-weight: 800;
+  color: #f0a19e;
+}

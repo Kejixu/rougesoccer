@@ -123,6 +123,17 @@ export function oppInterceptionRisk(state: DiceMatchState): number {
 }
 
 /** DC and win probability if you pressed SHOOT right now. */
+/** DC and probability of THEIR shot if their chain finished right now. */
+export function oppShotEstimate(state: DiceMatchState): { dc: number; p: number } {
+  const zonePen = state.bal.DICE.ZONE_DC_PENALTY[4 - zoneOf(state.ball, state.bal)] ?? 0;
+  const dc = state.ownKeeperDC + zonePen;
+  const p = Math.max(
+    0.05,
+    Math.min(0.95, (state.bal.DICE.SHOT_DIE - dc + 1 + state.oppChance) / state.bal.DICE.SHOT_DIE),
+  );
+  return { dc, p };
+}
+
 export function shotEstimate(state: DiceMatchState): { dc: number; p: number } {
   const zonePen = state.bal.DICE.ZONE_DC_PENALTY[zoneOf(state.ball, state.bal)] ?? 0;
   const sitDeep = state.intent?.kind === "sitDeep" ? state.bal.DICE.SIT_DEEP_DC_BONUS : 0;
@@ -367,8 +378,7 @@ function oppPassAttempt(defs: CardDefMap, draft: DiceMatchState, events: GameEve
 
   const target = draft.bal.DICE.OPP_CHAIN_TARGET[draft.opp.style] ?? 3;
   if (draft.oppPasses >= target || draft.ball <= draft.bal.DICE.YOUR_BOX) {
-    const zonePen = draft.bal.DICE.ZONE_DC_PENALTY[4 - zoneOf(draft.ball, draft.bal)] ?? 0;
-    const dc = draft.ownKeeperDC + zonePen;
+    const { dc } = oppShotEstimate(draft);
     const roll = 1 + Math.floor(rand(draft) * draft.bal.DICE.SHOT_DIE);
     const goal = roll + draft.oppChance >= dc;
     events.push({ type: "OPP_SHOT", roll, danger: draft.oppChance, dc, goal });

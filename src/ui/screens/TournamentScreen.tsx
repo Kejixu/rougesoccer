@@ -97,11 +97,24 @@ export function TournamentScreen({
       {nextOpp && (
         <section>
           <h2>Next: {nextOpp.name}</h2>
+          {(() => {
+            const heat = content.balance.STAGE_CLOCK_MULT[run.stage];
+            const effRating = Math.round(nextOpp.attackRating * content.styles[nextOpp.style].clockMult * heat);
+            const keeperDC = Math.min(18, 10 + Math.round(effRating * content.balance.DICE.KEEPER_DC_PER_RATING));
+            const stars = "★".repeat(5 - nextOpp.tier) + "☆".repeat(nextOpp.tier - 1);
+            return (
+              <p className="threat-line" data-testid="threat-line">
+                <span className="threat-stars" title={`tier ${nextOpp.tier}`}>{stars}</span>
+                {" "}attack {effRating} · keeper DC {keeperDC} ·{" "}
+                <strong>{run.stage === "GROUP" ? "group stage" : run.stage} heat ×{heat}</strong>
+                {" "}— every round they play {run.stage === "GROUP" ? "near club level" : "harder than the last"}
+              </p>
+            );
+          })()}
           {run.scouted ? (
             <p data-testid="scout-report">
               Scout report: coach {nextOpp.coach}, style {content.styles[nextOpp.style].name} —{" "}
-              {content.styles[nextOpp.style].blurb} Attack rating {nextOpp.attackRating} (tier{" "}
-              {nextOpp.tier}).
+              {content.styles[nextOpp.style].blurb}
             </p>
           ) : (
             <button type="button" className="btn"

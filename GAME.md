@@ -74,7 +74,10 @@ Their possession mirrors the same rhythm:
 4. If you intercept them, you get one instant counter shot.
 5. If they complete enough passes for their style, or reach your box, they shoot.
 
-The match UI surfaces this loop with pass chips, current/interception pressure, a
+Their possession shows a live "their shot ~N%" readout (single-source with the
+engine's oppShotEstimate), and the pre-match screen shows the opponent's tier,
+effective rating, keeper DC, and the stage heat multiplier — difficulty is visible,
+not just felt. The match UI surfaces this loop with pass chips, current/interception pressure, a
 live shot estimate, their-chain defense controls, drag legality highlights, a
 persistent ticker, and one-time coach tips.
 
