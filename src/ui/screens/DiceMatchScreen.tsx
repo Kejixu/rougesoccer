@@ -419,7 +419,7 @@ export function DiceMatchScreen(props: DiceMatchScreenProps) {
       const play = queue[i]!;
       // re-validate against the latest state (a tackle may have ended the possession)
       const cur = latestMatchRef.current ?? prev;
-      if (cur.round !== startRound || cur.phase !== "ROUND_ACTIVE" || cur.possession !== "you") {
+      if (cur.round !== startRound || cur.phase !== "ROUND_ACTIVE") {
         runningRef.current = false;
         setRunning(false);
         return;
@@ -475,9 +475,8 @@ export function DiceMatchScreen(props: DiceMatchScreenProps) {
     const uid = target instanceof HTMLElement ? target.closest<HTMLElement>("[data-uid]")?.dataset.uid : undefined;
     if (uid && dragTargets?.has(uid) && !running) {
       suppressDieClickRef.current = true;
-      if (m.possession === "you" && !tutorial) {
-        const card = m.hand.find((c) => c.uid === uid);
-        if (card && docked.some((x) => x.uid === uid)) undock(uid);
+      if (!tutorial) {
+        if (docked.some((x) => x.uid === uid)) undock(uid);
         dockDie(uid, active.dieIndex);
       } else {
         act({ type: "ASSIGN_DIE", uid, dieIndex: active.dieIndex });
@@ -772,7 +771,7 @@ export function DiceMatchScreen(props: DiceMatchScreenProps) {
           )}
 
           <div className="action-bar">
-            {m.possession === "you" && !tutorial && (
+            {!tutorial && (
               <button
                 type="button"
                 className="btn btn--primary run-play"
