@@ -55,9 +55,15 @@ your possession; even rounds are their possession.
   interception pressure before you commit.
 - You can **shoot anytime after one completed pass**. Shooting spends your banked
   Chance against a distance penalty based on where the ball is; 0-Chance punts are
-  legal but low percentage.
+  legal but low percentage. If cards are staged on the dock, **Play & Shoot** resolves
+  each staged pass in order before taking the shot; an interception or possession
+  change during that sequence cancels the shot.
 - You can **recycle** with `END_ROUND`: end the possession safely with no shot and no
   counter.
+
+The three your-ball action verbs are **Run play · Play & Shoot · Recycle**. Run play
+advances the staged move without shooting, Play & Shoot makes the shot the final item
+of the staged move, and Recycle ends the possession safely.
 
 Your possession is push-your-luck:
 

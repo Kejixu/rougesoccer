@@ -111,6 +111,14 @@
 .possession-legend b:first-child { color: var(--accent); }
 .possession-legend b:last-child { color: var(--defending); }
 
+.possession-now {
+  font-size: 9px;
+  font-weight: 900;
+  letter-spacing: 0.04em;
+  white-space: nowrap;
+  padding-left: 2px;
+}
+
 .possession-handover {
   position: fixed;
   left: 50%;

@@ -67,11 +67,17 @@ export function PossessionStrip({
             >
               <span className="possession-round">{round}</span>
               <span className="possession-marker" aria-hidden="true">{owner === "you" ? "●" : "○"}</span>
+              {round === currentRound && (
+                <span className="possession-now">{owner === "you" ? "YOUR BALL" : "THEIR BALL"}</span>
+              )}
             </span>
           );
         })}
       </div>
-      <span className="possession-legend"><b>● you</b><b>○ them</b></span>
+      <span className="possession-legend">
+        <b className="you">● you</b>
+        <b className="them">○ them</b>
+      </span>
     </div>
   );
 }
@@ -108,6 +114,111 @@ export function HandoverBanner({ handover }: { handover: PossessionHandover }) {
       <span>{handover.subtitle}</span>
     </div>
   );
+}
+
+export interface DockedPlay {
+  uid: string;
+  dieIndex: number;
+}
+
+interface RunDockedPlayOptions {
+  queue: readonly DockedPlay[];
+  initialMatch: DiceMatchState;
+  getLatestMatch: () => DiceMatchState | null;
+  dispatch: (action: DiceMatchAction) => void;
+  thenShoot?: boolean;
+  isRunning?: () => boolean;
+  schedule?: (callback: () => void, delay: number) => unknown;
+  onFinish?: () => void;
+}
+
+function canShootAfterDockFlush(match: DiceMatchState, startRound: number): boolean {
+  return (
+    match.phase === "ROUND_ACTIVE" &&
+    match.possession === "you" &&
+    match.round === startRound &&
+    match.passes >= 1
+  );
+}
+
+export function runDockedPlay({
+  queue,
+  initialMatch,
+  getLatestMatch,
+  dispatch,
+  thenShoot = false,
+  isRunning = () => true,
+  schedule = (callback, delay) => setTimeout(callback, delay),
+  onFinish = () => undefined,
+}: RunDockedPlayOptions): void {
+  const startRound = initialMatch.round;
+  let finished = false;
+
+  const finish = (previous: DiceMatchState, allowShot: boolean) => {
+    if (finished) return;
+    finished = true;
+    const current = getLatestMatch() ?? previous;
+    if (allowShot && thenShoot && canShootAfterDockFlush(current, startRound)) {
+      dispatch({ type: "SHOOT" });
+    }
+    onFinish();
+  };
+
+  const step = (index: number, previous: DiceMatchState) => {
+    if (!isRunning()) {
+      finish(previous, false);
+      return;
+    }
+    if (index >= queue.length) {
+      finish(previous, true);
+      return;
+    }
+
+    const current = getLatestMatch() ?? previous;
+    if (current.round !== startRound || current.phase !== "ROUND_ACTIVE") {
+      finish(current, false);
+      return;
+    }
+
+    const play = queue[index]!;
+    const die = current.dice[play.dieIndex];
+    const inHand = current.hand.some((card) => card.uid === play.uid);
+    if (!die || die.used || !inHand) {
+      step(index + 1, current);
+      return;
+    }
+
+    dispatch({ type: "ASSIGN_DIE", uid: play.uid, dieIndex: play.dieIndex });
+    schedule(() => step(index + 1, current), 700);
+  };
+
+  step(0, initialMatch);
+}
+
+export function shootButtonDisabled(
+  match: Pick<DiceMatchState, "corner" | "possession" | "passes">,
+  dockedCount: number,
+  running: boolean,
+  tutorialAllowed: boolean,
+): boolean {
+  return (
+    running ||
+    match.corner ||
+    match.possession !== "you" ||
+    (dockedCount === 0 && match.passes < 1) ||
+    !tutorialAllowed
+  );
+}
+
+export function shootButtonLabel(
+  match: Pick<DiceMatchState, "possession" | "passes">,
+  dockedCount: number,
+  shotProbability: number,
+): string {
+  if (dockedCount > 0) return `⚽ Play & Shoot (${dockedCount})`;
+  return `⚽ Shoot (${Math.round(shotProbability * 100)}%)${
+    match.possession === "you" && match.passes < 1 ? " — make a pass first" : ""
+  }`;
 }
 
 function intentText(intent: Intent): { icon: string; text: string } {
@@ -366,7 +477,7 @@ export function DiceMatchScreen(props: DiceMatchScreenProps) {
   const [rollKey, setRollKey] = useState(0);
   const [celebration, setCelebration] = useState<"goal" | "concede" | null>(null);
   // Call the play: dice dock onto cards (pure UI), then RUN executes the sequence.
-  const [docked, setDocked] = useState<{ uid: string; dieIndex: number }[]>([]);
+  const [docked, setDocked] = useState<DockedPlay[]>([]);
   const [running, setRunning] = useState(false);
   const runningRef = useRef(false);
   const [rerollFx, setRerollFx] = useState<{ i: number; lucky: boolean; n: number } | null>(null);
@@ -568,37 +679,29 @@ export function DiceMatchScreen(props: DiceMatchScreenProps) {
   };
 
   // RUN PLAY: execute the docked sequence; stop early if the possession/round ends
-  const runPlay = () => {
+  const runPlay = ({ thenShoot = false }: { thenShoot?: boolean } = {}) => {
     if (running || docked.length === 0) return;
     runningRef.current = true;
     setRunning(true);
     const queue = [...docked];
     setDocked([]);
-    const startRound = m.round;
-    const step = (i: number, prev: DiceMatchState) => {
-      if (!runningRef.current || i >= queue.length) {
+    runDockedPlay({
+      queue,
+      initialMatch: m,
+      getLatestMatch: () => latestMatchRef.current,
+      dispatch: (action) => {
+        if (action.type === "SHOOT" && (latestMatchRef.current ?? m).shotQuality === 0) {
+          setPuntPressed(true);
+        }
+        act(action);
+      },
+      thenShoot,
+      isRunning: () => runningRef.current,
+      onFinish: () => {
         runningRef.current = false;
         setRunning(false);
-        return;
-      }
-      const play = queue[i]!;
-      // re-validate against the latest state (a tackle may have ended the possession)
-      const cur = latestMatchRef.current ?? prev;
-      if (cur.round !== startRound || cur.phase !== "ROUND_ACTIVE") {
-        runningRef.current = false;
-        setRunning(false);
-        return;
-      }
-      const die = cur.dice[play.dieIndex];
-      const inHand = cur.hand.some((c) => c.uid === play.uid);
-      if (!die || die.used || !inHand) {
-        step(i + 1, cur);
-        return;
-      }
-      act({ type: "ASSIGN_DIE", uid: play.uid, dieIndex: play.dieIndex });
-      setTimeout(() => step(i + 1, cur), 700);
-    };
-    step(0, m);
+      },
+    });
   };
 
   const onDiePointerDown = (e: PointerEvent<HTMLButtonElement>, dieIndex: number, value: number) => {
@@ -662,9 +765,14 @@ export function DiceMatchScreen(props: DiceMatchScreenProps) {
     setDraggingDie(null);
   };
 
-  const shootDisabled = m.corner || m.possession !== "you" || m.passes < 1 || !tutorialAllows({ kind: "shoot" });
+  const shootDisabled = shootButtonDisabled(
+    m,
+    docked.length,
+    running,
+    tutorialAllows({ kind: "shoot" }),
+  );
   const endRoundDisabled = !tutorialAllows({ kind: "endRound" });
-  const shootLabel = `⚽ Shoot (${Math.round(shotNow.p * 100)}%)${m.possession === "you" && m.passes < 1 ? " — make a pass first" : ""}`;
+  const shootLabel = shootButtonLabel(m, docked.length, shotNow.p);
   const bankingDice =
     m.possession === "them" ? Math.min(m.bal.DICE.CARRY_MAX, m.dice.filter((die) => !die.used).length) : 0;
 
@@ -935,7 +1043,7 @@ export function DiceMatchScreen(props: DiceMatchScreenProps) {
                 className="btn btn--primary run-play"
                 data-testid="run-play"
                 disabled={docked.length === 0 || running}
-                onClick={runPlay}
+                onClick={() => runPlay()}
               >
                 {m.corner ? "▶ Take the corner" : running ? "Running…" : `▶ Run play (${docked.length})`}
               </button>
@@ -948,6 +1056,10 @@ export function DiceMatchScreen(props: DiceMatchScreenProps) {
               disabled={shootDisabled}
               title="Roll a d20 + Chance vs the keeper's DC"
               onClick={() => {
+                if (docked.length > 0) {
+                  runPlay({ thenShoot: true });
+                  return;
+                }
                 if (m.shotQuality === 0) setPuntPressed(true);
                 act({ type: "SHOOT" });
               }}
