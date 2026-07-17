@@ -39,7 +39,7 @@ describe("full campaign", () => {
   });
 
   it("group elimination ends the run after 3 matches", () => {
-    const state = playRun("group-exit-42");
+    const state = playRun("group-exit-17");
     expect(state.result).toBe("eliminated");
     expect(state.stage).toBe("GROUP");
     expect(state.matchIndexInStage).toBe(3);

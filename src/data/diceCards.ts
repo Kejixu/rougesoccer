@@ -42,6 +42,37 @@ export const DICE_CARD_DEFS = [
     effects: [],
   },
   {
+    id: "d_onetwo",
+    kind: "player",
+    name: "One-Two",
+    position: "MF",
+    rarity: "common",
+    slot: { kind: "min", value: 2 },
+    diceEffects: [
+      { kind: "progress", amount: 2 },
+      { kind: "draw", amount: 1 },
+    ],
+    levels: [
+      { text: "Move 2, draw 1." },
+      {
+        text: "Move 3, draw 1.",
+        diceEffects: [
+          { kind: "progress", amount: 3 },
+          { kind: "draw", amount: 1 },
+        ],
+      },
+      {
+        text: "Move 3, draw 1, +1 Chance.",
+        diceEffects: [
+          { kind: "progress", amount: 3 },
+          { kind: "draw", amount: 1 },
+          { kind: "shotQuality", amount: 1 },
+        ],
+      },
+    ],
+    effects: [],
+  },
+  {
     id: "d_flankrun",
     kind: "player",
     name: "Flank Run",
@@ -311,6 +342,36 @@ export const DICE_CARD_DEFS = [
         text: "Defending: +12%, draw 2.",
         diceEffects: [
           { kind: "defend", amount: 0.12 },
+          { kind: "draw", amount: 2 },
+        ],
+      },
+    ],
+    effects: [],
+  },
+  {
+    id: "d_sweeperkeeper",
+    kind: "player",
+    name: "Sweeper Keeper",
+    position: "GK",
+    rarity: "common",
+    slot: { kind: "max", value: 3 },
+    diceEffects: [
+      { kind: "defend", amount: 0.12 },
+      { kind: "draw", amount: 1 },
+    ],
+    levels: [
+      { text: "Defending: +12%, draw 1." },
+      {
+        text: "Defending: +16%, draw 1.",
+        diceEffects: [
+          { kind: "defend", amount: 0.16 },
+          { kind: "draw", amount: 1 },
+        ],
+      },
+      {
+        text: "Defending: +16%, draw 2.",
+        diceEffects: [
+          { kind: "defend", amount: 0.16 },
           { kind: "draw", amount: 2 },
         ],
       },

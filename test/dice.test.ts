@@ -14,7 +14,7 @@ import {
 import { seedRng } from "../src/core/rng";
 import { DEFAULT_BALANCE } from "../src/core/balance";
 import { dieFitsSlot, pressureOf } from "../src/core/types";
-import type { CardInstance, DiceMatchState, OppInfo } from "../src/core/types";
+import type { CardDefMap, CardInstance, DiceMatchState, OppInfo } from "../src/core/types";
 import { applyRunAction, createRun } from "../src/core/run/run";
 import { makeContent } from "../src/data/content";
 import { DICE_CARD_MAP } from "../src/data/diceCards";
@@ -99,6 +99,175 @@ describe("dice card levels", () => {
       action: { type: "ASSIGN_DIE", uid: upgraded.uid, dieIndex: 0 },
     });
     expect(step.state.activeMatch?.ball).toBe(DEFAULT_BALANCE.DICE.MIDFIELD + 5);
+  });
+
+  it.each([
+    { level: 0, progress: 2, chance: 0 },
+    { level: 1, progress: 3, chance: 0 },
+    { level: 2, progress: 3, chance: 1 },
+  ] as const)("One-Two level $level progresses and cycles", ({ level, progress, chance }) => {
+    const cyclingCard = { ...inst("d_onetwo", 0), level };
+    const drawnCard = inst("d_shortpass", 1);
+    const before = {
+      ...start(["d_shortpass"], `one-two-${level}`),
+      ball: DEFAULT_BALANCE.DICE.MIDFIELD,
+      dice: [{ value: 2, used: false }],
+      hand: [cyclingCard],
+      drawPile: [drawnCard],
+      discardPile: [],
+    };
+
+    const step = applyDiceAction(DICE_CARD_MAP, before, {
+      type: "ASSIGN_DIE",
+      uid: cyclingCard.uid,
+      dieIndex: 0,
+    });
+
+    expect(step.state.ball).toBe(DEFAULT_BALANCE.DICE.MIDFIELD + progress);
+    expect(step.state.shotQuality).toBe(chance);
+    expect(step.state.hand.map((card) => card.uid)).toEqual([drawnCard.uid]);
+    expect(step.state.discardPile.map((card) => card.uid)).toContain(cyclingCard.uid);
+  });
+
+  it.each([
+    { level: 0, defend: 0.12, draws: 1 },
+    { level: 1, defend: 0.16, draws: 1 },
+    { level: 2, defend: 0.16, draws: 2 },
+  ] as const)("Sweeper Keeper level $level defends and cycles", ({ level, defend, draws }) => {
+    const cyclingCard = { ...inst("d_sweeperkeeper", 0), level };
+    const drawnCards = Array.from({ length: draws }, (_, i) => inst("d_shortpass", i + 1));
+    const before = {
+      ...start(["d_shortpass"], `sweeper-${level}`),
+      round: 2,
+      possession: "them" as const,
+      rng: seedRng("s-32"),
+      dice: [{ value: 3, used: false }],
+      hand: [cyclingCard],
+      drawPile: drawnCards,
+      discardPile: [],
+    };
+
+    const step = applyDiceAction(DICE_CARD_MAP, before, {
+      type: "ASSIGN_DIE",
+      uid: cyclingCard.uid,
+      dieIndex: 0,
+    });
+
+    expect(step.events).toContainEqual(expect.objectContaining({ type: "DEFENSE_COMMITTED", amount: defend }));
+    expect(step.state.defenseCommit).toBeCloseTo(defend, 5);
+    expect(step.state.hand).toHaveLength(draws);
+    expect(step.state.discardPile.map((card) => card.uid)).toContain(cyclingCard.uid);
+  });
+});
+
+describe("persistent dice hand", () => {
+  it("keeps unplayed cards across rounds and refills only to HAND_SIZE", () => {
+    const held = [inst("d_finish", 20), inst("d_tackle", 21)];
+    const refill = [inst("d_shortpass", 22), inst("d_clearance", 23), inst("d_poacher", 24)];
+    const before = {
+      ...start(["d_shortpass"], "persistent-held"),
+      hand: held,
+      drawPile: refill,
+      discardPile: [],
+    };
+
+    const step = applyDiceAction(DICE_CARD_MAP, before, { type: "END_ROUND" });
+
+    expect(step.state.hand).toHaveLength(DEFAULT_BALANCE.DICE.HAND_SIZE);
+    expect(step.state.hand.map((card) => card.uid)).toEqual(expect.arrayContaining(held.map((card) => card.uid)));
+    expect(step.events.some((event) => event.type === "CARDS_DISCARDED" && event.forced)).toBe(false);
+  });
+
+  it("discards played cards while leaving unplayed cards in hand", () => {
+    const played = inst("d_shortpass", 30);
+    const held = inst("d_finish", 31);
+    const before = {
+      ...start(["d_shortpass"], "persistent-played"),
+      dice: [{ value: 2, used: false }],
+      hand: [played, held],
+      drawPile: [inst("d_poacher", 32), inst("d_clearance", 33), inst("d_tackle", 34)],
+      discardPile: [],
+    };
+
+    const afterPlay = applyDiceAction(DICE_CARD_MAP, before, {
+      type: "ASSIGN_DIE",
+      uid: played.uid,
+      dieIndex: 0,
+    }).state;
+    const afterRound = applyDiceAction(DICE_CARD_MAP, afterPlay, { type: "END_ROUND" }).state;
+
+    expect(afterRound.discardPile.map((card) => card.uid)).toContain(played.uid);
+    expect(afterRound.hand.map((card) => card.uid)).toContain(held.uid);
+  });
+
+  it("still exiles exile-on-play cards", () => {
+    const exileDef = { ...DICE_CARD_MAP.d_shortpass!, id: "d_test_exile", exileOnPlay: true };
+    const defs: CardDefMap = { ...DICE_CARD_MAP, [exileDef.id]: exileDef };
+    const card = inst(exileDef.id, 40);
+    const before = {
+      ...start(["d_shortpass"], "persistent-exile"),
+      dice: [{ value: 2, used: false }],
+      hand: [card],
+      drawPile: [],
+      discardPile: [],
+      exile: [],
+    };
+
+    const after = applyDiceAction(defs, before, { type: "ASSIGN_DIE", uid: card.uid, dieIndex: 0 }).state;
+
+    expect(after.exile.map((instance) => instance.uid)).toEqual([card.uid]);
+    expect(after.discardPile).toHaveLength(0);
+  });
+
+  it("draws at least one card when the held hand is at HAND_SIZE", () => {
+    const hand = Array.from({ length: DEFAULT_BALANCE.DICE.HAND_SIZE }, (_, i) => inst("d_shortpass", 50 + i));
+    const fresh = inst("d_finish", 60);
+    const before = {
+      ...start(["d_shortpass"], "persistent-minimum-draw"),
+      hand,
+      drawPile: [fresh],
+      discardPile: [],
+    };
+
+    const step = applyDiceAction(DICE_CARD_MAP, before, { type: "END_ROUND" });
+
+    expect(step.state.hand).toHaveLength(DEFAULT_BALANCE.DICE.HAND_SIZE + 1);
+    expect(step.state.hand.map((card) => card.uid)).toContain(fresh.uid);
+  });
+
+  it("does not draw when the held hand is at the hard cap", () => {
+    const hand = Array.from({ length: DEFAULT_BALANCE.DICE.HAND_SIZE + 1 }, (_, i) => inst("d_shortpass", 70 + i));
+    const fresh = inst("d_finish", 80);
+    const before = {
+      ...start(["d_shortpass"], "persistent-cap"),
+      hand,
+      drawPile: [fresh],
+      discardPile: [],
+    };
+
+    const step = applyDiceAction(DICE_CARD_MAP, before, { type: "END_ROUND" });
+
+    expect(step.state.hand.map((card) => card.uid)).toEqual(hand.map((card) => card.uid));
+    expect(step.state.drawPile.map((card) => card.uid)).toEqual([fresh.uid]);
+  });
+
+  it("applies drawBonus relative to HAND_SIZE without exceeding the cap", () => {
+    const hand = Array.from({ length: DEFAULT_BALANCE.DICE.HAND_SIZE - 1 }, (_, i) => inst("d_shortpass", 90 + i));
+    const fresh = [inst("d_finish", 100), inst("d_poacher", 101), inst("d_tackle", 102)];
+    const before = {
+      ...start(["d_shortpass"], "persistent-draw-bonus"),
+      activePassives: [{ kind: "drawBonus" as const, amount: 1 }],
+      hand,
+      drawPile: fresh,
+      discardPile: [],
+    };
+
+    const step = applyDiceAction(DICE_CARD_MAP, before, { type: "END_ROUND" });
+    const drawn = step.events.find((event) => event.type === "CARDS_DRAWN");
+
+    expect(step.state.hand).toHaveLength(DEFAULT_BALANCE.DICE.HAND_SIZE + 1);
+    expect(drawn).toMatchObject({ type: "CARDS_DRAWN", uids: expect.any(Array) });
+    if (drawn?.type === "CARDS_DRAWN") expect(drawn.uids).toHaveLength(2);
   });
 });
 

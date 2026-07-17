@@ -37,7 +37,7 @@ export const TUTORIAL_OPP: OppInfo = {
   tier: 4,
 };
 
-export const TUTORIAL_SEED = "tutorial-109";
+export const TUTORIAL_SEED = "tutorial-29218";
 
 export const TUTORIAL_STEPS: TutorialStep[] = [
   {

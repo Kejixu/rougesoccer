@@ -51,7 +51,9 @@ function shuffleInPlace(draft: DiceMatchState, arr: CardInstance[]): void {
 
 function drawCards(draft: DiceMatchState, n: number, events: GameEvent[]): void {
   const drawn: string[] = [];
-  for (let i = 0; i < n; i++) {
+  const handCap = draft.bal.DICE.HAND_SIZE + 1;
+  const drawCount = Math.min(n, Math.max(0, handCap - draft.hand.length));
+  for (let i = 0; i < drawCount; i++) {
     if (draft.drawPile.length === 0) {
       if (draft.discardPile.length === 0) break;
       draft.drawPile = draft.discardPile;
@@ -201,7 +203,10 @@ function startRound(draft: DiceMatchState, events: GameEvent[]): void {
 
   const handSize = Math.max(2, draft.bal.DICE.HAND_SIZE + passiveSum(draft, "drawBonus") - draft.handPenalty);
   draft.handPenalty = 0;
-  drawCards(draft, handSize - draft.hand.length, events);
+  const handCap = draft.bal.DICE.HAND_SIZE + 1;
+  const drawCount =
+    draft.hand.length >= handCap ? 0 : Math.min(handCap - draft.hand.length, Math.max(1, handSize - draft.hand.length));
+  drawCards(draft, drawCount, events);
 
   events.push({ type: "ROUND_START", round: draft.round, mode: draft.mode });
   events.push({ type: "DICE_ROLLED", dice: rolledDice.map((d) => d.value) });
@@ -243,15 +248,9 @@ function enterSuddenDeath(draft: DiceMatchState, events: GameEvent[]): void {
   startRound(draft, events);
 }
 
-// Close out the current possession: clear the hand and dice, then advance to
-// the next round or the result.
+// Close out the current possession: preserve unplayed cards, clear dice, then
+// advance to the next round or the result.
 function concludeRound(defs: CardDefMap, draft: DiceMatchState, events: GameEvent[]): void {
-  if (draft.hand.length > 0) {
-    const uids = draft.hand.map((c) => c.uid);
-    draft.discardPile.push(...draft.hand);
-    draft.hand = [];
-    events.push({ type: "CARDS_DISCARDED", uids, forced: true });
-  }
   if (draft.possession === "them") {
     draft.carriedDice = draft.dice
       .filter((die) => !die.used)

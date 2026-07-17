@@ -45,7 +45,9 @@ your possession; even rounds are their possession.
 
 - The ball is a single integer position (0 = your goal, 20 = their goal). Kickoff is
   **midfield (10)**.
-- Each round rolls a pool of **5 d6 dice** and draws up to **4 cards**.
+- Each round rolls a pool of **5 d6 dice**. Your hand persists between rounds and
+  refills toward **4 cards**, always drawing at least 1 fresh card when below the
+  hard cap of **5**.
   After an opponent possession, up to **2 unused defensive dice** carry into your
   next attack as extra dice with the same values.
 - A card needs a die that fits its slot. You can drag a die onto a legal card or use
@@ -130,6 +132,13 @@ There is no lane duel or delayed resolve step. Each die assignment is the action
   into your next attack, capped at 2. Committing defenders spends dice now; standing
   off can bank them for later.
 - **Draw effects** happen immediately.
+- **Persistent hand:** unplayed cards stay in hand when a possession ends. At the
+  next round start, draw toward `HAND_SIZE`, but always draw at least 1 card when
+  below `HAND_SIZE + 1`; that extra slot is the hard cap. `drawBonus` remains
+  relative to `HAND_SIZE`.
+- Persistence makes the possession schedule a planning tool: hold a finisher for
+  the attack where you expect to reach their box, or hold tackles for the upcoming
+  opponent possession shown on the strip.
 - **Setup effects** (`setupNext`) bank a bonus for the next Chance-gaining card.
 - **Safe-pass effects** reduce your next interception pressure.
 - **Position combos** reward passes that flow like a real football move. Only the
@@ -141,9 +150,9 @@ There is no lane duel or delayed resolve step. Each die assignment is the action
 - **Shots** normally end the possession and reset the ball to midfield. A close save
   can instead leave the same possession live for one corner delivery.
 
-At the end of a possession, remaining hand cards are discarded, dice clear, and the
-next round starts unless the match has reached a result, knockout extra time, or a
-shootout.
+At the end of a possession, unplayed hand cards persist, dice clear, and the next
+round starts unless the match has reached a result, knockout extra time, or a
+shootout. Played cards still go to discard (or exile when specified).
 
 ---
 
@@ -220,6 +229,7 @@ cards raise their interception risk during the opponent possession.
 |---|---|---|---|
 | Short Pass | 2+ | progress | L0 die move; L1 die+1 move; L2 die+2 move |
 | Driving Run | 3+ | progress | L0 move 4; L1 move 5; L2 move 6 |
+| One-Two | 2+ | progress | L0 move 2, draw 1; L1 move 3, draw 1; L2 move 3, draw 1, +1 Chance |
 | Flank Run | 4+ | progress | L0 move 3, draw 1; L1 move 4, draw 1; L2 move 5, draw 1 |
 | Quick Combo | 4+ | progress/finish | L0 move 2, +2 Chance; L1 move 3, +3; L2 move 3, +4 |
 | Sideways Pass | 3- | safety | L0 next pass 12% safer, move 1; L1 16% safer, move 1; L2 20% safer, move 2 |
@@ -232,6 +242,7 @@ cards raise their interception risk during the opponent possession.
 | Last-Ditch Tackle | 2- | defend | L0 +18% intercept; L1 +24%; L2 +30% |
 | Clearance | 3- | defend | L0 +12% intercept; L1 +16%; L2 +20% |
 | Keeper Claims It | any | defend | L0 +8%, draw 1; L1 +12%, draw 1; L2 +12%, draw 2 |
+| Sweeper Keeper | 3- | defend | L0 +12%, draw 1; L1 +16%, draw 1; L2 +16%, draw 2 |
 
 Chance cards gain extra value as the move develops:
 
