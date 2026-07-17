@@ -1,6 +1,7 @@
 import { standings } from "../../core/run/group";
 import type { ContentBundle, RunAction, RunState } from "../../core/types";
 import { ThirdsVerdictPanel } from "../components/ThirdsVerdictPanel";
+import { TeamFlag } from "../components/TeamFlag";
 
 export function TournamentScreen({
   run,
@@ -19,6 +20,15 @@ export function TournamentScreen({
     id === run.playerTeamId
       ? `${content.teams.find((t) => t.id === id)?.name ?? id} (you)`
       : (content.teams.find((t) => t.id === id)?.name ?? id);
+  const teamIdentity = (id: string) => {
+    const team = content.teams.find((candidate) => candidate.id === id);
+    return (
+      <span className="team-identity">
+        <TeamFlag team={team} />
+        <span>{teamName(id)}</span>
+      </span>
+    );
+  };
   const nextOpp = run.nextOppId ? content.teams.find((t) => t.id === run.nextOppId) : null;
   const groupSchedule = run.groupOpponentOrder.flatMap((oppId, index) => {
     const matchday = index + 1;
@@ -47,7 +57,7 @@ export function TournamentScreen({
       {run.lastMatch && (
         <p data-testid="last-result">
           Last match: {run.lastMatch.result.toUpperCase()} {run.lastMatch.playerGoals}-
-          {run.lastMatch.oppGoals} vs {teamName(run.lastMatch.oppId)}
+          {run.lastMatch.oppGoals} vs {teamIdentity(run.lastMatch.oppId)}
         </p>
       )}
 
@@ -88,7 +98,7 @@ export function TournamentScreen({
               <tbody>
                 {standings(run.groupTable, run.tiebreak).map((row) => (
                   <tr key={row.teamId} className={row.teamId === run.playerTeamId ? "you" : undefined}>
-                    <td>{teamName(row.teamId)}</td>
+                    <td>{teamIdentity(row.teamId)}</td>
                     <td>{row.w + row.d + row.l}</td>
                     <td>{row.w}</td>
                     <td>{row.d}</td>
@@ -112,11 +122,11 @@ export function TournamentScreen({
                     const result = fixtureScore(matchday, fixture.homeId, fixture.awayId);
                     return (
                       <p key={`${fixture.homeId}-${fixture.awayId}`}>
-                        <span>{teamName(fixture.homeId)}</span>
+                        <span>{teamIdentity(fixture.homeId)}</span>
                         <strong>
                           {result ? `${result.homeGoals}–${result.awayGoals}` : "vs"}
                         </strong>
-                        <span>{teamName(fixture.awayId)}</span>
+                        <span>{teamIdentity(fixture.awayId)}</span>
                       </p>
                     );
                   })}
@@ -128,7 +138,7 @@ export function TournamentScreen({
         <ol data-testid="knockout-history">
           {run.knockoutHistory.map((k) => (
             <li key={k.stage}>
-              {k.stage}: {k.result} {k.playerGoals}-{k.oppGoals} vs {teamName(k.oppId)}
+              {k.stage}: {k.result} {k.playerGoals}-{k.oppGoals} vs {teamIdentity(k.oppId)}
             </li>
           ))}
         </ol>
@@ -136,7 +146,7 @@ export function TournamentScreen({
 
       {nextOpp && (
         <section>
-          <h2>Next: {nextOpp.name}</h2>
+          <h2>Next: <TeamFlag team={nextOpp} /> <span>{nextOpp.name}</span></h2>
           {(() => {
             const heat = content.balance.STAGE_CLOCK_MULT[run.stage];
             const effRating = Math.round(nextOpp.attackRating * content.styles[nextOpp.style].clockMult * heat);

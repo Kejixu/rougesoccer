@@ -19,10 +19,60 @@
 
 .scoreboard .score {
   font-family: var(--font-display);
-  font-size: 50px;
+  font-size: clamp(28px, 4.2vw, 50px);
   font-weight: 800;
   line-height: 1;
   text-shadow: 0 2px 0 rgba(0, 0, 0, 0.45), 0 6px 18px rgba(0, 0, 0, 0.35);
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  flex-wrap: wrap;
+}
+
+.score-team,
+.team-identity,
+.kit-nation {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.35em;
+}
+
+.score-team {
+  white-space: nowrap;
+}
+
+.score-divider {
+  color: var(--ink-dim);
+}
+
+.team-flag {
+  display: inline-flex;
+  align-items: center;
+  gap: 3px;
+  flex: 0 0 auto;
+  font-family: system-ui, sans-serif;
+  font-size: 1.08em;
+  font-style: normal;
+  font-weight: 700;
+  line-height: 1;
+  text-shadow: none;
+  vertical-align: -0.08em;
+}
+
+.team-flag-emoji {
+  display: inline-block;
+}
+
+.team-flag-fallback {
+  padding: 2px 3px;
+  border: 1px solid currentColor;
+  border-radius: 3px;
+  font-size: 0.46em;
+  letter-spacing: 0.04em;
+}
+
+.score .team-flag {
+  font-size: 0.72em;
 }
 
 .scoreboard {
@@ -1336,16 +1386,19 @@
 }
 
 .dice-card {
-  --role: #54a06b;
+  --role: #4aa879;
+  --role-soft: rgba(74, 168, 121, 0.14);
   width: 150px;
-  min-height: 126px;
+  min-height: 148px;
   text-align: left;
   padding: 12px 12px 10px;
   border-radius: 12px;
   border: 2px solid color-mix(in srgb, var(--role) 55%, transparent);
   border-top-width: 5px;
   border-top-color: var(--role);
-  background: linear-gradient(180deg, var(--surface-2), var(--surface) 55%);
+  background:
+    radial-gradient(circle at 18% 12%, var(--role-soft), transparent 42%),
+    linear-gradient(180deg, var(--surface-2), var(--surface) 58%);
   box-shadow: 0 2px 10px rgba(0, 0, 0, 0.3);
   color: var(--ink);
   cursor: pointer;
@@ -1385,7 +1438,7 @@
 
 .drop-lock-badge {
   position: absolute;
-  z-index: 2;
+  z-index: 5;
   top: 50%;
   left: 8px;
   right: 8px;
@@ -1409,31 +1462,100 @@
 }
 
 .dice-card.role-defend {
-  --role: #5470c7;
+  --role: #c95757;
+  --role-soft: rgba(201, 87, 87, 0.14);
 }
 .dice-card.role-progress {
-  --role: #54a06b;
+  --role: #4aa879;
+  --role-soft: rgba(74, 168, 121, 0.14);
 }
 .dice-card.role-finish {
-  --role: #c75450;
+  --role: #d1a632;
+  --role-soft: rgba(209, 166, 50, 0.15);
+}
+
+.dice-card-art {
+  position: absolute;
+  z-index: 0;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  overflow: hidden;
+  border-radius: 9px;
+  color: var(--role);
+  fill: none;
+  stroke: currentColor;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+  pointer-events: none;
+}
+
+.dice-card-art-pattern {
+  opacity: 0.075;
+  stroke-width: 1.35;
+}
+
+.dice-card-art-glyph {
+  opacity: 0.7;
+  stroke-width: 1.8;
+}
+
+.dice-card-name,
+.dice-card-meta,
+.dice-card-text,
+.card-combo {
+  position: relative;
+  z-index: 1;
 }
 
 .dice-card-slot {
   position: absolute;
+  z-index: 4;
   top: -12px;
   right: -10px;
-  min-width: 28px;
-  height: 28px;
-  padding: 0 7px;
-  border-radius: 999px;
+  width: 36px;
+  height: 36px;
+  padding: 3px;
+  border-radius: 8px;
   background: var(--role);
   border: 2px solid var(--sticker-paper);
   color: var(--sticker-paper);
-  font-size: 12px;
+  box-shadow: 0 3px 9px rgba(0, 0, 0, 0.38);
+  font-size: 11px;
   font-weight: 900;
   display: flex;
+  flex-direction: column;
   align-items: center;
   justify-content: center;
+  line-height: 1;
+}
+
+.dice-card-slot--max {
+  border-color: var(--role);
+  background: var(--sticker-paper);
+  color: var(--role);
+}
+
+.dice-card-slot--parity {
+  width: 42px;
+}
+
+.dice-card-slot-pips {
+  display: grid;
+  grid-template-columns: repeat(3, 3px);
+  gap: 2px;
+  margin-bottom: 2px;
+}
+
+.dice-card-slot-pips i {
+  width: 3px;
+  height: 3px;
+  border-radius: 50%;
+  background: currentColor;
+}
+
+.dice-card-slot-label {
+  display: block;
 }
 
 .dice-card-name {
@@ -1442,6 +1564,58 @@
   font-size: 15px;
   letter-spacing: 0.03em;
   text-transform: uppercase;
+  min-height: 34px;
+  padding-left: 38px;
+  display: flex;
+  align-items: center;
+  line-height: 1.05;
+}
+
+.dice-card-meta {
+  min-height: 24px;
+  display: flex;
+  align-items: center;
+  gap: 5px;
+}
+
+.dice-card-position {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 2px 5px 2px 3px;
+  border: 1px solid color-mix(in srgb, var(--role) 72%, transparent);
+  border-radius: 5px;
+  background: color-mix(in srgb, var(--surface) 86%, var(--role));
+  color: var(--role);
+  font-size: 9px;
+  font-weight: 900;
+  letter-spacing: 0.06em;
+}
+
+.dice-card-position svg {
+  width: 34px;
+  height: 18px;
+  fill: none;
+  stroke: currentColor;
+  stroke-width: 1;
+}
+
+.dice-card-position .dice-card-position-dot {
+  fill: currentColor;
+  stroke-width: 0;
+}
+
+.dice-card-upgrade {
+  display: inline-flex;
+  gap: 2px;
+  margin-left: auto;
+  color: var(--role);
+  font-size: 9px;
+  opacity: 0.86;
+}
+
+.dice-card-upgrade-pip {
+  display: inline-block;
 }
 
 .dice-card-text {

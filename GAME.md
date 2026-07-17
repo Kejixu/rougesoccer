@@ -111,6 +111,16 @@ and their possessions shift the board into the existing red defending palette. T
 strip is the single primary possession indicator; the direction arrow remains a
 secondary field-orientation cue.
 
+Every team carries a Unicode flag (`flag` on `TeamDef`) shown via the `TeamFlag`
+component in team select, the match scoreboard, the group table, matchday fixtures,
+opponent panels, and results — England/Scotland use tag-sequence flags with a
+bordered three-letter fallback where those don't render. Cards carry a visual role
+identity (`DiceCardArt`): green run-line motifs for passes, gold goal-trajectory
+motifs for finishers, red block motifs for defense — plus the die slot drawn as a
+die glyph, a mini-pitch position badge (MF/WG/ST) that makes combos scannable, and
+chevron pips for upgrade levels. All interaction states (drop targets, lock badges,
+docked die chips, hot/cold shoot) render on top of the art unchanged.
+
 Opponent intent copy describes your passing posture in chain mode:
 
 - Press: "They press high — every pass is riskier (27% base)"

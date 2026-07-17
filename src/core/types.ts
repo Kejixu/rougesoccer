@@ -256,6 +256,7 @@ export function cardCost(def: CardDef): number {
 export interface TeamDef {
   id: string;
   name: string;
+  flag?: string;
   confed: string;
   group: string; // "A".."L", real 2026 draw
   tier: 1 | 2 | 3 | 4; // 1 = elite

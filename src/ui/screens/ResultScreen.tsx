@@ -1,5 +1,6 @@
 import type { ContentBundle, RunState } from "../../core/types";
 import { ThirdsVerdictPanel } from "../components/ThirdsVerdictPanel";
+import { TeamFlag } from "../components/TeamFlag";
 
 function Confetti() {
   const COLORS = ["#ffd34d", "#4dd07a", "#6ec3ff", "#ff5d5d", "#f5f1e3"];
@@ -31,6 +32,15 @@ export function ResultScreen({
   onNewRun: () => void;
 }) {
   const teamName = (id: string) => content.teams.find((t) => t.id === id)?.name ?? id;
+  const teamIdentity = (id: string) => {
+    const team = content.teams.find((candidate) => candidate.id === id);
+    return (
+      <span className="team-identity">
+        <TeamFlag team={team} />
+        <span>{teamName(id)}</span>
+      </span>
+    );
+  };
   const won = run.result === "won";
 
   return (
@@ -40,11 +50,12 @@ export function ResultScreen({
         {won ? "🏆 CHAMPIONS OF THE WORLD" : "Eliminated"}
       </h1>
       <p>
+        {teamIdentity(run.playerTeamId)}{" "}
         {won
-          ? `${teamName(run.playerTeamId)} win the 2026 World Cup!`
+          ? "win the 2026 World Cup!"
           : run.stage === "GROUP"
-            ? `${teamName(run.playerTeamId)} crashed out in the group stage.`
-            : `${teamName(run.playerTeamId)} fell in the ${run.stage}.`}
+            ? "crashed out in the group stage."
+            : `fell in the ${run.stage}.`}
       </p>
 
       {run.thirdsVerdict && <ThirdsVerdictPanel verdict={run.thirdsVerdict} />}
@@ -57,7 +68,7 @@ export function ResultScreen({
         <ol data-testid="campaign-history">
           {run.knockoutHistory.map((k) => (
             <li key={k.stage}>
-              {k.stage}: {k.result} {k.playerGoals}-{k.oppGoals} vs {teamName(k.oppId)}
+              {k.stage}: {k.result} {k.playerGoals}-{k.oppGoals} vs {teamIdentity(k.oppId)}
             </li>
           ))}
         </ol>

@@ -2,7 +2,6 @@ import { useEffect, useRef, useState, type PointerEvent } from "react";
 import {
   dieFitsSlot,
   pressureOf,
-  slotLabel,
   type ContentBundle,
   type DiceMatchAction,
   type DiceMatchState,
@@ -13,6 +12,13 @@ import {
 } from "../../core/types";
 import { ZONE_NAMES, bestDieFor, comboFor, interceptionRisk, oppInterceptionRisk, oppShotEstimate, playableCards, projectedShotEstimate, shotEstimate, zoneOf } from "../../core/match/dice";
 import { ScorePopups } from "../components/ScorePopups";
+import {
+  DiceCardPosition,
+  DiceCardRoleArt,
+  DiceCardUpgrade,
+  DiceSlotGlyph,
+} from "../components/DiceCardArt";
+import { TeamFlag } from "../components/TeamFlag";
 import {
   CHAIN_GLOSSARY,
   COACH_TIP_KEYS,
@@ -613,6 +619,10 @@ export function DiceMatchScreen(props: DiceMatchScreenProps) {
     tutorial
       ? props.playerName
       : content.teams.find((t) => t.id === props.run.playerTeamId)?.name ?? "You";
+  const playerTeam = tutorial
+    ? content.teams.find((t) => t.name === props.playerName || t.id === props.playerName.toLowerCase())
+    : content.teams.find((t) => t.id === props.run.playerTeamId);
+  const opponentTeam = content.teams.find((t) => t.id === m.opp.teamId);
   const tutorialAllows = (intent: TutorialActionIntent): boolean =>
     !tutorial || tutorialLockAllows(tutorial.step.lock, intent);
   const tutorialHighlights = (intent: TutorialActionIntent): boolean =>
@@ -830,7 +840,17 @@ export function DiceMatchScreen(props: DiceMatchScreenProps) {
       <div className="scoreboard panel">
         <div>
           <div className="score" data-testid="scoreline">
-            {playerName} {m.playerGoals} — {m.oppGoals} {m.opp.name}
+            <span className="score-team score-team--player">
+              <TeamFlag team={playerTeam} />
+              <span>{playerName}</span>
+              <span className="goals">{m.playerGoals}</span>
+            </span>
+            <span className="score-divider">—</span>
+            <span className="score-team score-team--opponent">
+              <span className="goals">{m.oppGoals}</span>
+              <span>{m.opp.name}</span>
+              <TeamFlag team={opponentTeam} />
+            </span>
           </div>
           <div className="opp-blurb" data-testid="opp-panel">
             tier {m.opp.tier} · coach {coach} · <strong>{style.name}</strong> · keeper DC {dcNow}
@@ -1025,6 +1045,7 @@ export function DiceMatchScreen(props: DiceMatchScreenProps) {
                   disabled={!cardPlayable}
                   onClick={() => onCardClick(c.uid, def.id)}
                 >
+                  <DiceCardRoleArt role={role} />
                   {(() => {
                     const dock = docked.find((x) => x.uid === c.uid);
                     return dock !== undefined && m.dice[dock.dieIndex] ? (
@@ -1033,8 +1054,14 @@ export function DiceMatchScreen(props: DiceMatchScreenProps) {
                       </span>
                     ) : null;
                   })()}
-                  <span className="dice-card-slot">{def.slot ? slotLabel(def.slot) : "—"}</span>
+                  <DiceSlotGlyph slot={def.slot} />
                   <span className="dice-card-name">{def.name}</span>
+                  {(def.position || c.level > 0) && (
+                    <span className="dice-card-meta">
+                      {def.position && <DiceCardPosition position={def.position} />}
+                      <DiceCardUpgrade level={c.level} />
+                    </span>
+                  )}
                   {liveCombo && <span className="combo-tag card-combo">combo</span>}
                   <span className="dice-card-text">{def.levels[Math.min(c.level, def.levels.length - 1)]!.text}</span>
                   {dropStatus === "locked" && (

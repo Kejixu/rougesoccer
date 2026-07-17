@@ -1,6 +1,7 @@
 import { useState } from "react";
 import { NATION_DICE_KITS } from "../../data/content";
 import { PLAYABLE_TEAM_IDS, TEAM_MAP } from "../../data/teams";
+import { TeamFlag } from "../components/TeamFlag";
 
 export function TitleScreen({
   hasSave,
@@ -50,7 +51,7 @@ export function TitleScreen({
               data-testid={`pick-team-${id}`}
               onClick={() => setTeamId(id)}
             >
-              <div className="kit-nation">{t.name}</div>
+              <div className="kit-nation"><TeamFlag team={t} /> <span>{t.name}</span></div>
               {kit && (
                 <>
                   <div className="kit-identity">“{kit.identity}”</div>
