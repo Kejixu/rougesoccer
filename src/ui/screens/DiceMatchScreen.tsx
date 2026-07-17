@@ -20,7 +20,8 @@ import {
   describeChainStatus,
   type CoachTipKey,
 } from "../diceUx";
-import { dieDropTargets } from "../diceDropTargets";
+import { dieDropInfo } from "../diceDropTargets";
+import { stageEvents } from "../eventTimeline";
 import { COACH_TIP_KEYS, tutorialLockAllows, type TutorialActionIntent, type TutorialStep } from "../tutorialScript";
 
 const PIPS: Record<number, string> = { 1: "⚀", 2: "⚁", 3: "⚂", 4: "⚃", 5: "⚄", 6: "⚅" };
@@ -285,14 +286,49 @@ export function DiceMatchScreen(props: DiceMatchScreenProps) {
   const runningRef = useRef(false);
   const [rerollFx, setRerollFx] = useState<{ i: number; lucky: boolean; n: number } | null>(null);
   const fxNonce = useRef(0);
+  const [displayBall, setDisplayBall] = useState(m.ball);
+  const ballTimersRef = useRef<ReturnType<typeof setTimeout>[]>([]);
+  const ballCleanupGenerationRef = useRef(0);
   const lastBatchRef = useRef<GameEvent[] | null>(null);
   const latestMatchRef = useRef<DiceMatchState | null>(null);
   latestMatchRef.current = m;
+  useEffect(() => {
+    // StrictMode immediately cleans up and re-runs mount effects. Defer the
+    // clear so that rehearsal does not cancel the one guarded replay batch.
+    const generation = ++ballCleanupGenerationRef.current;
+    return () => {
+      queueMicrotask(() => {
+        if (ballCleanupGenerationRef.current !== generation) return;
+        ballTimersRef.current.forEach(clearTimeout);
+        ballTimersRef.current = [];
+      });
+    };
+  }, []);
   useEffect(() => {
     // StrictMode double-runs mount effects with the SAME events array; appending
     // twice duplicated ticker/chip entries. Process each event batch exactly once.
     if (lastBatchRef.current === events) return;
     lastBatchRef.current = events;
+    ballTimersRef.current.forEach(clearTimeout);
+    ballTimersRef.current = [];
+    const stagedEvents = stageEvents(events);
+    for (const { delay, event } of stagedEvents) {
+      if (event.type === "BALL_MOVED") {
+        ballTimersRef.current.push(setTimeout(() => setDisplayBall(event.ball), delay));
+      } else if (event.type === "COUNTER_SHOT") {
+        const counterBall = event.byYou ? m.bal.DICE.THEIR_BOX + 2 : m.bal.DICE.YOUR_BOX - 2;
+        ballTimersRef.current.push(setTimeout(() => setDisplayBall(counterBall), delay));
+      }
+    }
+    const finalStage = stagedEvents.at(-1);
+    if (finalStage) {
+      ballTimersRef.current.push(
+        setTimeout(() => {
+          const latestMatch = latestMatchRef.current;
+          if (latestMatch) setDisplayBall(latestMatch.ball);
+        }, finalStage.delay + 800),
+      );
+    }
     const nextLines = events.map(eventLine).filter((line): line is string => line !== null);
     if (nextLines.length > 0) setTickerLines((prev) => [...nextLines.reverse(), ...prev].slice(0, 8));
     const goalEv = events.find((e): e is Extract<GameEvent, { type: "GOAL_SCORED" }> => e.type === "GOAL_SCORED");
@@ -366,7 +402,14 @@ export function DiceMatchScreen(props: DiceMatchScreenProps) {
   });
   const playable = playableCards(content.defs, m);
   const activeDieIndex = draggingDie?.dieIndex ?? (selectedDie !== null && !m.dice[selectedDie]?.used ? selectedDie : null);
-  const dragTargets = activeDieIndex !== null ? dieDropTargets(content.defs, m, activeDieIndex, tutorial?.step.lock) : null;
+  const dropInfo = activeDieIndex !== null ? dieDropInfo(content.defs, m, activeDieIndex, tutorial?.step.lock) : null;
+  const dragTargets = dropInfo
+    ? new Set(
+        [...dropInfo]
+          .filter(([, status]) => status === "ok")
+          .map(([uid]) => uid),
+      )
+    : null;
 
   const selVal = selectedDie !== null ? m.dice[selectedDie]?.value : undefined;
   const coachTip = tutorial
@@ -570,7 +613,7 @@ export function DiceMatchScreen(props: DiceMatchScreenProps) {
         </div>
       </div>
 
-      <PitchTrack ball={m.ball} possession={m.possession} bal={m.bal} />
+      <PitchTrack ball={displayBall} possession={m.possession} bal={m.bal} />
 
       {m.corner && (
         <div className="corner-banner panel" data-testid="corner-banner">
@@ -724,7 +767,14 @@ export function DiceMatchScreen(props: DiceMatchScreenProps) {
               const def = content.defs[c.defId]!;
               const cardHighlighted = tutorialHighlights({ kind: "playCard", defId: def.id });
               const cardPlayable = canPlay(c.uid) && tutorialAllows({ kind: "playCard", defId: def.id });
-              const dropClass = dragTargets ? (dragTargets.has(c.uid) ? " drop-ok" : " drop-dim") : "";
+              const dropStatus = dropInfo?.get(c.uid);
+              const dropClass = dropInfo
+                ? dropStatus === "ok"
+                  ? " drop-ok"
+                  : dropStatus === "locked"
+                    ? " drop-locked"
+                    : " drop-dim"
+                : "";
               const defense = isDefenseCard(def);
               const liveCombo = !defense && m.possession === "you" && def.position ? comboFor(m.lastPassPosition, def.position) : null;
               const role = defense
@@ -756,6 +806,11 @@ export function DiceMatchScreen(props: DiceMatchScreenProps) {
                   <span className="dice-card-name">{def.name}</span>
                   {liveCombo && <span className="combo-tag card-combo">combo</span>}
                   <span className="dice-card-text">{def.levels[Math.min(c.level, def.levels.length - 1)]!.text}</span>
+                  {dropStatus === "locked" && (
+                    <span className="drop-lock-badge">
+                      {defense ? "🔒 Waits for their possession" : "🔒 Win the ball back first"}
+                    </span>
+                  )}
                   {/* pressure is per-pass, not per-card — it lives once in the status row */}
                 </button>
               );

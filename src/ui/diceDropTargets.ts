@@ -11,7 +11,20 @@ export function dieDropTargets(
   dieIndex: number,
   tutorialLock?: TutorialLock,
 ): Set<string> {
-  const out = new Set<string>();
+  return new Set(
+    [...dieDropInfo(defs, state, dieIndex, tutorialLock)]
+      .filter(([, status]) => status === "ok")
+      .map(([uid]) => uid),
+  );
+}
+
+export function dieDropInfo(
+  defs: CardDefMap,
+  state: DiceMatchState,
+  dieIndex: number,
+  tutorialLock?: TutorialLock,
+): Map<string, "ok" | "locked"> {
+  const out = new Map<string, "ok" | "locked">();
   const die = state.dice[dieIndex];
   if (!die || die.used) return out;
 
@@ -19,11 +32,11 @@ export function dieDropTargets(
     const def = defs[card.defId];
     const slot = def?.slot;
     if (!def || !slot || !dieFitsSlot(die.value, slot)) continue;
-    const defense = isDefenseCard(def);
-    if (state.possession === "you" && defense) continue;
-    if (state.possession === "them" && !defense) continue;
     if (tutorialLock && !tutorialLockAllows(tutorialLock, { kind: "playCard", defId: def.id })) continue;
-    out.add(card.uid);
+    const defense = isDefenseCard(def);
+    const possessionLocked =
+      (state.possession === "you" && defense) || (state.possession === "them" && !defense);
+    out.set(card.uid, possessionLocked ? "locked" : "ok");
   }
 
   return out;

@@ -81,6 +81,10 @@ not just felt. The match UI surfaces this loop with pass chips, current/intercep
 live shot estimate, their-chain defense controls, drag legality highlights, a
 persistent ticker, and one-time coach tips.
 
+The pitch replays passes and counter attacks event-by-event in step with the staged
+match popups. While a die is active, a fitting card blocked by the current possession
+stays visible and says why; tutorial-locked cards keep the plain dim treatment.
+
 Opponent intent copy describes your passing posture in chain mode:
 
 - Press: "They press high — every pass is riskier (27% base)"

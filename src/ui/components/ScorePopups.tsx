@@ -3,6 +3,7 @@
 
 import { useEffect, useRef, useState } from "react";
 import type { GameEvent } from "../../core/types";
+import { stageEvents } from "../eventTimeline";
 
 interface Popup {
   id: number;
@@ -120,16 +121,14 @@ export function ScorePopups({ events }: { events: GameEvent[] }) {
 
   useEffect(() => {
     const staged: { delay: number; popup: Popup & { node?: React.ReactNode } }[] = [];
-    let delay = 0;
-    for (const e of events) {
+    for (const { delay, event: e } of stageEvents(events)) {
       if (e.type === "SHOT_VALUE") {
         staged.push({
           delay,
           popup: { id: nextId++, kind: "info", text: `${e.playName}!` },
         });
-        delay += 450;
         staged.push({
-          delay,
+          delay: delay + 450,
           popup: {
             id: nextId++,
             kind: "shot",
@@ -137,7 +136,6 @@ export function ScorePopups({ events }: { events: GameEvent[] }) {
             node: <CountUpValue base={e.basePower} mult={e.mult} value={e.value} />,
           },
         });
-        delay += 550;
       } else if (e.type === "SHOT_TAKEN") {
         staged.push({
           delay,
@@ -148,13 +146,11 @@ export function ScorePopups({ events }: { events: GameEvent[] }) {
             node: <ShotRoll roll={e.roll} quality={e.quality} dc={e.dc} />,
           },
         });
-        delay += 900;
         if (!e.goal) {
           staged.push({
-            delay,
+            delay: delay + 900,
             popup: { id: nextId++, kind: "concede", text: "🧤 SAVED" },
           });
-          delay += 600;
         }
       } else if (e.type === "PASS_CHALLENGED" || e.type === "OPP_PASS_CHALLENGED") {
         staged.push({
@@ -166,19 +162,16 @@ export function ScorePopups({ events }: { events: GameEvent[] }) {
             node: <PressureRoll roll={e.roll} pressure={e.pressure} survived={e.survived} />,
           },
         });
-        delay += 520;
       } else if (e.type === "CORNER_EARNED") {
         staged.push({
           delay,
           popup: { id: nextId++, kind: "info", text: "CORNER!" },
         });
-        delay += 600;
       } else if (e.type === "KEEPER_RATTLED") {
         staged.push({
           delay,
           popup: { id: nextId++, kind: "info", text: "The keeper's rattled!" },
         });
-        delay += 600;
       } else if (e.type === "OPP_SHOT") {
         staged.push({
           delay,
@@ -189,24 +182,20 @@ export function ScorePopups({ events }: { events: GameEvent[] }) {
             node: <ShotRoll roll={e.roll} quality={e.danger} dc={e.dc} />,
           },
         });
-        delay += 900;
         staged.push({
-          delay,
+          delay: delay + 900,
           popup: { id: nextId++, kind: e.goal ? "concede" : "info", text: e.goal ? "⚽ CONCEDED" : "🧤 SAVED!" },
         });
-        delay += 600;
       } else if (e.type === "GOAL_SCORED" && e.goals > 0) {
         staged.push({
           delay,
           popup: { id: nextId++, kind: "goal", text: e.goals > 1 ? `⚽ ${e.goals} GOALS!` : "⚽ GOAL!" },
         });
-        delay += 650;
       } else if (e.type === "CHAIN_INTERCEPTED") {
         staged.push({
           delay,
           popup: { id: nextId++, kind: e.byYou ? "info" : "concede", text: e.byYou ? "🎯 WON IT!" : "🚫 TACKLED!" },
         });
-        delay += 600;
       } else if (e.type === "COUNTER_SHOT") {
         staged.push({
           delay,
@@ -217,28 +206,24 @@ export function ScorePopups({ events }: { events: GameEvent[] }) {
             node: <ShotRoll roll={e.roll} quality={e.bonus} dc={e.dc} />,
           },
         });
-        delay += 900;
         staged.push({
-          delay,
+          delay: delay + 900,
           popup: {
             id: nextId++,
             kind: e.goal ? (e.byYou ? "goal" : "concede") : "info",
             text: e.goal ? "⚡ COUNTER GOAL" : "🧤 SAVED",
           },
         });
-        delay += 600;
       } else if (e.type === "SUDDEN_DEATH_START") {
         staged.push({
           delay,
           popup: { id: nextId++, kind: "info", text: "EXTRA TIME — next goal wins." },
         });
-        delay += 600;
       } else if (e.type === "MATCH_END") {
         staged.push({
           delay,
           popup: { id: nextId++, kind: e.result === "win" ? "goal" : e.result === "loss" ? "concede" : "info", text: "FULL TIME" },
         });
-        delay += 800;
       } else if (e.type === "SHOOTOUT") {
         staged.push({
           delay,
@@ -248,7 +233,6 @@ export function ScorePopups({ events }: { events: GameEvent[] }) {
             text: `Shootout ${e.playerRoll}-${e.oppRoll}: ${e.won ? "WON!" : "lost"}`,
           },
         });
-        delay += 800;
       }
     }
     for (const { delay: d, popup } of staged) {

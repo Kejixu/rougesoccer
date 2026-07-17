@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { CHAIN_GLOSSARY, coachTipFor, describeChainStatus } from "../src/ui/diceUx";
-import { dieDropTargets } from "../src/ui/diceDropTargets";
+import { dieDropInfo, dieDropTargets } from "../src/ui/diceDropTargets";
 import { createDiceMatch } from "../src/core/match/dice";
 import { seedRng } from "../src/core/rng";
 import { DEFAULT_BALANCE } from "../src/core/balance";
@@ -189,5 +189,53 @@ describe("die drop targets", () => {
       new Set(["ui-d_tackle-1"]),
     );
     expect(dieDropTargets(DICE_CARD_MAP, m, 0, { kind: "endRound" })).toEqual(new Set());
+  });
+});
+
+describe("die drop info", () => {
+  it("marks a fitting attack card locked during their possession", () => {
+    const m = {
+      ...start(["d_finish"], "drop-attack-locked"),
+      possession: "them" as const,
+      dice: [{ value: 6, used: false }],
+      hand: [inst("d_finish", 0)],
+    };
+
+    expect(dieDropInfo(DICE_CARD_MAP, m, 0)).toEqual(new Map([["ui-d_finish-0", "locked"]]));
+  });
+
+  it("marks a fitting defense card locked during your possession", () => {
+    const m = {
+      ...start(["d_tackle"], "drop-defense-locked"),
+      possession: "you" as const,
+      dice: [{ value: 2, used: false }],
+      hand: [inst("d_tackle", 0)],
+    };
+
+    expect(dieDropInfo(DICE_CARD_MAP, m, 0)).toEqual(new Map([["ui-d_tackle-0", "locked"]]));
+  });
+
+  it("marks fitting cards ok and omits non-fitting cards", () => {
+    const m = {
+      ...start(["d_shortpass", "d_finish"], "drop-info-fit"),
+      possession: "you" as const,
+      dice: [{ value: 4, used: false }],
+      hand: [inst("d_shortpass", 0), inst("d_finish", 1)],
+    };
+
+    expect(dieDropInfo(DICE_CARD_MAP, m, 0)).toEqual(new Map([["ui-d_shortpass-0", "ok"]]));
+  });
+
+  it("omits cards blocked by the tutorial lock", () => {
+    const m = {
+      ...start(["d_clearance", "d_tackle"], "drop-info-tutorial"),
+      possession: "them" as const,
+      dice: [{ value: 2, used: false }],
+      hand: [inst("d_clearance", 0), inst("d_tackle", 1)],
+    };
+
+    expect(dieDropInfo(DICE_CARD_MAP, m, 0, { kind: "playCard", defId: "d_tackle" })).toEqual(
+      new Map([["ui-d_tackle-1", "ok"]]),
+    );
   });
 });

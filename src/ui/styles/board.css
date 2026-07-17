@@ -1161,6 +1161,31 @@
   opacity: 0.28;
 }
 
+.dice-card.drop-locked {
+  opacity: 0.68;
+  filter: saturate(0.45);
+}
+
+.drop-lock-badge {
+  position: absolute;
+  z-index: 2;
+  top: 50%;
+  left: 8px;
+  right: 8px;
+  transform: translateY(-50%);
+  padding: 6px 8px;
+  border: 1px solid rgba(245, 241, 227, 0.35);
+  border-radius: 8px;
+  background: rgba(15, 18, 17, 0.92);
+  box-shadow: 0 3px 12px rgba(0, 0, 0, 0.4);
+  color: var(--ink);
+  font-size: 11px;
+  font-weight: 800;
+  line-height: 1.2;
+  text-align: center;
+  pointer-events: none;
+}
+
 @keyframes drop-ok-pulse {
   from { transform: translateY(-2px); }
   to { transform: translateY(-5px); }
