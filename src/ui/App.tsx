@@ -11,8 +11,8 @@ import { ShopScreen } from "./screens/ShopScreen";
 import { StaffScreen } from "./screens/StaffScreen";
 import { TitleScreen } from "./screens/TitleScreen";
 import { TournamentScreen } from "./screens/TournamentScreen";
+import { COACH_TIP_KEYS } from "./diceUx";
 import {
-  COACH_TIP_KEYS,
   TUTORIAL_STEPS,
   createTutorialMatch,
   tutorialLockAllows,

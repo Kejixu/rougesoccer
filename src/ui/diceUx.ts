@@ -1,6 +1,7 @@
 import { pressureOf } from "../core/types";
 
 export const CHAIN_GLOSSARY: Record<string, string> = {
+  Possession: "Possessions alternate like innings: three attacks and three defenses. Fight for the ball within each round through tackles, interceptions, and counters.",
   Chance: "Chance is your banked shot bonus for this possession.",
   Risk: "Risk becomes d20 pressure on the next pass.",
   Recycle: "Recycle ends your possession safely without shooting.",
@@ -29,7 +30,11 @@ export function describeChainStatus(input: {
   return `Chance ${input.shotQuality} · shot ${Math.round(input.shootPct * 100)}% · next pass pressure ${pressureOf(input.riskPct)} (${Math.round(input.riskPct * 100)}%).`;
 }
 
-export type CoachTipKey = "possession" | "risk" | "chance" | "punt" | "defense" | "combo" | "corner" | "rattled";
+export type CoachTipKey = "schedule" | "possession" | "risk" | "chance" | "punt" | "defense" | "combo" | "corner" | "rattled";
+
+// Kept here instead of extending tutorialScript's list so the guided tutorial
+// remains byte-identical while the live match can persist the schedule tip.
+export const COACH_TIP_KEYS: CoachTipKey[] = ["schedule", "possession", "risk", "chance", "punt", "defense", "combo"];
 
 export const SET_PIECE_COACH_TIP_KEYS: CoachTipKey[] = ["corner", "rattled"];
 
@@ -39,6 +44,7 @@ export interface CoachTip {
 }
 
 export const COACH_TIPS: Record<CoachTipKey, string> = {
+  schedule: "Possessions alternate like innings — three attacks, three defenses. You fight for the ball within a round: tackles, interceptions, counters.",
   possession: "Cards are passes. Each die you slot plays one — your first pass is always free.",
   risk: "Pressure is the d20 number they tackle on for your NEXT pass. Lose it and you lose all banked Chance — and they counter.",
   chance: "Chance is your shot's power. Shoot spends it: d20 + Chance vs their keeper. Build it with finishers.",
@@ -63,6 +69,7 @@ export function coachTipFor(
   seenKeys: ReadonlySet<CoachTipKey | string>,
 ): CoachTip | null {
   const ordered: [CoachTipKey, boolean][] = [
+    ["schedule", input.possession === "them"],
     ["corner", input.corner],
     ["rattled", input.keeperRattled],
     ["combo", input.comboTriggered],

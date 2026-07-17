@@ -15,6 +15,7 @@ import { ZONE_NAMES, bestDieFor, comboFor, interceptionRisk, oppInterceptionRisk
 import { ScorePopups } from "../components/ScorePopups";
 import {
   CHAIN_GLOSSARY,
+  COACH_TIP_KEYS,
   SET_PIECE_COACH_TIP_KEYS,
   coachTipFor,
   describeChainStatus,
@@ -22,9 +23,92 @@ import {
 } from "../diceUx";
 import { dieDropInfo } from "../diceDropTargets";
 import { stageEvents } from "../eventTimeline";
-import { COACH_TIP_KEYS, tutorialLockAllows, type TutorialActionIntent, type TutorialStep } from "../tutorialScript";
+import { tutorialLockAllows, type TutorialActionIntent, type TutorialStep } from "../tutorialScript";
 
 const PIPS: Record<number, string> = { 1: "⚀", 2: "⚁", 3: "⚂", 4: "⚃", 5: "⚄", 6: "⚅" };
+
+type PossessionOwner = "you" | "them";
+
+export interface PossessionHandover {
+  round: number;
+  owner: PossessionOwner;
+  title: string;
+  subtitle: string;
+}
+
+function ownerForRound(round: number): PossessionOwner {
+  return round % 2 === 1 ? "you" : "them";
+}
+
+export function PossessionStrip({
+  currentRound,
+  matchRounds,
+}: {
+  currentRound: number;
+  matchRounds: number;
+}) {
+  const rounds = Math.max(matchRounds, currentRound);
+  return (
+    <div className="possession-strip" data-testid="possession-strip" role="list" aria-label="Possession schedule">
+      <div className="possession-slots">
+        {Array.from({ length: rounds }, (_, index) => {
+          const round = index + 1;
+          const owner = ownerForRound(round);
+          const timing = round === currentRound ? "current" : round < currentRound ? "past" : "future";
+          return (
+            <span
+              key={round}
+              className={`possession-slot ${owner} ${timing}${round > matchRounds ? " extra-time" : ""}`}
+              data-owner={owner}
+              data-round={round}
+              role="listitem"
+              aria-label={`Round ${round}: ${owner === "you" ? "your ball" : "their ball"}`}
+              aria-current={round === currentRound ? "step" : undefined}
+            >
+              <span className="possession-round">{round}</span>
+              <span className="possession-marker" aria-hidden="true">{owner === "you" ? "●" : "○"}</span>
+            </span>
+          );
+        })}
+      </div>
+      <span className="possession-legend"><b>● you</b><b>○ them</b></span>
+    </div>
+  );
+}
+
+export function handoverForRoundStart(
+  events: readonly GameEvent[],
+  previousOwner: PossessionOwner,
+): PossessionHandover | null {
+  const roundStart = [...events].reverse().find(
+    (event): event is Extract<GameEvent, { type: "ROUND_START" }> => event.type === "ROUND_START",
+  );
+  if (!roundStart || roundStart.round <= 1) return null;
+  const owner = ownerForRound(roundStart.round);
+  if (owner === previousOwner) return null;
+  return owner === "them"
+    ? {
+        round: roundStart.round,
+        owner,
+        title: `ROUND ${roundStart.round} — THEIR BALL`,
+        subtitle: "Commit tackles or stand off",
+      }
+    : {
+        round: roundStart.round,
+        owner,
+        title: `ROUND ${roundStart.round} — YOUR BALL`,
+        subtitle: "Build the chance",
+      };
+}
+
+export function HandoverBanner({ handover }: { handover: PossessionHandover }) {
+  return (
+    <div className={`possession-handover ${handover.owner}`} data-testid="possession-handover" aria-live="polite">
+      <strong>{handover.title}</strong>
+      <span>{handover.subtitle}</span>
+    </div>
+  );
+}
 
 function intentText(intent: Intent): { icon: string; text: string } {
   switch (intent.kind) {
@@ -272,6 +356,7 @@ export function DiceMatchScreen(props: DiceMatchScreenProps) {
   const [chainEntries, setChainEntries] = useState<ChainChip[]>([]);
   const [tickerLines, setTickerLines] = useState<string[]>([]);
   const [seenCoachKeys, setSeenCoachKeys] = useState<Set<CoachTipKey>>(() => readSeenCoachKeys());
+  const [handover, setHandover] = useState<PossessionHandover | null>(null);
   const [puntPressed, setPuntPressed] = useState(false);
   const [draggingDie, setDraggingDie] = useState<DraggingDie | null>(null);
   const dragRef = useRef<DraggingDie | null>(null);
@@ -288,8 +373,10 @@ export function DiceMatchScreen(props: DiceMatchScreenProps) {
   const fxNonce = useRef(0);
   const [displayBall, setDisplayBall] = useState(m.ball);
   const ballTimersRef = useRef<ReturnType<typeof setTimeout>[]>([]);
+  const handoverTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const ballCleanupGenerationRef = useRef(0);
   const lastBatchRef = useRef<GameEvent[] | null>(null);
+  const previousPossessionRef = useRef<PossessionOwner>(m.possession);
   const latestMatchRef = useRef<DiceMatchState | null>(null);
   latestMatchRef.current = m;
   useEffect(() => {
@@ -301,6 +388,8 @@ export function DiceMatchScreen(props: DiceMatchScreenProps) {
         if (ballCleanupGenerationRef.current !== generation) return;
         ballTimersRef.current.forEach(clearTimeout);
         ballTimersRef.current = [];
+        if (handoverTimerRef.current) clearTimeout(handoverTimerRef.current);
+        handoverTimerRef.current = null;
       });
     };
   }, []);
@@ -344,6 +433,16 @@ export function DiceMatchScreen(props: DiceMatchScreenProps) {
     if (events.some((e) => e.type === "ROUND_START")) {
       chainRef.current = [];
       setDocked([]);
+    }
+    const nextHandover = handoverForRoundStart(events, previousPossessionRef.current);
+    previousPossessionRef.current = m.possession;
+    if (nextHandover) {
+      if (handoverTimerRef.current) clearTimeout(handoverTimerRef.current);
+      setHandover(nextHandover);
+      handoverTimerRef.current = setTimeout(() => {
+        setHandover(null);
+        handoverTimerRef.current = null;
+      }, 1100);
     }
     if (events.some((e) => e.type === "CORNER_EARNED")) {
       setDocked((prev) => prev.slice(0, 1));
@@ -570,8 +669,9 @@ export function DiceMatchScreen(props: DiceMatchScreenProps) {
     m.possession === "them" ? Math.min(m.bal.DICE.CARRY_MAX, m.dice.filter((die) => !die.used).length) : 0;
 
   return (
-    <main className="board">
+    <main className={`board${m.possession === "them" ? " mode-defending" : ""}`}>
       <ScorePopups events={events} />
+      {handover && <HandoverBanner handover={handover} />}
       {celebration === "goal" && (
         <div className="confetti-layer celebration" aria-hidden="true">
           {Array.from({ length: 36 }, (_, i) => (
@@ -604,12 +704,15 @@ export function DiceMatchScreen(props: DiceMatchScreenProps) {
             )}
           </div>
         </div>
-        <div style={{ textAlign: "right" }} data-testid="match-status">
-          {m.phase === "DONE"
-            ? "FULL TIME"
-            : m.mode === "regulation"
-            ? `Round ${m.round} of ${m.bal.MATCH_ROUNDS}`
-            : `EXTRA TIME — golden goal (${m.suddenDeathRoundsPlayed + 1})`}
+        <div className="match-round-header">
+          <div data-testid="match-status">
+            {m.phase === "DONE"
+              ? "FULL TIME"
+              : m.mode === "regulation"
+              ? `Round ${m.round} of ${m.bal.MATCH_ROUNDS}`
+              : `EXTRA TIME — golden goal (${m.suddenDeathRoundsPlayed + 1})`}
+          </div>
+          <PossessionStrip currentRound={m.round} matchRounds={m.bal.MATCH_ROUNDS} />
         </div>
       </div>
 
@@ -627,9 +730,6 @@ export function DiceMatchScreen(props: DiceMatchScreenProps) {
         </span>
         <span className="shotq-badge" data-testid="passes">
           Passes {m.possession === "you" ? m.passes : m.oppPasses}
-        </span>
-        <span className={`possession-badge${m.possession === "them" ? " defending" : ""}`} data-testid="possession-badge">
-          {m.possession === "you" ? "● Your possession" : "○ Their possession"}
         </span>
         <span className="pitch-arrow" data-testid="pitch-arrow">
           {m.possession === "you" ? "→" : "←"}

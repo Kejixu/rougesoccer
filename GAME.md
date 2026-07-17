@@ -88,6 +88,14 @@ The pitch replays passes and counter attacks event-by-event in step with the sta
 match popups. While a die is active, a fitting card blocked by the current possession
 stays visible and says why; tutorial-locked cards keep the plain dim treatment.
 
+The round header shows the full possession schedule as a six-slot strip: odd rounds
+are your attacks, even rounds are their attacks, completed rounds dim, and the current
+round glows. Extra-time possessions append new slots as they begin. Each possession
+flip gets a short, pointer-transparent handover banner ("YOUR BALL" / "THEIR BALL"),
+and their possessions shift the board into the existing red defending palette. The
+strip is the single primary possession indicator; the direction arrow remains a
+secondary field-orientation cue.
+
 Opponent intent copy describes your passing posture in chain mode:
 
 - Press: "They press high — every pass is riskier (27% base)"
@@ -96,9 +104,11 @@ Opponent intent copy describes your passing posture in chain mode:
 
 The ticker keeps the latest match events visible (pressure rolls, passes for both
 teams, interceptions, counters, shot roll math, goals/saves, and possession
-changes). Coach tips are stored as `coach.possession`, `coach.risk`, `coach.chance`,
-`coach.punt`, `coach.defense`, `coach.combo`, `coach.corner`, and `coach.rattled`
-once dismissed.
+changes). A one-time `coach.schedule` tip explains that possessions alternate like
+innings and that tackles, interceptions, and counters fight for the ball within each
+round. Coach tips are stored as `coach.schedule`, `coach.possession`, `coach.risk`,
+`coach.chance`, `coach.punt`, `coach.defense`, `coach.combo`, `coach.corner`, and
+`coach.rattled` once dismissed.
 
 ---
 

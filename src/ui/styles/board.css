@@ -28,6 +28,171 @@
 .scoreboard {
   border-bottom: 3px solid var(--accent);
   background: linear-gradient(180deg, var(--surface-2), var(--surface));
+  transition: border-color 0.25s ease, background 0.25s ease, box-shadow 0.25s ease;
+}
+
+.match-round-header {
+  display: grid;
+  justify-items: end;
+  gap: 7px;
+  min-width: 330px;
+  text-align: right;
+}
+
+.possession-strip {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 12px;
+}
+
+.possession-slots {
+  display: flex;
+  align-items: center;
+  gap: 5px;
+}
+
+.possession-slot {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 2px;
+  min-width: 30px;
+  height: 28px;
+  padding: 2px 5px;
+  border: 1px solid currentColor;
+  border-radius: 999px;
+  font-weight: 900;
+  line-height: 1;
+  transition: opacity 0.2s ease, box-shadow 0.2s ease, transform 0.2s ease;
+}
+
+.possession-slot.you {
+  color: var(--accent);
+  background: color-mix(in srgb, var(--accent) 10%, transparent);
+}
+
+.possession-slot.them {
+  color: var(--defending);
+  background: var(--defending-surface);
+}
+
+.possession-slot.past {
+  opacity: 0.42;
+}
+
+.possession-slot.current {
+  transform: translateY(-1px);
+  box-shadow: 0 0 0 2px var(--surface), 0 0 12px currentColor;
+}
+
+.possession-slot.extra-time {
+  border-radius: 7px;
+}
+
+.possession-round {
+  font-size: 10px;
+  opacity: 0.8;
+}
+
+.possession-marker {
+  font-size: 17px;
+}
+
+.possession-legend {
+  display: inline-flex;
+  gap: 7px;
+  color: var(--ink-dim);
+  font-size: 10px;
+  text-transform: uppercase;
+  white-space: nowrap;
+}
+
+.possession-legend b:first-child { color: var(--accent); }
+.possession-legend b:last-child { color: var(--defending); }
+
+.possession-handover {
+  position: fixed;
+  left: 50%;
+  top: 46%;
+  z-index: 50;
+  display: grid;
+  justify-items: center;
+  gap: 5px;
+  min-width: min(440px, calc(100vw - 32px));
+  padding: 18px 28px;
+  border: 2px solid var(--accent);
+  border-radius: 14px;
+  background: rgba(20, 36, 26, 0.96);
+  color: var(--ink);
+  box-shadow: 0 18px 54px rgba(0, 0, 0, 0.55), 0 0 24px rgba(255, 211, 77, 0.22);
+  pointer-events: none;
+  transform: translate(-50%, -50%);
+  animation: possession-handover 1.1s ease both;
+}
+
+.possession-handover.them {
+  border-color: var(--defending);
+  background: rgba(49, 26, 26, 0.97);
+  box-shadow: 0 18px 54px rgba(0, 0, 0, 0.55), 0 0 26px var(--defending-glow);
+}
+
+.possession-handover strong {
+  font-family: var(--font-display);
+  font-size: clamp(24px, 4vw, 38px);
+  letter-spacing: 0.05em;
+}
+
+.possession-handover span {
+  color: var(--ink-dim);
+  font-size: 14px;
+  font-weight: 700;
+}
+
+@keyframes possession-handover {
+  0% { opacity: 0; transform: translate(-50%, -43%) scale(0.94); }
+  15%, 76% { opacity: 1; transform: translate(-50%, -50%) scale(1); }
+  100% { opacity: 0; transform: translate(-50%, -53%) scale(1.02); }
+}
+
+.board.mode-defending .scoreboard {
+  border-bottom-color: var(--defending);
+  background: linear-gradient(180deg, color-mix(in srgb, var(--defending-strong) 18%, var(--surface-2)), var(--surface));
+  box-shadow: 0 5px 22px rgba(163, 61, 61, 0.18);
+}
+
+.board.mode-defending .pitch-track {
+  border-color: color-mix(in srgb, var(--defending) 68%, var(--ink));
+  box-shadow: inset 0 0 46px rgba(92, 25, 25, 0.34), 0 4px 22px var(--defending-glow);
+}
+
+.board.mode-defending .their-chain,
+.board.mode-defending .intent-panel {
+  border-color: color-mix(in srgb, var(--defending-strong) 72%, var(--surface));
+  background: var(--defending-surface);
+}
+
+@media (max-width: 760px) {
+  .scoreboard {
+    align-items: flex-start;
+    flex-direction: column;
+  }
+
+  .match-round-header {
+    justify-items: start;
+    min-width: 0;
+    width: 100%;
+    text-align: left;
+  }
+
+  .possession-strip {
+    justify-content: flex-start;
+    gap: 8px;
+    width: 100%;
+  }
+
+  .possession-slots { gap: 3px; }
+  .possession-slot { min-width: 27px; padding-inline: 4px; }
 }
 
 .scoreboard .score .goals {
@@ -1293,22 +1458,6 @@
 .pitch-zone.theirs.current {
   border-color: var(--danger);
   box-shadow: 0 4px 18px rgba(163, 61, 61, 0.3);
-}
-
-.possession-badge {
-  font-size: 13px;
-  font-weight: 700;
-  padding: 4px 12px;
-  border-radius: 999px;
-  background: rgba(120, 200, 140, 0.15);
-  border: 1px solid var(--accent);
-  color: var(--accent-2);
-}
-
-.possession-badge.defending {
-  background: rgba(163, 61, 61, 0.15);
-  border-color: var(--danger);
-  color: #e88585;
 }
 
 .pitch-arrow {

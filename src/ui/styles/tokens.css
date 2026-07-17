@@ -11,6 +11,10 @@
   --accent: #ffd34d;
   --accent-2: #4dd07a;
   --danger: #ff5d5d;
+  --defending: #e88585;
+  --defending-strong: #a33d3d;
+  --defending-surface: rgba(163, 61, 61, 0.15);
+  --defending-glow: rgba(232, 133, 133, 0.34);
   --rare: #6ec3ff;
   --legendary: #ffb347;
   --sticker-paper: #f5f1e3;

@@ -6,6 +6,7 @@ import { seedRng } from "../src/core/rng";
 import { DEFAULT_BALANCE } from "../src/core/balance";
 import type { CardInstance, DiceMatchState, OppInfo } from "../src/core/types";
 import { DICE_CARD_MAP } from "../src/data/diceCards";
+import * as DiceUx from "../src/ui/diceUx";
 
 const OPP: OppInfo = { teamId: "qat", name: "Qatar", attackRating: 12, style: "balanced", tier: 4 };
 
@@ -71,6 +72,7 @@ describe("dice UX copy", () => {
 
   it("defines the chain glossary terms", () => {
     expect(CHAIN_GLOSSARY).toEqual({
+      Possession: "Possessions alternate like innings: three attacks and three defenses. Fight for the ball within each round through tackles, interceptions, and counters.",
       Chance: "Chance is your banked shot bonus for this possession.",
       Risk: "Risk becomes d20 pressure on the next pass.",
       Recycle: "Recycle ends your possession safely without shooting.",
@@ -103,6 +105,17 @@ describe("coach tips", () => {
     expect(coachTipFor(baseSummary, new Set(["possession"]))).toBeNull();
   });
 
+  it("shows the schedule tip once on the first their-possession", () => {
+    const theirSummary = { ...baseSummary, possession: "them" as const };
+
+    expect((DiceUx as typeof DiceUx & { COACH_TIP_KEYS?: readonly string[] }).COACH_TIP_KEYS).toContain("schedule");
+    expect(coachTipFor(theirSummary, new Set())).toEqual({
+      key: "schedule",
+      text: "Possessions alternate like innings — three attacks, three defenses. You fight for the ball within a round: tackles, interceptions, counters.",
+    });
+    expect(coachTipFor(theirSummary, new Set(["schedule"]))).not.toMatchObject({ key: "schedule" });
+  });
+
   it("prioritizes risk, chance, punt, and defense triggers when unseen", () => {
     expect(coachTipFor({ ...baseSummary, passes: 1, interceptionRisk: 0.15 }, new Set())).toEqual({
       key: "risk",
@@ -116,7 +129,7 @@ describe("coach tips", () => {
       key: "punt",
       text: "A punt! Long shots are priced in — work the ball closer and bank Chance for better odds.",
     });
-    expect(coachTipFor({ ...baseSummary, possession: "them" }, new Set(["risk", "chance", "punt"]))).toEqual({
+    expect(coachTipFor({ ...baseSummary, possession: "them" }, new Set(["schedule", "risk", "chance", "punt"]))).toEqual({
       key: "defense",
       text: "Their turn. Unused dice carry to your attack, up to 2. Stand off to bank energy; commit defenders to spend it on safety now.",
     });
