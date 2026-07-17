@@ -49,58 +49,76 @@
 .possession-slots {
   display: flex;
   align-items: center;
-  gap: 5px;
+  gap: 7px;
 }
 
 .possession-slot {
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  gap: 2px;
-  min-width: 30px;
-  height: 28px;
-  padding: 2px 5px;
-  border: 1px solid currentColor;
-  border-radius: 999px;
+  gap: 5px;
   font-weight: 900;
   line-height: 1;
-  transition: opacity 0.2s ease, box-shadow 0.2s ease, transform 0.2s ease;
+  transition: opacity 0.2s ease;
 }
 
-.possession-slot.you {
-  color: var(--accent);
-  background: color-mix(in srgb, var(--accent) 10%, transparent);
+.possession-pill {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 36px;
+  height: 34px;
+  border: 2px solid currentColor;
+  border-radius: 999px;
+  font-size: 15px;
+  transition: box-shadow 0.2s ease, transform 0.2s ease, width 0.2s ease, height 0.2s ease;
 }
 
-.possession-slot.them {
+.possession-slot.you .possession-pill {
+  background: var(--accent);
+  border-color: var(--accent);
+  color: var(--surface);
+}
+
+.possession-slot.them .possession-pill {
   color: var(--defending);
-  background: var(--defending-surface);
+  background: transparent;
 }
 
 .possession-slot.past {
   opacity: 0.42;
 }
 
-.possession-slot.current {
+.possession-slot.current .possession-pill {
+  width: 42px;
+  height: 38px;
   transform: translateY(-1px);
-  box-shadow: 0 0 0 2px var(--surface), 0 0 12px currentColor;
 }
 
-.possession-slot.extra-time {
+.possession-slot.you.current .possession-pill {
+  box-shadow: 0 0 0 2px var(--surface), 0 0 12px var(--accent);
+}
+
+.possession-slot.them.current .possession-pill {
+  box-shadow: 0 0 0 2px var(--surface), 0 0 12px var(--defending);
+}
+
+.possession-slot.extra-time .possession-pill {
   border-radius: 7px;
+  border-style: double;
 }
 
-.possession-round {
-  font-size: 10px;
-  opacity: 0.8;
-}
-
-.possession-marker {
-  font-size: 17px;
+.possession-extra-time-tag {
+  align-self: flex-start;
+  margin-left: -8px;
+  color: var(--ink-dim);
+  font-size: 8px;
+  letter-spacing: 0.05em;
 }
 
 .possession-legend {
   display: inline-flex;
+  align-items: center;
   gap: 7px;
   color: var(--ink-dim);
   font-size: 10px;
@@ -108,8 +126,33 @@
   white-space: nowrap;
 }
 
-.possession-legend b:first-child { color: var(--accent); }
-.possession-legend b:last-child { color: var(--defending); }
+.possession-legend b {
+  display: inline-flex;
+  align-items: center;
+  gap: 3px;
+}
+
+.possession-legend-pill {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 18px;
+  height: 16px;
+  border: 1px solid currentColor;
+  border-radius: 999px;
+  font-size: 8px;
+}
+
+.possession-legend-pill.you {
+  color: var(--surface);
+  background: var(--accent);
+  border-color: var(--accent);
+}
+
+.possession-legend-pill.them {
+  color: var(--defending);
+  background: transparent;
+}
 
 .possession-now {
   font-size: 9px;
@@ -199,8 +242,9 @@
     width: 100%;
   }
 
-  .possession-slots { gap: 3px; }
-  .possession-slot { min-width: 27px; padding-inline: 4px; }
+  .possession-slots { gap: 4px; }
+  .possession-pill { width: 31px; height: 29px; }
+  .possession-slot.current .possession-pill { width: 36px; height: 33px; }
 }
 
 .scoreboard .score .goals {
@@ -1537,6 +1581,13 @@
   50% { transform: scale(1.05); box-shadow: 0 0 26px rgba(255, 211, 77, 0.7); }
 }
 
+/* cold SHOOT: still clickable, but visibly "not the play right now" */
+.action-bar .btn--primary[data-cold="true"] {
+  opacity: 0.55;
+  filter: saturate(0.55);
+  box-shadow: none;
+}
+
 /* ---- nation colors on the team picker ---- */
 
 .kit-card {
@@ -1578,11 +1629,11 @@
   z-index: 3;
 }
 
-.run-play {
+.dock-runner {
   min-width: 150px;
 }
 
-.run-play:disabled {
+.dock-runner:disabled {
   opacity: 0.45;
 }
 

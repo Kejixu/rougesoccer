@@ -9,6 +9,7 @@ import {
   interceptionRisk,
   oppInterceptionRisk,
   playableCards,
+  projectedShotEstimate,
   shotEstimate,
 } from "../src/core/match/dice";
 import { seedRng } from "../src/core/rng";
@@ -894,5 +895,58 @@ describe("match terminates", () => {
     }
     expect(m.phase).toBe("DONE");
     expect(["win", "draw", "loss"]).toContain(m.result);
+  });
+});
+
+describe("projectedShotEstimate", () => {
+  it("with no staged plays it equals the live estimate", () => {
+    const m = start(["d_shortpass", "d_finish", "d_poacher", "d_sideways"]);
+    expect(projectedShotEstimate(DICE_CARD_MAP, m, [])).toEqual(shotEstimate(m));
+  });
+
+  it("matches the real estimate after a risk-free first pass", () => {
+    const m = start(["d_shortpass", "d_finish", "d_poacher", "d_sideways"], "project-1");
+    const card = m.hand.find((c) => c.defId === "d_shortpass")!;
+    const slot = DICE_CARD_MAP.d_shortpass!.slot!;
+    const dieIndex = m.dice.findIndex((d) => !d.used && dieFitsSlot(d.value, slot));
+    expect(dieIndex).toBeGreaterThanOrEqual(0);
+    const projected = projectedShotEstimate(DICE_CARD_MAP, m, [{ uid: card.uid, dieIndex }]);
+    const after = playWith(m, "d_shortpass");
+    expect(after.passes).toBe(1); // first pass is always free
+    expect(projected).toEqual(shotEstimate(after));
+  });
+
+  it("stacks development gain and ball movement across staged plays", () => {
+    const m = start(["d_shortpass", "d_poacher", "d_finish", "d_sideways"], "project-2");
+    const pass = m.hand.find((c) => c.defId === "d_shortpass")!;
+    const poacher = m.hand.find((c) => c.defId === "d_poacher")!;
+    const passSlot = DICE_CARD_MAP.d_shortpass!.slot!;
+    const poacherSlot = DICE_CARD_MAP.d_poacher!.slot!;
+    const passDie = m.dice.findIndex((d) => !d.used && dieFitsSlot(d.value, passSlot));
+    const poacherDie = m.dice.findIndex(
+      (d, i) => i !== passDie && !d.used && dieFitsSlot(d.value, poacherSlot),
+    );
+    expect(passDie).toBeGreaterThanOrEqual(0);
+    expect(poacherDie).toBeGreaterThanOrEqual(0);
+
+    const projected = projectedShotEstimate(DICE_CARD_MAP, m, [
+      { uid: pass.uid, dieIndex: passDie },
+      { uid: poacher.uid, dieIndex: poacherDie },
+    ]);
+
+    // hand-computed: short pass moves the ball by the die (progressFromDie),
+    // then poacher banks 5 + combo + passes(1) * DEVELOPMENT_GAIN
+    const passEffects = effectsFor(DICE_CARD_MAP.d_shortpass!, 0);
+    const progress = passEffects.reduce(
+      (a, e) => (e.kind === "progress" ? a + e.amount : e.kind === "progressFromDie" ? a + m.dice[passDie]!.value : a),
+      0,
+    );
+    const combo = comboFor(
+      DICE_CARD_MAP.d_shortpass!.position ?? null,
+      DICE_CARD_MAP.d_poacher!.position!,
+    );
+    const quality = 5 + (combo?.chance ?? 0) + 1 * DEFAULT_BALANCE.DICE.DEVELOPMENT_GAIN;
+    const expected = shotEstimate({ ...m, ball: m.ball + progress, shotQuality: quality });
+    expect(projected).toEqual(expected);
   });
 });

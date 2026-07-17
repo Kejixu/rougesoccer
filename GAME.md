@@ -60,12 +60,17 @@ your possession; even rounds are their possession.
   legal but low percentage. If cards are staged on the dock, **Play & Shoot** resolves
   each staged pass in order before taking the shot; an interception or possession
   change during that sequence cancels the shot.
-- You can **recycle** with `END_ROUND`: end the possession safely with no shot and no
-  counter.
+- You can **recycle** with `END_ROUND`: **Play & Recycle** resolves each staged pass
+  in order, then ends the possession safely with no shot and no counter. An
+  interception or possession change during the sequence cancels the recycle.
 
-The three your-ball action verbs are **Run play · Play & Shoot · Recycle**. Run play
-advances the staged move without shooting, Play & Shoot makes the shot the final item
-of the staged move, and Recycle ends the possession safely.
+The two your-ball action verbs are **Play & Shoot · Play & Recycle**. Every staged
+move chooses its ending up front: the dock resolves once, then either shoots or
+recycles. With an empty dock, the same buttons are plain **Shoot** and **Recycle
+possession**. There is no attack-side run-only action or mid-possession second wave;
+cards drawn during a flush stay in the persistent hand for a later round. During
+their possession, **Commit defense** still resolves staged defenders without ending
+the round, so defensive cards can be committed in multiple waves.
 
 Your possession is push-your-luck:
 
@@ -96,9 +101,11 @@ The pitch replays passes and counter attacks event-by-event in step with the sta
 match popups. While a die is active, a fitting card blocked by the current possession
 stays visible and says why; tutorial-locked cards keep the plain dim treatment.
 
-The round header shows the full possession schedule as a six-slot strip: odd rounds
-are your attacks, even rounds are their attacks, completed rounds dim, and the current
-round glows. Extra-time possessions append new slots as they begin. Each possession
+The scoreboard shows the full possession schedule as a six-slot strip instead of a
+separate “Round X of 6” label: odd rounds are filled gold number pills for your
+attacks, even rounds are outlined red number pills for their attacks, completed
+rounds dim, and the current pill enlarges beside **YOUR BALL** or **THEIR BALL**.
+Extra-time possessions append distinct pills with an **ET** tag as they begin. Each possession
 flip gets a short, pointer-transparent handover banner ("YOUR BALL" / "THEIR BALL"),
 and their possessions shift the board into the existing red defending palette. The
 strip is the single primary possession indicator; the direction arrow remains a

@@ -4,6 +4,7 @@ import { describe, expect, it } from "vitest";
 import { DEFAULT_BALANCE } from "../src/core/balance";
 import { applyDiceAction, createDiceMatch } from "../src/core/match/dice";
 import { seedRng } from "../src/core/rng";
+import { createRun } from "../src/core/run/run";
 import type { CardInstance, DiceMatchAction, DiceMatchState, GameEvent, OppInfo } from "../src/core/types";
 import { makeContent } from "../src/data/content";
 import { DICE_CARD_MAP } from "../src/data/diceCards";
@@ -33,12 +34,17 @@ type PossessionExports = typeof MatchUi & {
     running: boolean,
     tutorialAllowed: boolean,
   ) => boolean;
+  recycleButtonLabel?: (
+    match: Pick<DiceMatchState, "corner" | "possession">,
+    dockedCount: number,
+  ) => string;
   runDockedPlay?: (options: {
     queue: readonly { uid: string; dieIndex: number }[];
     initialMatch: DiceMatchState;
     getLatestMatch: () => DiceMatchState | null;
     dispatch: (action: DiceMatchAction) => void;
     thenShoot?: boolean;
+    thenEndRound?: boolean;
     isRunning?: () => boolean;
     schedule?: (callback: () => void, delay: number) => unknown;
     onFinish?: () => void;
@@ -86,6 +92,38 @@ function matchScreenMarkup(possession: Owner, round: number): string {
   }));
 }
 
+function liveMatchScreenMarkup(
+  possession: Owner,
+  round: number,
+  overrides: Partial<DiceMatchState> = {},
+): string {
+  const content = makeContent();
+  const match = {
+    ...createDiceMatch(DICE_CARD_MAP, {
+      opp: OPP,
+      styleEffects: [],
+      plays: [],
+      context: "group",
+      deck: [inst("d_shortpass", 20), inst("d_tackle", 21)],
+      mutators: [],
+      rng: seedRng("possession-controls"),
+      balance: DEFAULT_BALANCE,
+    }).state,
+    possession,
+    round,
+    ...overrides,
+  };
+  const run = { ...createRun(content, "possession-controls-run", "usa"), activeMatch: match };
+  const Screen = MatchUi.DiceMatchScreen as ComponentType<Record<string, unknown>>;
+
+  return renderToStaticMarkup(createElement(Screen, {
+    content,
+    events: [],
+    run,
+    dispatch: () => undefined,
+  }));
+}
+
 describe("possession strip", () => {
   it("renders the six-round alternating schedule and marks the current round", () => {
     const html = matchScreenMarkup("them", 4);
@@ -95,6 +133,11 @@ describe("possession strip", () => {
     expect(html.match(/data-owner="them"/g)).toHaveLength(3);
     expect(html).toContain('data-round="4"');
     expect(html).toContain('aria-current="step"');
+    expect(html).toContain("THEIR BALL");
+    expect(html).toContain("possession-pill");
+    expect(html).not.toContain("possession-marker");
+    expect(html).not.toContain("Round 4 of 6");
+    expect(html).not.toContain('data-testid="match-status"');
   });
 
   it("appends an extra-time slot when another round begins", () => {
@@ -103,6 +146,47 @@ describe("possession strip", () => {
     expect(html.match(/data-owner="(?:you|them)"/g)).toHaveLength(7);
     expect(html).toContain('data-round="7"');
     expect(html).toContain('data-owner="you"');
+    expect(html).toContain('class="possession-extra-time-tag">ET</span>');
+    expect(html).toContain("YOUR BALL");
+  });
+
+  it("uses matching numbered mini-pills in the legend", () => {
+    const html = matchScreenMarkup("you", 1);
+
+    expect(html).toContain('class="possession-legend-pill you">1</span>');
+    expect(html).toContain('class="possession-legend-pill them">2</span>');
+    expect(html).not.toContain("● you");
+    expect(html).not.toContain("○ them");
+  });
+});
+
+describe("possession controls", () => {
+  it("shows only Play & Shoot and Recycle on a normal player possession", () => {
+    const html = liveMatchScreenMarkup("you", 1);
+
+    expect(html).not.toContain('data-testid="run-play"');
+    expect(html).not.toContain('data-testid="commit-defense"');
+    expect(html).not.toContain("Run play");
+    expect(html).toContain("⚽ Shoot");
+    expect(html).toContain("↩ Recycle possession");
+  });
+
+  it("keeps the dock runner as Commit defense on their possession", () => {
+    const html = liveMatchScreenMarkup("them", 2);
+
+    expect(html).toContain('data-testid="commit-defense"');
+    expect(html).toContain("🛡 Commit defense (0)");
+    expect(html).toContain("Stand off (bank");
+    expect(html).not.toContain('data-testid="shoot"');
+  });
+
+  it("keeps the corner controls unchanged", () => {
+    const html = liveMatchScreenMarkup("you", 1, { corner: true });
+
+    expect(html).toContain('data-testid="run-play"');
+    expect(html).toContain("▶ Take the corner");
+    expect(html).toContain("Clear it");
+    expect(html).not.toContain('data-testid="shoot"');
   });
 });
 
@@ -304,9 +388,27 @@ describe("Play & Shoot", () => {
     if (!possessionUi.shootButtonLabel) return;
     const match = playAndShootMatch("play-and-shoot-label");
 
-    expect(possessionUi.shootButtonLabel(match, 3, 0.62)).toBe("⚽ Play & Shoot (3)");
-    expect(possessionUi.shootButtonLabel({ ...match, passes: 1 }, 0, 0.62)).toBe("⚽ Shoot (62%)");
-    expect(possessionUi.shootButtonLabel(match, 0, 0.62)).toBe("⚽ Shoot (62%) — make a pass first");
+    expect(possessionUi.shootButtonLabel(match, 3, 0.62)).toBe("⚽ Play & Shoot (3) — 62%");
+    expect(possessionUi.shootButtonLabel({ ...match, passes: 1 }, 0, 0.62)).toBe("⚽ Shoot — 62%");
+    expect(possessionUi.shootButtonLabel(match, 0, 0.62)).toBe("⚽ Shoot — 62% — make a pass first");
+  });
+
+  it("plain shoot still dispatches SHOOT exactly once after one completed pass", () => {
+    expect(possessionUi.runDockedPlay).toBeTypeOf("function");
+    if (!possessionUi.runDockedPlay) return;
+    const current = { ...playAndShootMatch("plain-shoot"), passes: 1 };
+    const actions: DiceMatchAction[] = [];
+
+    possessionUi.runDockedPlay({
+      queue: [],
+      initialMatch: current,
+      getLatestMatch: () => current,
+      dispatch: (action) => actions.push(action),
+      thenShoot: true,
+      schedule: (callback) => callback(),
+    });
+
+    expect(actions.map((action) => action.type)).toEqual(["SHOOT"]);
   });
 
   it("allows a loaded zero-pass shot but preserves empty-dock and running gates", () => {
@@ -319,5 +421,102 @@ describe("Play & Shoot", () => {
     expect(possessionUi.shootButtonDisabled(match, 2, true, true)).toBe(true);
     expect(possessionUi.shootButtonDisabled({ ...match, corner: true }, 2, false, true)).toBe(true);
     expect(possessionUi.shootButtonDisabled(match, 2, false, false)).toBe(true);
+  });
+});
+
+describe("Play & Recycle", () => {
+  it("flushes every docked pass in order, then ends the round exactly once", () => {
+    expect(possessionUi.runDockedPlay).toBeTypeOf("function");
+    if (!possessionUi.runDockedPlay) return;
+    let current = playAndShootMatch("play-and-recycle-success");
+    const queue = current.hand.map((card, dieIndex) => ({ uid: card.uid, dieIndex }));
+    const actions: DiceMatchAction[] = [];
+
+    possessionUi.runDockedPlay({
+      queue,
+      initialMatch: current,
+      getLatestMatch: () => current,
+      dispatch: (action) => {
+        actions.push(action);
+        current = applyDiceAction(DICE_CARD_MAP, current, action).state;
+      },
+      thenEndRound: true,
+      schedule: (callback) => callback(),
+    });
+
+    expect(actions.map((action) => action.type)).toEqual(["ASSIGN_DIE", "ASSIGN_DIE", "END_ROUND"]);
+    expect(actions.filter((action) => action.type === "END_ROUND")).toHaveLength(1);
+  });
+
+  it("does not end the round after an interception during the flush", () => {
+    expect(possessionUi.runDockedPlay).toBeTypeOf("function");
+    if (!possessionUi.runDockedPlay) return;
+    let current = findSecondPassInterception();
+    const queue = current.hand.map((card, dieIndex) => ({ uid: card.uid, dieIndex }));
+    const actions: DiceMatchAction[] = [];
+
+    possessionUi.runDockedPlay({
+      queue,
+      initialMatch: current,
+      getLatestMatch: () => current,
+      dispatch: (action) => {
+        actions.push(action);
+        current = applyDiceAction(DICE_CARD_MAP, current, action).state;
+      },
+      thenEndRound: true,
+      schedule: (callback) => callback(),
+    });
+
+    expect(actions.some((action) => action.type === "END_ROUND")).toBe(false);
+  });
+
+  it("does not end the round if the fire-time round, phase, or possession guard fails", () => {
+    expect(possessionUi.runDockedPlay).toBeTypeOf("function");
+    if (!possessionUi.runDockedPlay) return;
+    const guardChanges: Partial<DiceMatchState>[] = [
+      { round: 2 },
+      { phase: "DONE" },
+      { possession: "them" },
+    ];
+
+    for (const change of guardChanges) {
+      let current = playAndShootMatch(`play-and-recycle-guard-${JSON.stringify(change)}`);
+      const queue = [{ uid: current.hand[0]!.uid, dieIndex: 0 }];
+      const actions: DiceMatchAction[] = [];
+
+      possessionUi.runDockedPlay({
+        queue,
+        initialMatch: current,
+        getLatestMatch: () => current,
+        dispatch: (action) => {
+          actions.push(action);
+          current = { ...applyDiceAction(DICE_CARD_MAP, current, action).state, ...change };
+        },
+        thenEndRound: true,
+        schedule: (callback) => callback(),
+      });
+
+      expect(actions.map((action) => action.type)).toEqual(["ASSIGN_DIE"]);
+    }
+  });
+
+  it("uses loaded and plain recycle labels and keeps plain END_ROUND behavior", () => {
+    expect(possessionUi.recycleButtonLabel).toBeTypeOf("function");
+    expect(possessionUi.runDockedPlay).toBeTypeOf("function");
+    if (!possessionUi.recycleButtonLabel || !possessionUi.runDockedPlay) return;
+    const current = playAndShootMatch("plain-recycle");
+    const actions: DiceMatchAction[] = [];
+
+    expect(possessionUi.recycleButtonLabel(current, 2)).toBe("↩ Play & Recycle (2)");
+    expect(possessionUi.recycleButtonLabel(current, 0)).toBe("↩ Recycle possession");
+    possessionUi.runDockedPlay({
+      queue: [],
+      initialMatch: current,
+      getLatestMatch: () => current,
+      dispatch: (action) => actions.push(action),
+      thenEndRound: true,
+      schedule: (callback) => callback(),
+    });
+    expect(actions.map((action) => action.type)).toEqual(["END_ROUND"]);
   });
 });

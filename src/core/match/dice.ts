@@ -148,6 +148,45 @@ export function shotEstimate(state: DiceMatchState): { dc: number; p: number } {
   return { dc, p };
 }
 
+/** Shot estimate if the given staged plays all complete and you shoot.
+ * Deterministic — assumes every pass survives its pressure roll. Pure. */
+export function projectedShotEstimate(
+  defs: CardDefMap,
+  state: DiceMatchState,
+  plays: readonly { uid: string; dieIndex: number }[],
+): { dc: number; p: number } {
+  let ball = state.ball;
+  let quality = state.shotQuality;
+  let nextChanceBonus = state.nextChanceBonus;
+  let passes = state.passes;
+  let lastPos = state.lastPassPosition;
+  for (const play of plays) {
+    const card = state.hand.find((c) => c.uid === play.uid);
+    const die = state.dice[play.dieIndex];
+    const def = card ? defs[card.defId] : undefined;
+    if (!card || !die || die.used || !def) continue;
+    const combo = def.position ? comboFor(lastPos, def.position) : null;
+    let comboChance = combo?.chance ?? 0;
+    for (const eff of effectsFor(def, card.level)) {
+      if (eff.kind === "progress" || eff.kind === "progressFromDie") {
+        const steps = eff.kind === "progress" ? eff.amount : die.value;
+        ball = Math.max(0, Math.min(state.bal.DICE.PITCH_LEN, ball + steps));
+      } else if (eff.kind === "shotQuality" || eff.kind === "shotQualityFromDie") {
+        const extra = comboChance;
+        comboChance = 0;
+        const base = eff.kind === "shotQuality" ? eff.amount : die.value;
+        quality += base + nextChanceBonus + passes * state.bal.DICE.DEVELOPMENT_GAIN + extra;
+        nextChanceBonus = 0;
+      } else if (eff.kind === "setupNext") {
+        nextChanceBonus += eff.bonus;
+      }
+    }
+    passes += 1;
+    if (def.position) lastPos = def.position;
+  }
+  return shotEstimate({ ...state, ball, shotQuality: quality });
+}
+
 function isDefenseCard(def: CardDef | undefined): boolean {
   return (def?.diceEffects ?? []).some((e) => e.kind === "defend");
 }

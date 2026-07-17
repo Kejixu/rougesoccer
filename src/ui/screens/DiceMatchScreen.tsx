@@ -11,7 +11,7 @@ import {
   type RunAction,
   type RunState,
 } from "../../core/types";
-import { ZONE_NAMES, bestDieFor, comboFor, interceptionRisk, oppInterceptionRisk, oppShotEstimate, playableCards, shotEstimate, zoneOf } from "../../core/match/dice";
+import { ZONE_NAMES, bestDieFor, comboFor, interceptionRisk, oppInterceptionRisk, oppShotEstimate, playableCards, projectedShotEstimate, shotEstimate, zoneOf } from "../../core/match/dice";
 import { ScorePopups } from "../components/ScorePopups";
 import {
   CHAIN_GLOSSARY,
@@ -65,8 +65,8 @@ export function PossessionStrip({
               aria-label={`Round ${round}: ${owner === "you" ? "your ball" : "their ball"}`}
               aria-current={round === currentRound ? "step" : undefined}
             >
-              <span className="possession-round">{round}</span>
-              <span className="possession-marker" aria-hidden="true">{owner === "you" ? "●" : "○"}</span>
+              <span className="possession-pill">{round}</span>
+              {round > matchRounds && <span className="possession-extra-time-tag">ET</span>}
               {round === currentRound && (
                 <span className="possession-now">{owner === "you" ? "YOUR BALL" : "THEIR BALL"}</span>
               )}
@@ -75,8 +75,8 @@ export function PossessionStrip({
         })}
       </div>
       <span className="possession-legend">
-        <b className="you">● you</b>
-        <b className="them">○ them</b>
+        <b><span className="possession-legend-pill you">1</span> you</b>
+        <b><span className="possession-legend-pill them">2</span> them</b>
       </span>
     </div>
   );
@@ -127,6 +127,7 @@ interface RunDockedPlayOptions {
   getLatestMatch: () => DiceMatchState | null;
   dispatch: (action: DiceMatchAction) => void;
   thenShoot?: boolean;
+  thenEndRound?: boolean;
   isRunning?: () => boolean;
   schedule?: (callback: () => void, delay: number) => unknown;
   onFinish?: () => void;
@@ -141,12 +142,21 @@ function canShootAfterDockFlush(match: DiceMatchState, startRound: number): bool
   );
 }
 
+function canEndRoundAfterDockFlush(match: DiceMatchState, startRound: number): boolean {
+  return (
+    match.phase === "ROUND_ACTIVE" &&
+    match.possession === "you" &&
+    match.round === startRound
+  );
+}
+
 export function runDockedPlay({
   queue,
   initialMatch,
   getLatestMatch,
   dispatch,
   thenShoot = false,
+  thenEndRound = false,
   isRunning = () => true,
   schedule = (callback, delay) => setTimeout(callback, delay),
   onFinish = () => undefined,
@@ -160,6 +170,8 @@ export function runDockedPlay({
     const current = getLatestMatch() ?? previous;
     if (allowShot && thenShoot && canShootAfterDockFlush(current, startRound)) {
       dispatch({ type: "SHOOT" });
+    } else if (allowShot && thenEndRound && canEndRoundAfterDockFlush(current, startRound)) {
+      dispatch({ type: "END_ROUND" });
     }
     onFinish();
   };
@@ -215,10 +227,21 @@ export function shootButtonLabel(
   dockedCount: number,
   shotProbability: number,
 ): string {
-  if (dockedCount > 0) return `⚽ Play & Shoot (${dockedCount})`;
-  return `⚽ Shoot (${Math.round(shotProbability * 100)}%)${
+  if (dockedCount > 0) {
+    return `⚽ Play & Shoot (${dockedCount}) — ${Math.round(shotProbability * 100)}%`;
+  }
+  return `⚽ Shoot — ${Math.round(shotProbability * 100)}%${
     match.possession === "you" && match.passes < 1 ? " — make a pass first" : ""
   }`;
+}
+
+export function recycleButtonLabel(
+  match: Pick<DiceMatchState, "corner" | "possession">,
+  dockedCount: number,
+): string {
+  if (match.corner) return "Clear it";
+  if (match.possession === "you" && dockedCount > 0) return `↩ Play & Recycle (${dockedCount})`;
+  return "↩ Recycle possession";
 }
 
 function intentText(intent: Intent): { icon: string; text: string } {
@@ -678,8 +701,11 @@ export function DiceMatchScreen(props: DiceMatchScreenProps) {
     dockDie(uid, dieIndex);
   };
 
-  // RUN PLAY: execute the docked sequence; stop early if the possession/round ends
-  const runPlay = ({ thenShoot = false }: { thenShoot?: boolean } = {}) => {
+  // Execute the docked sequence; stop early if the possession/round ends.
+  const runPlay = ({
+    thenShoot = false,
+    thenEndRound = false,
+  }: { thenShoot?: boolean; thenEndRound?: boolean } = {}) => {
     if (running || docked.length === 0) return;
     runningRef.current = true;
     setRunning(true);
@@ -696,6 +722,7 @@ export function DiceMatchScreen(props: DiceMatchScreenProps) {
         act(action);
       },
       thenShoot,
+      thenEndRound,
       isRunning: () => runningRef.current,
       onFinish: () => {
         runningRef.current = false;
@@ -771,8 +798,10 @@ export function DiceMatchScreen(props: DiceMatchScreenProps) {
     running,
     tutorialAllows({ kind: "shoot" }),
   );
-  const endRoundDisabled = !tutorialAllows({ kind: "endRound" });
-  const shootLabel = shootButtonLabel(m, docked.length, shotNow.p);
+  const endRoundDisabled = running || !tutorialAllows({ kind: "endRound" });
+  const shotIfPlayed = docked.length > 0 ? projectedShotEstimate(content.defs, m, docked) : shotNow;
+  const shootLabel = shootButtonLabel(m, docked.length, shotIfPlayed.p);
+  const recycleLabel = recycleButtonLabel(m, docked.length);
   const bankingDice =
     m.possession === "them" ? Math.min(m.bal.DICE.CARRY_MAX, m.dice.filter((die) => !die.used).length) : 0;
 
@@ -813,13 +842,7 @@ export function DiceMatchScreen(props: DiceMatchScreenProps) {
           </div>
         </div>
         <div className="match-round-header">
-          <div data-testid="match-status">
-            {m.phase === "DONE"
-              ? "FULL TIME"
-              : m.mode === "regulation"
-              ? `Round ${m.round} of ${m.bal.MATCH_ROUNDS}`
-              : `EXTRA TIME — golden goal (${m.suddenDeathRoundsPlayed + 1})`}
-          </div>
+          {m.phase === "DONE" && <div data-testid="match-status">FULL TIME</div>}
           <PossessionStrip currentRound={m.round} matchRounds={m.bal.MATCH_ROUNDS} />
         </div>
       </div>
@@ -966,7 +989,7 @@ export function DiceMatchScreen(props: DiceMatchScreenProps) {
                 ? "select a die to reroll it, or click a card to play"
                 : selectedDie !== null
                   ? `die ${selVal} selected — reroll it or click a card`
-                  : "pick up a die — it lights the cards it can play. Dock, then Run."}
+                  : "pick up a die — it lights the cards it can play. Dock, then choose the ending."}
             </span>
           </div>
 
@@ -1037,43 +1060,56 @@ export function DiceMatchScreen(props: DiceMatchScreenProps) {
           )}
 
           <div className="action-bar">
-            {!tutorial && (
+            {!tutorial && (m.corner || m.possession === "them") && (
               <button
                 type="button"
-                className="btn btn--primary run-play"
-                data-testid="run-play"
+                className="btn btn--primary dock-runner"
+                data-testid={m.corner ? "run-play" : "commit-defense"}
                 disabled={docked.length === 0 || running}
                 onClick={() => runPlay()}
               >
-                {m.corner ? "▶ Take the corner" : running ? "Running…" : `▶ Run play (${docked.length})`}
+                {m.corner
+                  ? "▶ Take the corner"
+                  : running
+                  ? "Running…"
+                  : `🛡 Commit defense (${docked.length})`}
               </button>
             )}
-            <button
-              type="button"
-              className={`btn btn--primary${tutorialHighlights({ kind: "shoot" }) ? " tutorial-highlight" : ""}`}
-              data-testid="shoot"
-              data-hot={!shootDisabled && shotNow.p >= 0.6 ? "true" : "false"}
-              disabled={shootDisabled}
-              title="Roll a d20 + Chance vs the keeper's DC"
-              onClick={() => {
-                if (docked.length > 0) {
-                  runPlay({ thenShoot: true });
-                  return;
-                }
-                if (m.shotQuality === 0) setPuntPressed(true);
-                act({ type: "SHOOT" });
-              }}
-            >
-              {shootLabel}
-            </button>
+            {m.possession === "you" && !m.corner && (
+              <button
+                type="button"
+                className={`btn btn--primary${tutorialHighlights({ kind: "shoot" }) ? " tutorial-highlight" : ""}`}
+                data-testid="shoot"
+                data-hot={!shootDisabled && shotIfPlayed.p >= 0.6 ? "true" : "false"}
+                data-cold={!shootDisabled && shotIfPlayed.p < 0.35 ? "true" : "false"}
+                disabled={shootDisabled}
+                title="Roll a d20 + Chance vs the keeper's DC"
+                onClick={() => {
+                  if (docked.length > 0) {
+                    runPlay({ thenShoot: true });
+                    return;
+                  }
+                  if (m.shotQuality === 0) setPuntPressed(true);
+                  act({ type: "SHOOT" });
+                }}
+              >
+                {shootLabel}
+              </button>
+            )}
             <button
               type="button"
               className={`btn btn--danger${tutorialHighlights({ kind: "endRound" }) ? " tutorial-highlight" : ""}`}
               data-testid="end-round"
               disabled={endRoundDisabled}
-              onClick={() => act({ type: "END_ROUND" })}
+              onClick={() => {
+                if (m.possession === "you" && !m.corner && docked.length > 0) {
+                  runPlay({ thenEndRound: true });
+                  return;
+                }
+                act({ type: "END_ROUND" });
+              }}
             >
-              {m.corner ? "Clear it" : m.possession === "you" ? "Recycle possession" : `Stand off (bank ${bankingDice})`}
+              {m.possession === "them" ? `Stand off (bank ${bankingDice})` : recycleLabel}
             </button>
           </div>
         </>
