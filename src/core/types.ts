@@ -406,7 +406,8 @@ export type GameEvent =
       result: Exclude<MatchResult, "pending">;
       playerGoals: number;
       oppGoals: number;
-    };
+    }
+  | { type: "THIRDS_VERDICT"; points: number; gd: number; rank: number; through: boolean };
 
 export interface MatchStep {
   state: MatchState;
@@ -521,6 +522,13 @@ export interface FixtureResult {
   awayGoals: number;
 }
 
+export interface ThirdsVerdict {
+  points: number;
+  gd: number;
+  rank: number;
+  through: boolean;
+}
+
 export interface ShopState {
   cards: { defId: string; price: number; sold: boolean }[];
   trainPrice: number;
@@ -557,16 +565,17 @@ export interface StaffOffer {
 }
 
 export interface RunState {
-  version: 8;
+  version: 9;
   seed: string;
   playerTeamId: string;
   stage: Stage;
-  matchIndexInStage: number; // group: 0..2; knockout: always 0
+  matchIndexInStage: number; // group: 0..3 (3 when eliminated); knockout: always 0
   phase: RunPhase;
   groupTeamIds: string[]; // 3 AI teams in the player's group
   groupTable: GroupRow[];
   groupFixtures: FixtureResult[];
   groupOpponentOrder: string[]; // matchday order of the player's 3 group games
+  thirdsVerdict: ThirdsVerdict | null;
   tiebreak: Record<string, number>; // seeded random tiebreak per team
   knockoutHistory: KnockoutRecord[];
   lastMatch: PlayerMatchRecord | null;

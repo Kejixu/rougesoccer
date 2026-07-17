@@ -39,24 +39,17 @@ describe("full campaign", () => {
   });
 
   it("group elimination ends the run after 3 matches", () => {
-    // scan seeds for a group-stage elimination to prove the path exists
-    let sawGroupExit = false;
-    let sawAdvance = false;
-    for (let i = 0; i < 30 && !(sawGroupExit && sawAdvance); i++) {
-      const state = playRun(`spread-${i}`);
-      if (state.result === "eliminated" && state.stage === "GROUP") {
-        sawGroupExit = true;
-        expect(state.matchIndexInStage).toBe(2); // 3-team mini-group: 2 matches
-      }
-      if (state.stage !== "GROUP") sawAdvance = true;
-    }
-    expect(sawAdvance).toBe(true);
+    const state = playRun("group-exit-42");
+    expect(state.result).toBe("eliminated");
+    expect(state.stage).toBe("GROUP");
+    expect(state.matchIndexInStage).toBe(3);
+    expect(state.groupFixtures).toHaveLength(6);
   });
 
   it("simulateRun records one entry per match played", () => {
     const record = simulateRun(content, makeGreedyBot(), "rec-1", "usa");
-    expect(record.matches.length).toBeGreaterThanOrEqual(2); // at least the mini-group
-    expect(record.matches.length).toBeLessThanOrEqual(7); // 2 group + 5 knockout
+    expect(record.matches.length).toBeGreaterThanOrEqual(3); // full group round robin
+    expect(record.matches.length).toBeLessThanOrEqual(8); // 3 group + 5 knockout
     if (record.result === "won") {
       expect(record.matches.filter((m) => m.stage === "FINAL")).toHaveLength(1);
     }

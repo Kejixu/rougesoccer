@@ -16,7 +16,13 @@ import {
   type Stage,
   type TeamDef,
 } from "../types";
-import { emptyRow, playerGroupRank, recordResult, simulateGroupDecider } from "./group";
+import {
+  emptyRow,
+  playerGroupRank,
+  recordResult,
+  simulateOtherFixture,
+  simulateThirdsVerdict,
+} from "./group";
 import { drawKnockoutOpponent } from "./bracket";
 import { rollRewardOffer } from "./rewards";
 import { buyCard, drillCard, generateShop, releaseCard, rerollShop, trainCard } from "./shop";
@@ -41,31 +47,21 @@ function nextStage(stage: Stage): Stage | null {
 
 // ---------- run creation ----------
 
-/** Pick 2 group opponents around the player's tier: one seed, one mid.
- * (3-team mini-group: the player plays both, keeping runs short.) */
-function pickGroupOpponents(draft: RunState, content: ContentBundle): string[] {
-  const pool = content.teams.filter((t) => t.id !== draft.playerTeamId);
-  const byTierBand = (tiers: number[]): TeamDef[] =>
-    pool.filter((t) => tiers.includes(t.tier) && !draft.groupTeamIds.includes(t.id));
-  const bands: number[][] = [
-    [1, 2], // a seed
-    [2, 3], // a mid
-  ];
-  const picked: string[] = [];
-  for (const band of bands) {
-    let candidates = byTierBand(band).filter((t) => !picked.includes(t.id));
-    if (candidates.length === 0)
-      candidates = pool.filter((t) => !picked.includes(t.id));
-    const choice = candidates[Math.floor(rand(draft) * candidates.length)]!;
-    picked.push(choice.id);
+function realGroupOpponents(content: ContentBundle, playerTeamId: string): string[] {
+  const player = team(content, playerTeamId);
+  const opponents = content.teams
+    .filter((candidate) => candidate.group === player.group && candidate.id !== playerTeamId)
+    .map((candidate) => candidate.id);
+  if (opponents.length !== 3) {
+    throw new Error(`group ${player.group} must contain exactly 4 teams`);
   }
-  return picked;
+  return opponents;
 }
 
 export function createRun(content: ContentBundle, seed: string, playerTeamId: string): RunState {
   team(content, playerTeamId); // validate
   const state: RunState = {
-    version: 8,
+    version: 9,
     seed,
     playerTeamId,
     stage: "GROUP",
@@ -75,6 +71,7 @@ export function createRun(content: ContentBundle, seed: string, playerTeamId: st
     groupTable: [],
     groupFixtures: [],
     groupOpponentOrder: [],
+    thirdsVerdict: null,
     tiebreak: {},
     knockoutHistory: [],
     lastMatch: null,
@@ -118,7 +115,7 @@ export function createRun(content: ContentBundle, seed: string, playerTeamId: st
     });
   }
 
-  state.groupTeamIds = pickGroupOpponents(state, content);
+  state.groupTeamIds = realGroupOpponents(content, playerTeamId);
   state.groupTable = [playerTeamId, ...state.groupTeamIds].map(emptyRow);
   for (const id of [playerTeamId, ...state.groupTeamIds]) state.tiebreak[id] = rand(state);
 
@@ -180,7 +177,32 @@ function startMatch(draft: RunState, content: ContentBundle): GameEvent[] {
 
 // ---------- match resolution ----------
 
-function settleMatch(draft: RunState, content: ContentBundle, match: DiceMatchState): void {
+export function resolveGroupStage(content: ContentBundle, draft: RunState): GameEvent[] {
+  const rank = playerGroupRank(draft);
+  let through = rank <= 2;
+  const events: GameEvent[] = [];
+
+  if (rank === 3) {
+    const verdict = simulateThirdsVerdict(draft);
+    draft.thirdsVerdict = verdict;
+    through = verdict.through;
+    events.push({ type: "THIRDS_VERDICT", ...verdict });
+  }
+
+  if (through) {
+    draft.stage = "R32";
+    draft.matchIndexInStage = 0;
+    draft.nextOppId = drawKnockoutOpponent(draft, content.teams, "R32");
+  } else {
+    draft.result = "eliminated";
+    draft.phase = "DONE";
+    draft.nextOppId = null;
+  }
+  return events;
+}
+
+function settleMatch(draft: RunState, content: ContentBundle, match: DiceMatchState): GameEvent[] {
+  const events: GameEvent[] = [];
   const result = match.result;
   if (result === "pending") throw new Error("match is not finished");
 
@@ -220,8 +242,17 @@ function settleMatch(draft: RunState, content: ContentBundle, match: DiceMatchSt
   const rewards = content.balance.REWARD_BUDGET;
 
   if (draft.stage === "GROUP") {
+    const matchday = draft.matchIndexInStage + 1;
     recordResult(draft.groupTable, draft.playerTeamId, match.playerGoals, match.oppGoals);
     recordResult(draft.groupTable, oppId, match.oppGoals, match.playerGoals);
+    draft.groupFixtures.push({
+      matchday,
+      homeId: draft.playerTeamId,
+      awayId: oppId,
+      homeGoals: match.playerGoals,
+      awayGoals: match.oppGoals,
+    });
+    simulateOtherFixture(draft, content.teams, matchday);
     draft.matchIndexInStage += 1;
 
     if (result === "win") draft.resources.budget += rewards.groupWin;
@@ -231,22 +262,11 @@ function settleMatch(draft: RunState, content: ContentBundle, match: DiceMatchSt
     // beating a flair side pays a scouting bonus
     if (result === "win" && match.opp.style === "flair") draft.resources.scout += 1;
 
-    const groupDone = draft.matchIndexInStage >= 2;
+    const groupDone = draft.matchIndexInStage >= 3;
     if (groupDone) {
-      // the two AI opponents settle their head-to-head before the table is read
-      simulateGroupDecider(draft, content.teams);
-      const rank = playerGroupRank(draft);
-      if (rank <= 2) {
-        draft.stage = "R32";
-        draft.matchIndexInStage = 0;
-        draft.nextOppId = drawKnockoutOpponent(draft, content.teams, "R32");
-        advancedStage = true;
-      } else {
-        draft.result = "eliminated";
-        draft.phase = "DONE";
-        draft.nextOppId = null;
-        return;
-      }
+      events.push(...resolveGroupStage(content, draft));
+      if (draft.phase === "DONE") return events;
+      advancedStage = true;
     } else {
       draft.nextOppId = draft.groupOpponentOrder[draft.matchIndexInStage]!;
     }
@@ -275,7 +295,7 @@ function settleMatch(draft: RunState, content: ContentBundle, match: DiceMatchSt
       draft.result = "eliminated";
       draft.phase = "DONE";
       draft.nextOppId = null;
-      return;
+      return events;
     }
     draft.resources.budget += rewards.knockoutWin;
     if (match.opp.style === "flair") draft.resources.scout += 1;
@@ -284,7 +304,7 @@ function settleMatch(draft: RunState, content: ContentBundle, match: DiceMatchSt
       draft.result = "won";
       draft.phase = "DONE";
       draft.nextOppId = null;
-      return;
+      return events;
     }
     const after = nextStage(draft.stage);
     if (after === null) throw new Error("unreachable: stage past FINAL");
@@ -302,6 +322,7 @@ function settleMatch(draft: RunState, content: ContentBundle, match: DiceMatchSt
     if (draft.pendingStaff) draft.phase = "STAFF";
   }
   draft.scouted = false;
+  return events;
 }
 
 // ---------- public API ----------
@@ -327,7 +348,9 @@ export function applyRunAction(
       const step = applyDiceAction(content.defs, draft.activeMatch, action.action);
       draft.activeMatch = step.state;
       events = step.events;
-      if (step.state.phase === "DONE") settleMatch(draft, content, step.state);
+      if (step.state.phase === "DONE") {
+        events.push(...settleMatch(draft, content, step.state));
+      }
       break;
     }
 

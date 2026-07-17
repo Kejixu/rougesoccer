@@ -1,5 +1,6 @@
 import { standings } from "../../core/run/group";
 import type { ContentBundle, RunAction, RunState } from "../../core/types";
+import { ThirdsVerdictPanel } from "../components/ThirdsVerdictPanel";
 
 export function TournamentScreen({
   run,
@@ -19,6 +20,19 @@ export function TournamentScreen({
       ? `${content.teams.find((t) => t.id === id)?.name ?? id} (you)`
       : (content.teams.find((t) => t.id === id)?.name ?? id);
   const nextOpp = run.nextOppId ? content.teams.find((t) => t.id === run.nextOppId) : null;
+  const groupSchedule = run.groupOpponentOrder.flatMap((oppId, index) => {
+    const matchday = index + 1;
+    const others = run.groupTeamIds.filter((id) => id !== oppId);
+    return [
+      { matchday, homeId: run.playerTeamId, awayId: oppId },
+      { matchday, homeId: others[0]!, awayId: others[1]! },
+    ];
+  });
+  const fixtureScore = (matchday: number, homeId: string, awayId: string) =>
+    run.groupFixtures.find(
+      (fixture) =>
+        fixture.matchday === matchday && fixture.homeId === homeId && fixture.awayId === awayId,
+    );
 
   return (
     <main className="screen">
@@ -27,6 +41,8 @@ export function TournamentScreen({
           ? `Group stage — matchday ${run.matchIndexInStage + 1} of 3`
           : `Knockouts — ${run.stage}`}
       </h1>
+
+      {run.thirdsVerdict && <ThirdsVerdictPanel verdict={run.thirdsVerdict} />}
 
       {run.lastMatch && (
         <p data-testid="last-result">
@@ -59,30 +75,54 @@ export function TournamentScreen({
       )}
 
       {run.stage === "GROUP" ? (
-        <div className="panel">
-          <table data-testid="group-table" className="standings">
-            <thead>
-              <tr>
-                {["Team", "P", "W", "D", "L", "GF", "GA", "Pts"].map((h) => (
-                  <th key={h}>{h}</th>
-                ))}
-              </tr>
-            </thead>
-            <tbody>
-              {standings(run.groupTable, run.tiebreak).map((row) => (
-                <tr key={row.teamId} className={row.teamId === run.playerTeamId ? "you" : undefined}>
-                  <td>{teamName(row.teamId)}</td>
-                  <td>{row.w + row.d + row.l}</td>
-                  <td>{row.w}</td>
-                  <td>{row.d}</td>
-                  <td>{row.l}</td>
-                  <td>{row.gf}</td>
-                  <td>{row.ga}</td>
-                  <td>{row.pts}</td>
+        <div className="group-stage-grid">
+          <div className="panel">
+            <table data-testid="group-table" className="standings">
+              <thead>
+                <tr>
+                  {["Team", "P", "W", "D", "L", "GF", "GA", "Pts"].map((h) => (
+                    <th key={h}>{h}</th>
+                  ))}
                 </tr>
-              ))}
-            </tbody>
-          </table>
+              </thead>
+              <tbody>
+                {standings(run.groupTable, run.tiebreak).map((row) => (
+                  <tr key={row.teamId} className={row.teamId === run.playerTeamId ? "you" : undefined}>
+                    <td>{teamName(row.teamId)}</td>
+                    <td>{row.w + row.d + row.l}</td>
+                    <td>{row.w}</td>
+                    <td>{row.d}</td>
+                    <td>{row.l}</td>
+                    <td>{row.gf}</td>
+                    <td>{row.ga}</td>
+                    <td>{row.pts}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+          <section className="panel group-fixtures" data-testid="group-fixtures">
+            <h2>Matchdays</h2>
+            {[1, 2, 3].map((matchday) => (
+              <div key={matchday} className="fixture-day">
+                <h3>Matchday {matchday}</h3>
+                {groupSchedule
+                  .filter((fixture) => fixture.matchday === matchday)
+                  .map((fixture) => {
+                    const result = fixtureScore(matchday, fixture.homeId, fixture.awayId);
+                    return (
+                      <p key={`${fixture.homeId}-${fixture.awayId}`}>
+                        <span>{teamName(fixture.homeId)}</span>
+                        <strong>
+                          {result ? `${result.homeGoals}–${result.awayGoals}` : "vs"}
+                        </strong>
+                        <span>{teamName(fixture.awayId)}</span>
+                      </p>
+                    );
+                  })}
+              </div>
+            ))}
+          </section>
         </div>
       ) : (
         <ol data-testid="knockout-history">

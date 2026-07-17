@@ -1,4 +1,5 @@
 import type { ContentBundle, RunState } from "../../core/types";
+import { ThirdsVerdictPanel } from "../components/ThirdsVerdictPanel";
 
 function Confetti() {
   const COLORS = ["#ffd34d", "#4dd07a", "#6ec3ff", "#ff5d5d", "#f5f1e3"];
@@ -45,6 +46,8 @@ export function ResultScreen({
             ? `${teamName(run.playerTeamId)} crashed out in the group stage.`
             : `${teamName(run.playerTeamId)} fell in the ${run.stage}.`}
       </p>
+
+      {run.thirdsVerdict && <ThirdsVerdictPanel verdict={run.thirdsVerdict} />}
 
       <section style={{ textAlign: "left" }}>
         <h2>Campaign</h2>

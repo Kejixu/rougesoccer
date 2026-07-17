@@ -1,7 +1,7 @@
 // Group-stage support: simulated AI-vs-AI fixtures, table updates, standings.
 
 import { nextFloat, type RngState } from "../rng";
-import type { FixtureResult, GroupRow, RunState, TeamDef } from "../types";
+import type { FixtureResult, GroupRow, RunState, TeamDef, ThirdsVerdict } from "../types";
 
 function rand(draft: { rng: RngState }): number {
   const [v, next] = nextFloat(draft.rng);
@@ -65,21 +65,6 @@ export function simulateFixture(
     : { homeGoals: loseGoals, awayGoals: winGoals };
 }
 
-/** 3-team mini-group: the player plays both opponents; this plays the single
- * AI-vs-AI fixture between those two opponents. Call once, when the group ends. */
-export function simulateGroupDecider(draft: RunState, teams: TeamDef[]): FixtureResult {
-  if (draft.groupTeamIds.length !== 2)
-    throw new Error("mini-group must have exactly 2 opponents");
-  const home = teams.find((t) => t.id === draft.groupTeamIds[0])!;
-  const away = teams.find((t) => t.id === draft.groupTeamIds[1])!;
-  const { homeGoals, awayGoals } = simulateFixture(draft, home, away);
-  recordResult(draft.groupTable, home.id, homeGoals, awayGoals);
-  recordResult(draft.groupTable, away.id, awayGoals, homeGoals);
-  const fixture: FixtureResult = { matchday: 2, homeId: home.id, awayId: away.id, homeGoals, awayGoals };
-  draft.groupFixtures.push(fixture);
-  return fixture;
-}
-
 /** Play the matchday fixture between the two AI teams the player isn't facing. */
 export function simulateOtherFixture(
   draft: RunState,
@@ -114,4 +99,40 @@ export function standings(table: GroupRow[], tiebreak: Record<string, number>): 
 export function playerGroupRank(state: RunState): number {
   const sorted = standings(state.groupTable, state.tiebreak);
   return sorted.findIndex((r) => r.teamId === state.playerTeamId) + 1;
+}
+
+/** Compare the player's third-place record with 11 seeded synthetic groups.
+ * Points use a plausible weighted spread; GD and the final tie are also seeded. */
+export function simulateThirdsVerdict(draft: RunState): ThirdsVerdict {
+  const player = draft.groupTable.find((row) => row.teamId === draft.playerTeamId);
+  if (!player) throw new Error("player is missing from the group table");
+
+  const pointSpread = [2, 2, 3, 3, 3, 4, 4, 4, 4, 5, 5, 6] as const;
+  const comparison: Array<{
+    points: number;
+    gd: number;
+    tiebreak: number;
+    player: boolean;
+  }> = Array.from({ length: 11 }, () => ({
+    points: pointSpread[Math.floor(rand(draft) * pointSpread.length)]!,
+    gd: Math.floor(rand(draft) * 6) - 3,
+    tiebreak: rand(draft),
+    player: false,
+  }));
+  comparison.push({
+    points: player.pts,
+    gd: player.gf - player.ga,
+    tiebreak: rand(draft),
+    player: true,
+  });
+  comparison.sort(
+    (a, b) => b.points - a.points || b.gd - a.gd || b.tiebreak - a.tiebreak,
+  );
+  const rank = comparison.findIndex((record) => record.player) + 1;
+  return {
+    points: player.pts,
+    gd: player.gf - player.ga,
+    rank,
+    through: rank <= 8,
+  };
 }

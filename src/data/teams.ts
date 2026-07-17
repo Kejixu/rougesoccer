@@ -9,8 +9,8 @@ import type { TeamDef } from "../core/types";
 //   D: USA,PAR,AUS,TUR · E: GER,CUW,CIV,ECU · F: NED,JPN,SWE,TUN
 //   G: BEL,EGY,IRN,NZL · H: ESP,CPV,KSA,URU · I: FRA,SEN,IRQ,NOR
 //   J: ARG,ALG,AUT,JOR · K: POR,COD,UZB,COL · L: ENG,CRO,GHA,PAN
-// The MVP ships an 18-team pool spanning the style archetypes; group letters
-// are real but MVP group composition is drawn by tier (see core/run/run.ts).
+// The 26-team pool includes all four teams in every playable nation's group;
+// knockout opponents continue to come from the wider pool.
 // ============================================================================
 // Coaches are parody names by design (see plan: licensing). Ratings/styles are
 // gameplay caricatures of each side's real-world identity, tuned by the sim.
@@ -28,16 +28,24 @@ export const TEAMS = [
   { id: "ned", name: "Netherlands", confed: "UEFA", group: "F", tier: 2, attackRating: 16, style: "balanced", coach: "Ronald Koolman" },
   { id: "uru", name: "Uruguay", confed: "CONMEBOL", group: "H", tier: 2, attackRating: 16, style: "counter", coach: "Marcelo Bee-elsa" },
   { id: "mar", name: "Morocco", confed: "CAF", group: "C", tier: 2, attackRating: 16, style: "fortress", coach: "Walid Ragragoui" },
+  { id: "tur", name: "Türkiye", confed: "UEFA", group: "D", tier: 2, attackRating: 14, style: "flair", coach: "Vincenzo Montellini" },
   // ---- tier 3: dangerous floaters ----
   { id: "jpn", name: "Japan", confed: "AFC", group: "F", tier: 3, attackRating: 14, style: "highpress", coach: "Hajime Moriyatsu" },
   { id: "usa", name: "United States", confed: "CONCACAF", group: "D", tier: 3, attackRating: 13, style: "highpress", coach: "Mauricio Pochettini" },
   { id: "mex", name: "Mexico", confed: "CONCACAF", group: "A", tier: 3, attackRating: 13, style: "balanced", coach: "Javier Agwirre" },
   { id: "kor", name: "South Korea", confed: "AFC", group: "A", tier: 3, attackRating: 13, style: "counter", coach: "Hong Myung-Go" },
+  { id: "cze", name: "Czechia", confed: "UEFA", group: "A", tier: 3, attackRating: 12, style: "balanced", coach: "Ivan Hasheck" },
+  { id: "sui", name: "Switzerland", confed: "UEFA", group: "B", tier: 3, attackRating: 13, style: "fortress", coach: "Murat Yakking" },
+  { id: "sco", name: "Scotland", confed: "UEFA", group: "C", tier: 3, attackRating: 12, style: "highpress", coach: "Scott McTartan" },
+  { id: "par", name: "Paraguay", confed: "CONMEBOL", group: "D", tier: 3, attackRating: 12, style: "fortress", coach: "Gustavo Alfajores" },
+  { id: "aus", name: "Australia", confed: "AFC", group: "D", tier: 3, attackRating: 11, style: "balanced", coach: "Tony Popovicinity" },
   // ---- tier 4: the minnows ----
   { id: "can", name: "Canada", confed: "CONCACAF", group: "B", tier: 4, attackRating: 11, style: "counter", coach: "Jesse March" },
   { id: "rsa", name: "South Africa", confed: "CAF", group: "A", tier: 4, attackRating: 10, style: "balanced", coach: "Hugo Broose" },
   { id: "qat", name: "Qatar", confed: "AFC", group: "B", tier: 4, attackRating: 10, style: "fortress", coach: "Julen Lopetegoal" },
   { id: "nzl", name: "New Zealand", confed: "OFC", group: "G", tier: 4, attackRating: 9, style: "fortress", coach: "Darren Baze-Goalie" },
+  { id: "bih", name: "Bosnia and Herzegovina", confed: "UEFA", group: "B", tier: 4, attackRating: 10, style: "counter", coach: "Savo Milo-Shows" },
+  { id: "hai", name: "Haiti", confed: "CONCACAF", group: "C", tier: 4, attackRating: 8, style: "counter", coach: "Jean Goal-Pierre" },
 ] as const satisfies readonly TeamDef[];
 
 export const TEAM_MAP: Record<string, TeamDef> = Object.fromEntries(

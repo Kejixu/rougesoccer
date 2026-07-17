@@ -15,12 +15,15 @@ feels off, that is the thing to change. Source of truth = `src/core/match/dice.t
 
 One run = one World Cup campaign with the team you pick.
 
-- **Group stage:** a 3-team mini-group - you play **2 matches**, the other two teams
-  play each other once (simulated). Top of the group advances; otherwise the run ends.
+- **Group stage:** a real 4-team group - you play **3 matches**, one against every
+  groupmate. After each match, the other two teams' fixture is simulated, so the
+  four-team table evolves across all three matchdays. The top 2 advance; a
+  third-place finish is compared with 11 seeded third-place records and advances
+  if ranked among the best 8 of 12. Fourth place, or a bottom-four third, ends the run.
 - **Knockout:** R32 -> R16 -> QF -> SF -> **Final** (single elimination).
 - Between matches: **rewards** (pick a card), a **shop** (buy/upgrade/remove cards),
   and **staff hires** (passive perks) each time you advance a stage.
-- Run saves are version **8**. Older saved runs are discarded on load.
+- Run saves are version **9**. Older saved runs are discarded on load.
 - Difficulty ramps every stage (`STAGE_CLOCK_MULT`: GROUP 1.1 -> FINAL 2.4), which
   scales each opponent's rating, keeper, and attack threat.
 
