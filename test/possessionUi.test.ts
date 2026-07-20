@@ -150,13 +150,15 @@ describe("possession strip", () => {
     expect(html).toContain("YOUR BALL");
   });
 
-  it("uses matching numbered mini-pills in the legend", () => {
-    const html = matchScreenMarkup("you", 1);
+  it("shows one owner chip after the pills instead of a legend", () => {
+    const yours = matchScreenMarkup("you", 1);
+    expect(yours).toContain('class="possession-now you"');
+    expect(yours).toContain("YOUR BALL");
+    expect(yours).not.toContain("possession-legend");
 
-    expect(html).toContain('class="possession-legend-pill you">1</span>');
-    expect(html).toContain('class="possession-legend-pill them">2</span>');
-    expect(html).not.toContain("● you");
-    expect(html).not.toContain("○ them");
+    const theirs = matchScreenMarkup("them", 2);
+    expect(theirs).toContain('class="possession-now them"');
+    expect(theirs).toContain("THEIR BALL");
   });
 });
 

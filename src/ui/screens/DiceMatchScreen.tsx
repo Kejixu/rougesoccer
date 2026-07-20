@@ -73,16 +73,12 @@ export function PossessionStrip({
             >
               <span className="possession-pill">{round}</span>
               {round > matchRounds && <span className="possession-extra-time-tag">ET</span>}
-              {round === currentRound && (
-                <span className="possession-now">{owner === "you" ? "YOUR BALL" : "THEIR BALL"}</span>
-              )}
             </span>
           );
         })}
       </div>
-      <span className="possession-legend">
-        <b><span className="possession-legend-pill you">1</span> you</b>
-        <b><span className="possession-legend-pill them">2</span> them</b>
+      <span className={`possession-now ${ownerForRound(currentRound)}`}>
+        {ownerForRound(currentRound) === "you" ? "YOUR BALL" : "THEIR BALL"}
       </span>
     </div>
   );
@@ -842,14 +838,13 @@ export function DiceMatchScreen(props: DiceMatchScreenProps) {
           <div className="score" data-testid="scoreline">
             <span className="score-team score-team--player">
               <TeamFlag team={playerTeam} />
-              <span>{playerName}</span>
+              <span className="score-name">{playerName}</span>
               <span className="goals">{m.playerGoals}</span>
             </span>
-            <span className="score-divider">—</span>
             <span className="score-team score-team--opponent">
-              <span className="goals">{m.oppGoals}</span>
-              <span>{m.opp.name}</span>
               <TeamFlag team={opponentTeam} />
+              <span className="score-name">{m.opp.name}</span>
+              <span className="goals">{m.oppGoals}</span>
             </span>
           </div>
           <div className="opp-blurb" data-testid="opp-panel">

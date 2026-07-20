@@ -19,14 +19,12 @@
 
 .scoreboard .score {
   font-family: var(--font-display);
-  font-size: clamp(28px, 4.2vw, 50px);
+  font-size: clamp(26px, 3vw, 38px);
   font-weight: 800;
-  line-height: 1;
+  line-height: 1.15;
   text-shadow: 0 2px 0 rgba(0, 0, 0, 0.45), 0 6px 18px rgba(0, 0, 0, 0.35);
-  display: flex;
-  align-items: center;
-  gap: 10px;
-  flex-wrap: wrap;
+  display: grid;
+  gap: 4px;
 }
 
 .score-team,
@@ -38,11 +36,16 @@
 }
 
 .score-team {
+  display: grid;
+  grid-template-columns: auto 1fr auto;
+  align-items: center;
+  column-gap: 0.35em;
   white-space: nowrap;
 }
 
-.score-divider {
-  color: var(--ink-dim);
+.score-name {
+  overflow: hidden;
+  text-overflow: ellipsis;
 }
 
 .team-flag {
@@ -166,50 +169,28 @@
   letter-spacing: 0.05em;
 }
 
-.possession-legend {
+.possession-now {
   display: inline-flex;
   align-items: center;
-  gap: 7px;
-  color: var(--ink-dim);
+  height: 22px;
+  padding: 0 9px;
+  border: 1px solid currentColor;
+  border-radius: 999px;
   font-size: 10px;
-  text-transform: uppercase;
+  font-weight: 900;
+  letter-spacing: 0.05em;
   white-space: nowrap;
 }
 
-.possession-legend b {
-  display: inline-flex;
-  align-items: center;
-  gap: 3px;
-}
-
-.possession-legend-pill {
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  width: 18px;
-  height: 16px;
-  border: 1px solid currentColor;
-  border-radius: 999px;
-  font-size: 8px;
-}
-
-.possession-legend-pill.you {
+.possession-now.you {
   color: var(--surface);
   background: var(--accent);
   border-color: var(--accent);
 }
 
-.possession-legend-pill.them {
+.possession-now.them {
   color: var(--defending);
-  background: transparent;
-}
-
-.possession-now {
-  font-size: 9px;
-  font-weight: 900;
-  letter-spacing: 0.04em;
-  white-space: nowrap;
-  padding-left: 2px;
+  background: var(--defending-surface);
 }
 
 .possession-handover {
