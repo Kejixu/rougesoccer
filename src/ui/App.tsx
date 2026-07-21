@@ -90,11 +90,16 @@ export function App() {
     const current = runRef.current;
     if (!current) return;
     try {
+      const step = applyRunAction(content, current, action);
+      // Replay the final action against the match only when it just ended — the
+      // run layer clears activeMatch on MATCH_END, and the full-time board
+      // lingers on this snapshot for 5s before advancing.
       const finalMatch =
-        action.type === "MATCH_ACTION" && current.activeMatch
+        action.type === "MATCH_ACTION" &&
+        current.activeMatch &&
+        step.events.some((e) => e.type === "MATCH_END")
           ? applyDiceAction(content.defs, current.activeMatch, action.action)
           : null;
-      const step = applyRunAction(content, current, action);
       saveRun(step.state.phase === "DONE" ? null : step.state);
       setError(null);
       setEvents(step.events);

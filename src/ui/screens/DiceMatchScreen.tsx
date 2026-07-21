@@ -502,6 +502,7 @@ export function DiceMatchScreen(props: DiceMatchScreenProps) {
   const [displayBall, setDisplayBall] = useState(m.ball);
   const ballTimersRef = useRef<ReturnType<typeof setTimeout>[]>([]);
   const handoverTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const celebrationTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const ballCleanupGenerationRef = useRef(0);
   const lastBatchRef = useRef<GameEvent[] | null>(null);
   const previousPossessionRef = useRef<PossessionOwner>(m.possession);
@@ -518,6 +519,8 @@ export function DiceMatchScreen(props: DiceMatchScreenProps) {
         ballTimersRef.current = [];
         if (handoverTimerRef.current) clearTimeout(handoverTimerRef.current);
         handoverTimerRef.current = null;
+        if (celebrationTimerRef.current) clearTimeout(celebrationTimerRef.current);
+        celebrationTimerRef.current = null;
       });
     };
   }, []);
@@ -551,7 +554,11 @@ export function DiceMatchScreen(props: DiceMatchScreenProps) {
     const goalEv = events.find((e): e is Extract<GameEvent, { type: "GOAL_SCORED" }> => e.type === "GOAL_SCORED");
     if (goalEv) {
       setCelebration(goalEv.goals > 0 ? "goal" : "concede");
-      setTimeout(() => setCelebration(null), 1800);
+      if (celebrationTimerRef.current) clearTimeout(celebrationTimerRef.current);
+      celebrationTimerRef.current = setTimeout(() => {
+        setCelebration(null);
+        celebrationTimerRef.current = null;
+      }, 1800);
     }
     if (events.some((e) => e.type === "DICE_ROLLED")) {
       fxNonce.current += 1;

@@ -11,27 +11,6 @@ interface Popup {
   text: string;
 }
 
-function CountUpValue({ base, mult, value }: { base: number; mult: number; value: number }) {
-  const [shown, setShown] = useState(0);
-  useEffect(() => {
-    let raf = 0;
-    const t0 = performance.now();
-    const D = 450;
-    const tick = (t: number) => {
-      const k = Math.min(1, (t - t0) / D);
-      setShown(Math.round(value * (1 - Math.pow(1 - k, 3))));
-      if (k < 1) raf = requestAnimationFrame(tick);
-    };
-    raf = requestAnimationFrame(tick);
-    return () => cancelAnimationFrame(raf);
-  }, [value]);
-  return (
-    <>
-      {base} × {mult.toFixed(2).replace(/\.?0+$/, "")} = {shown}
-    </>
-  );
-}
-
 // The shot is the climax: a d20 that spins like a slot reel, lands on the roll,
 // then reveals roll + quality vs the keeper's DC.
 function ShotRoll({ roll, quality, dc }: { roll: number; quality: number; dc: number }) {
@@ -122,21 +101,7 @@ export function ScorePopups({ events }: { events: GameEvent[] }) {
   useEffect(() => {
     const staged: { delay: number; popup: Popup & { node?: React.ReactNode } }[] = [];
     for (const { delay, event: e } of stageEvents(events)) {
-      if (e.type === "SHOT_VALUE") {
-        staged.push({
-          delay,
-          popup: { id: nextId++, kind: "info", text: `${e.playName}!` },
-        });
-        staged.push({
-          delay: delay + 450,
-          popup: {
-            id: nextId++,
-            kind: "shot",
-            text: "",
-            node: <CountUpValue base={e.basePower} mult={e.mult} value={e.value} />,
-          },
-        });
-      } else if (e.type === "SHOT_TAKEN") {
+      if (e.type === "SHOT_TAKEN") {
         staged.push({
           delay,
           popup: {

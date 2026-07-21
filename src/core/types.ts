@@ -360,21 +360,6 @@ export type GameEvent =
   | { type: "DIE_ASSIGNED"; uid: string; die: number }
   | { type: "PASS_CHALLENGED"; roll: number; pressure: number; survived: boolean }
   | { type: "OPP_PASS_CHALLENGED"; roll: number; pressure: number; survived: boolean }
-  // Legacy UI-only variants retained until the Task 3 UI rewrite removes old lane popups.
-  | { type: "LANE_COMMITTED"; uid: string; cardName: string; die: number; buildUp: number; chance: number; cover: number }
-  | {
-      type: "DUEL_RESOLVED";
-      buildUp: number;
-      chance: number;
-      cover: number;
-      ballFrom: number;
-      ballAfterBuildUp: number;
-      ballAfterOpponent: number;
-      pressure: number;
-      absorbed: number;
-      gotThrough: number;
-      shotQualityGained: number;
-    }
   | {
       type: "PASS_COMPLETED";
       uid: string;

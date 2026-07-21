@@ -1,14 +1,12 @@
 import type { GameEvent } from "../core/types";
 
-export interface StagedEvent {
+interface StagedEvent {
   delay: number;
   event: GameEvent;
 }
 
 function popupDuration(event: GameEvent): number {
   switch (event.type) {
-    case "SHOT_VALUE":
-      return 450 + 550;
     case "SHOT_TAKEN":
       return 900 + (event.goal ? 0 : 600);
     case "PASS_CHALLENGED":
