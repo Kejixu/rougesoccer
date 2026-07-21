@@ -1,9 +1,6 @@
 import { dieFitsSlot, type CardDefMap, type DiceMatchState } from "../core/types";
+import { isDefenseCard } from "../core/match/dice";
 import { tutorialLockAllows, type TutorialLock } from "./tutorialScript";
-
-function isDefenseCard(def: CardDefMap[string] | undefined): boolean {
-  return (def?.diceEffects ?? []).some((e) => e.kind === "defend");
-}
 
 export function dieDropTargets(
   defs: CardDefMap,

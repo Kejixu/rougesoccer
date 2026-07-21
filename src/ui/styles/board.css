@@ -319,82 +319,7 @@
   letter-spacing: 0.04em;
 }
 
-.round-pips {
-  display: flex;
-  gap: 6px;
-  align-items: center;
-}
-
-.round-pips .pip {
-  width: 12px;
-  height: 12px;
-  border-radius: 50%;
-  background: #2b4434;
-  border: 1px solid #3a5a44;
-}
-
-.round-pips .pip.done {
-  background: var(--accent-2);
-}
-
-.round-pips .pip.current {
-  background: var(--accent);
-  box-shadow: 0 0 6px var(--accent);
-}
-
-.round-pips .pip.et {
-  border-radius: 3px;
-  background: #4a2b2b;
-  border-color: #7e3a3a;
-}
-
-.round-pips .pip.et.current {
-  background: var(--danger);
-  box-shadow: 0 0 6px var(--danger);
-}
-
 /* ---- clock bar ---- */
-
-.clockbar-wrap {
-  display: flex;
-  align-items: center;
-  gap: 10px;
-  font-size: 12px;
-  color: var(--ink-dim);
-}
-
-.clockbar {
-  position: relative;
-  flex: 1;
-  height: 16px;
-  background: #1a2a20;
-  border: 1px solid #34503e;
-  border-radius: 8px;
-  overflow: hidden;
-}
-
-.clockbar-fill {
-  position: absolute;
-  inset: 0 auto 0 0;
-  background: linear-gradient(90deg, #a33d3d, var(--danger));
-  transition: width 0.6s cubic-bezier(0.2, 0.9, 0.3, 1.2);
-}
-
-.clockbar-fill.hot {
-  animation: clock-pulse 1s ease infinite;
-}
-
-@keyframes clock-pulse {
-  50% { filter: brightness(1.35); }
-}
-
-.clockbar .tick {
-  position: absolute;
-  top: 0;
-  bottom: 0;
-  width: 1px;
-  background: rgba(245, 241, 227, 0.25);
-}
 
 /* ---- combat mode: intent + stamina ---- */
 
@@ -574,60 +499,6 @@
   color: var(--ink-dim);
 }
 
-.intent-threat {
-  margin-left: auto;
-  color: var(--danger);
-  font-weight: 700;
-}
-
-.intent-threat.safe {
-  color: var(--accent-2);
-}
-
-.stamina-bar {
-  display: flex;
-  align-items: center;
-  gap: 6px;
-}
-
-.stamina-label {
-  font-family: var(--font-display);
-  font-size: 13px;
-  color: var(--ink-dim);
-  letter-spacing: 0.08em;
-}
-
-.stamina-pip {
-  width: 16px;
-  height: 16px;
-  border-radius: 50%;
-  background: #233a2c;
-  border: 1px solid #3a5a44;
-}
-
-.stamina-pip.full {
-  background: radial-gradient(circle at 35% 30%, #ffe9b0, var(--accent) 70%);
-  box-shadow: 0 0 6px rgba(255, 211, 77, 0.6);
-}
-
-.block-badge,
-.buff-badge {
-  font-weight: 800;
-  padding: 2px 10px;
-  border-radius: 10px;
-  font-size: 13px;
-}
-
-.block-badge {
-  background: #1d3a5f;
-  color: #bcd9ff;
-}
-
-.buff-badge {
-  background: #4a3a10;
-  color: var(--accent);
-}
-
 .cost-badge {
   position: absolute;
   top: -6px;
@@ -669,97 +540,6 @@
 
 @keyframes combo-pulse {
   50% { box-shadow: 0 0 16px rgba(77, 208, 122, 1); }
-}
-
-/* ---- attack preview (live play + score readout) ---- */
-
-.attack-preview {
-  display: flex;
-  align-items: baseline;
-  gap: 18px;
-  flex-wrap: wrap;
-  min-height: 30px;
-  font-size: 15px;
-}
-
-.play-name {
-  font-family: var(--font-display);
-  font-weight: 800;
-  text-transform: uppercase;
-  letter-spacing: 0.05em;
-}
-
-.play-name.good {
-  color: var(--accent);
-}
-
-.preview-math strong {
-  font-size: 20px;
-  color: var(--accent-2);
-}
-
-.preview-goals {
-  color: var(--ink-dim);
-}
-
-.preview-count {
-  margin-left: auto;
-  color: var(--ink-dim);
-  font-size: 12px;
-}
-
-.plays-legend summary {
-  cursor: pointer;
-  font-family: var(--font-display);
-  text-transform: uppercase;
-  letter-spacing: 0.04em;
-  color: var(--ink-dim);
-}
-
-.plays-legend table {
-  margin-top: 8px;
-  border-collapse: collapse;
-  font-size: 13px;
-}
-
-.plays-legend td {
-  padding: 3px 14px 3px 0;
-  vertical-align: top;
-}
-
-/* ---- hand fan ---- */
-
-.hand-fan {
-  display: flex;
-  justify-content: center;
-  padding: 18px 0 6px;
-  min-height: 210px;
-}
-
-.hand-fan .sticker {
-  margin: 0 -14px;
-  transform: rotate(var(--fan-angle, 0deg)) translateY(var(--fan-lift, 0px));
-}
-
-.hand-fan .sticker:hover,
-.hand-fan .sticker[data-selected="true"] {
-  transform: rotate(0deg) translateY(-16px) scale(1.06);
-}
-
-.deployed-row {
-  display: flex;
-  gap: 8px;
-  align-items: center;
-}
-
-.deployed-row .sticker {
-  width: 104px;
-  min-height: 146px;
-}
-
-.deployed-row .sticker .rules-text,
-.deployed-row .sticker .meta-row {
-  display: none;
 }
 
 .action-bar {
@@ -1005,11 +785,6 @@
   line-height: 1.45;
 }
 
-.kit-passive {
-  font-size: 12px;
-  color: #d9c178;
-}
-
 .kit-coach {
   font-size: 11px;
   color: var(--ink-dim);
@@ -1207,14 +982,6 @@
   border-color: rgba(199, 84, 80, 0.85);
   background: rgba(199, 84, 80, 0.16);
   color: #f0a19e;
-}
-
-.card-risk {
-  align-self: flex-start;
-  margin-top: auto;
-  padding: 2px 8px;
-  min-height: 20px;
-  font-size: 11px;
 }
 
 .their-chain {
@@ -1807,4 +1574,15 @@
 .their-shot-odds {
   font-weight: 800;
   color: #f0a19e;
+}
+
+/* Respect reduced-motion: stop the always-on repaint animations. */
+@media (prefers-reduced-motion: reduce) {
+  .dice-card[data-rarity="rare"]::after,
+  .action-bar .btn--primary[data-hot="true"],
+  .ball-token,
+  .combo-tag,
+  .dice-card.drop-ok {
+    animation: none !important;
+  }
 }

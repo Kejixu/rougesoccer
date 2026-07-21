@@ -43,7 +43,7 @@ export interface CoachTip {
   text: string;
 }
 
-export const COACH_TIPS: Record<CoachTipKey, string> = {
+const COACH_TIPS: Record<CoachTipKey, string> = {
   schedule: "Possessions alternate like innings — three attacks, three defenses. You fight for the ball within a round: tackles, interceptions, counters.",
   possession: "Cards are passes. Each die you slot plays one — your first pass is always free.",
   risk: "Pressure is the d20 number they tackle on for your NEXT pass. Lose it and you lose all banked Chance — and they counter.",

@@ -187,8 +187,13 @@ export function projectedShotEstimate(
   return shotEstimate({ ...state, ball, shotQuality: quality });
 }
 
-function isDefenseCard(def: CardDef | undefined): boolean {
+export function isDefenseCard(def: CardDef | undefined): boolean {
   return (def?.diceEffects ?? []).some((e) => e.kind === "defend");
+}
+
+/** Whose ball a given round is — the schedule is strict parity. */
+export function ownerForRound(round: number): "you" | "them" {
+  return round % 2 === 1 ? "you" : "them";
 }
 
 export function effectsFor(def: CardDef, level: number): DiceEffect[] {
@@ -222,7 +227,7 @@ function resetChain(draft: DiceMatchState): void {
 function startRound(draft: DiceMatchState, events: GameEvent[]): void {
   draft.round += 1;
   resetChain(draft);
-  draft.possession = draft.round % 2 === 1 ? "you" : "them";
+  draft.possession = ownerForRound(draft.round);
 
   const bonusDice =
     passiveSum(draft, "roundStamina") +

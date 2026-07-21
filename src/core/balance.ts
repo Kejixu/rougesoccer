@@ -14,12 +14,6 @@ export interface BalanceConfig {
   HAND_SIZE: number;
   STAMINA_PER_ROUND: number;
   STAMINA_CARRY_CAP: number; // unspent stamina banks up to this (Dawncaster carryover)
-  PLAYS_PER_ROUND: number;
-  DISCARDS_PER_ROUND: number;
-  MAX_ATTACK_CARDS: number;
-  MAX_DISCARD_CARDS: number;
-  MAX_DEFEND_CARDS: number; // per DEFEND play
-  MAX_DEPLOYED: number; // total defender slots — defense cannot stack forever
   FORM_CAP: number; // max formPower a card can accumulate in one match
   MATCH_ROUNDS: number;
   CLOCK_FLOOR_RATIO: number; // opponent always scores at least this share of their rate
@@ -28,7 +22,6 @@ export interface BalanceConfig {
   ET_BUDGET_REWARD: number; // per extra-time round survived in the lead
   ET_SCOUT_REWARD: number;
   MAX_SUDDEN_DEATH_ROUNDS: number;
-  COUNTER_BURST_POINTS: number; // "counter" style: clock burst when an attack scores 0
   SHOOTOUT_RNG: number; // shootout roll is base + 0..SHOOTOUT_RNG
 
   // ---- run / meta layer ----
@@ -103,12 +96,6 @@ export const DEFAULT_BALANCE: BalanceConfig = {
   HAND_SIZE: 5,
   STAMINA_PER_ROUND: 4,
   STAMINA_CARRY_CAP: 6,
-  PLAYS_PER_ROUND: 2,
-  DISCARDS_PER_ROUND: 2,
-  MAX_ATTACK_CARDS: 4,
-  MAX_DISCARD_CARDS: 3,
-  MAX_DEFEND_CARDS: 2,
-  MAX_DEPLOYED: 3,
   FORM_CAP: 10,
   MATCH_ROUNDS: 6,
   CLOCK_FLOOR_RATIO: 0.45,
@@ -117,7 +104,6 @@ export const DEFAULT_BALANCE: BalanceConfig = {
   ET_BUDGET_REWARD: 20,
   ET_SCOUT_REWARD: 1,
   MAX_SUDDEN_DEATH_ROUNDS: 3,
-  COUNTER_BURST_POINTS: 8,
   SHOOTOUT_RNG: 10,
 
   STARTING_BUDGET: 10,

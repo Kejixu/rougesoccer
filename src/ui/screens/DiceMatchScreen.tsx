@@ -10,7 +10,7 @@ import {
   type RunAction,
   type RunState,
 } from "../../core/types";
-import { ZONE_NAMES, bestDieFor, comboFor, interceptionRisk, oppInterceptionRisk, oppShotEstimate, playableCards, projectedShotEstimate, shotEstimate, zoneOf } from "../../core/match/dice";
+import { ZONE_NAMES, bestDieFor, comboFor, interceptionRisk, isDefenseCard, oppInterceptionRisk, oppShotEstimate, ownerForRound, playableCards, projectedShotEstimate, shotEstimate, zoneOf } from "../../core/match/dice";
 import { ScorePopups } from "../components/ScorePopups";
 import {
   DiceCardPosition,
@@ -40,10 +40,6 @@ export interface PossessionHandover {
   owner: PossessionOwner;
   title: string;
   subtitle: string;
-}
-
-function ownerForRound(round: number): PossessionOwner {
-  return round % 2 === 1 ? "you" : "them";
 }
 
 export function PossessionStrip({
@@ -392,10 +388,6 @@ function ChainGlossary() {
       ))}
     </details>
   );
-}
-
-function isDefenseCard(def: ContentBundle["defs"][string] | undefined): boolean {
-  return (def?.diceEffects ?? []).some((e) => e.kind === "defend");
 }
 
 interface ChainChip {
