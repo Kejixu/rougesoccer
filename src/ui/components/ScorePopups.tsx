@@ -11,21 +11,30 @@ interface Popup {
   text: string;
 }
 
-// The shot is the climax: a d20 that spins like a slot reel, lands on the roll,
-// then reveals roll + quality vs the keeper's DC.
-function ShotRoll({ roll, quality, dc }: { roll: number; quality: number; dc: number }) {
+// One spinning d20 reel: slows as it settles, lands on the roll, then shows
+// the outcome tail. The shot reel and the pressure reel are the same machine.
+function DiceReel({
+  roll,
+  duration,
+  good,
+  tail,
+}: {
+  roll: number;
+  duration: number;
+  good: boolean;
+  tail: React.ReactNode;
+}) {
   const [shown, setShown] = useState(1);
   const [settled, setSettled] = useState(false);
   useEffect(() => {
     let raf = 0;
     const t0 = performance.now();
-    const D = 650;
     let lastSwap = 0;
     const tick = (t: number) => {
-      const k = Math.min(1, (t - t0) / D);
+      const k = Math.min(1, (t - t0) / duration);
       if (k < 1) {
         // slow the reel as it settles
-        const gap = 45 + 120 * k * k;
+        const gap = duration * 0.07 + duration * 0.18 * k * k;
         if (t - lastSwap >= gap) {
           setShown(1 + Math.floor((t * 9301 + 49297) % 20));
           lastSwap = t;
@@ -38,57 +47,39 @@ function ShotRoll({ roll, quality, dc }: { roll: number; quality: number; dc: nu
     };
     raf = requestAnimationFrame(tick);
     return () => cancelAnimationFrame(raf);
-  }, [roll]);
-  const total = roll + quality;
-  const beat = total >= dc;
+  }, [roll, duration]);
   return (
-    <span className={settled ? (beat ? "shot-hit" : "shot-miss") : "shot-spin"}>
+    <span className={settled ? (good ? "shot-hit" : "shot-miss") : "shot-spin"}>
       🎲 {shown}
-      {settled && (
-        <>
-          {" "}
-          + {quality} = <strong>{total}</strong> vs {dc}
-        </>
-      )}
+      {settled && <> {tail}</>}
     </span>
   );
 }
 
-function PressureRoll({ roll, pressure, survived }: { roll: number; pressure: number; survived: boolean }) {
-  const [shown, setShown] = useState(1);
-  const [settled, setSettled] = useState(false);
-  useEffect(() => {
-    let raf = 0;
-    const t0 = performance.now();
-    const D = 450;
-    let lastSwap = 0;
-    const tick = (t: number) => {
-      const k = Math.min(1, (t - t0) / D);
-      if (k < 1) {
-        const gap = 35 + 80 * k * k;
-        if (t - lastSwap >= gap) {
-          setShown(1 + Math.floor((t * 9301 + 49297) % 20));
-          lastSwap = t;
-        }
-        raf = requestAnimationFrame(tick);
-      } else {
-        setShown(roll);
-        setSettled(true);
-      }
-    };
-    raf = requestAnimationFrame(tick);
-    return () => cancelAnimationFrame(raf);
-  }, [roll]);
+function ShotRoll({ roll, quality, dc }: { roll: number; quality: number; dc: number }) {
+  const total = roll + quality;
   return (
-    <span className={settled ? (survived ? "shot-hit" : "shot-miss") : "shot-spin"}>
-      🎲 {shown}
-      {settled && (
+    <DiceReel
+      roll={roll}
+      duration={650}
+      good={total >= dc}
+      tail={
         <>
-          {" "}
-          vs pressure {pressure} — {survived ? "held off" : "tackled"}
+          + {quality} = <strong>{total}</strong> vs {dc}
         </>
-      )}
-    </span>
+      }
+    />
+  );
+}
+
+function PressureRoll({ roll, pressure, survived }: { roll: number; pressure: number; survived: boolean }) {
+  return (
+    <DiceReel
+      roll={roll}
+      duration={450}
+      good={survived}
+      tail={<>vs pressure {pressure} — {survived ? "held off" : "tackled"}</>}
+    />
   );
 }
 

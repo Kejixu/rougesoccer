@@ -217,8 +217,6 @@ function settleMatch(draft: RunState, content: ContentBundle, match: DiceMatchSt
   }
 
   // resources earned in-match (extra time bonuses etc.)
-  draft.resources.budget += match.earned.budget;
-  draft.resources.scout += match.earned.scout;
 
   // staff payouts
   draft.resources.scout += runPassiveSum(content, draft, "scoutPerMatch");
@@ -236,7 +234,7 @@ function settleMatch(draft: RunState, content: ContentBundle, match: DiceMatchSt
     playerGoals: match.playerGoals,
     oppGoals: match.oppGoals,
     result: result as "win" | "draw" | "loss",
-    pushedRounds: match.extraRoundsPlayed,
+    pushedRounds: 0,
   };
 
   const rewards = content.balance.REWARD_BUDGET;

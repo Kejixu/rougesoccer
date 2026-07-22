@@ -844,7 +844,6 @@ describe("match terminates", () => {
 
     expect(step.state.phase).toBe("DONE");
     expect(step.state.result).toBe("win");
-    expect(step.state.extraRoundsPlayed).toBe(0);
     expect(step.events).toContainEqual({ type: "MATCH_END", result: "win", playerGoals: 1, oppGoals: 0 });
     expect(step.events.some((event) => event.type === "PUSH_DECISION")).toBe(false);
   });

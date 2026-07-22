@@ -233,8 +233,7 @@ function startRound(draft: DiceMatchState, events: GameEvent[]): void {
     passiveSum(draft, "roundStamina") +
     mutatorSum(draft.mutators, "poolDelta") +
     (draft.mode === "suddendeath" ? -1 : 0);
-  const poolSize = Math.max(2, draft.bal.DICE.POOL_SIZE + bonusDice - draft.diePenalty);
-  draft.diePenalty = 0;
+  const poolSize = Math.max(2, draft.bal.DICE.POOL_SIZE + bonusDice);
   const rolledDice = Array.from({ length: poolSize }, () => ({ value: rollDie(draft), used: false }));
   draft.dice = rolledDice;
   const carriedDice = draft.possession === "you" ? draft.carriedDice.slice(0, draft.bal.DICE.CARRY_MAX) : [];
@@ -245,8 +244,7 @@ function startRound(draft: DiceMatchState, events: GameEvent[]): void {
 
   draft.rerollDieLeft = mutatorSum(draft.mutators, "rerollDie");
 
-  const handSize = Math.max(2, draft.bal.DICE.HAND_SIZE + passiveSum(draft, "drawBonus") - draft.handPenalty);
-  draft.handPenalty = 0;
+  const handSize = Math.max(2, draft.bal.DICE.HAND_SIZE + passiveSum(draft, "drawBonus"));
   const handCap = draft.bal.DICE.HAND_SIZE + 1;
   const drawCount =
     draft.hand.length >= handCap ? 0 : Math.min(handCap - draft.hand.length, Math.max(1, handSize - draft.hand.length));
@@ -634,8 +632,6 @@ export function createDiceMatch(defs: CardDefMap, cfg: DiceMatchConfig): DiceMat
     carriedDice: [],
     intent: null,
     intentStep: 0,
-    diePenalty: 0,
-    handPenalty: 0,
     mutators,
     rerollDieLeft: 0,
     hand: [],
@@ -643,9 +639,7 @@ export function createDiceMatch(defs: CardDefMap, cfg: DiceMatchConfig): DiceMat
     discardPile: [],
     exile: [],
     activePassives: [...(cfg.passives ?? [])],
-    extraRoundsPlayed: 0,
     suddenDeathRoundsPlayed: 0,
-    earned: { budget: 0, scout: 0 },
     result: "pending",
     rng: cfg.rng,
   };

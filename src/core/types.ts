@@ -435,8 +435,6 @@ export interface DiceMatchState {
   carriedDice: number[];
   intent: Intent | null;
   intentStep: number;
-  diePenalty: number;
-  handPenalty: number;
   mutators: DiceMutator[]; // the nation's identity, active all match
   rerollDieLeft: number; // per-round budget (Brazil)
   hand: CardInstance[];
@@ -444,9 +442,7 @@ export interface DiceMatchState {
   discardPile: CardInstance[];
   exile: CardInstance[];
   activePassives: PassiveEffect[];
-  extraRoundsPlayed: number;
   suddenDeathRoundsPlayed: number;
-  earned: { budget: number; scout: number };
   result: MatchResult;
   rng: RngState;
 }

@@ -8,21 +8,13 @@
 import type { ContentBundle, NationDiceKit, StaffDef } from "../core/types";
 import type { BalanceConfig } from "../core/balance";
 import { ACTIVE_BALANCE } from "./balance";
-import { CARD_DEFS, CARD_DEF_MAP, STARTING_DECK_TEMPLATE } from "./cards";
 import { DICE_CARD_DEFS, DICE_CARD_MAP, DICE_STARTING_TEMPLATE } from "./diceCards";
-import { NATION_KITS } from "./kits";
 import { ACTIVE_PLAYS } from "./plays";
 import { STAFF_DEFS } from "./staff";
 import { STYLES } from "./styles";
 import { TEAMS } from "./teams";
 
 // Each playable nation starts with its real star in the squad (combat mode only).
-export const NATION_STARS: Record<string, string> = {
-  usa: "wg_pulisick",
-  mex: "st_golmenez",
-  can: "wg_drivies",
-};
-
 // Staff whose passive has a meaning in the dice loop (others are combat-only).
 const DICE_PASSIVE_KINDS = new Set([
   "blockPerRound",
@@ -88,17 +80,3 @@ export function makeContent(balance: BalanceConfig = ACTIVE_BALANCE): ContentBun
   };
 }
 
-export function makeCombatContent(balance: BalanceConfig = ACTIVE_BALANCE): ContentBundle {
-  return {
-    defs: CARD_DEF_MAP,
-    cardPool: [...CARD_DEFS],
-    staffPool: [...STAFF_DEFS],
-    teams: [...TEAMS],
-    styles: STYLES,
-    plays: ACTIVE_PLAYS,
-    startingDeck: STARTING_DECK_TEMPLATE,
-    nationStars: NATION_STARS,
-    nationKits: NATION_KITS,
-    balance,
-  };
-}

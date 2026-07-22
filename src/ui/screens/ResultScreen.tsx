@@ -1,26 +1,7 @@
 import type { ContentBundle, RunState } from "../../core/types";
 import { ThirdsVerdictPanel } from "../components/ThirdsVerdictPanel";
-import { TeamFlag } from "../components/TeamFlag";
-
-function Confetti() {
-  const COLORS = ["#ffd34d", "#4dd07a", "#6ec3ff", "#ff5d5d", "#f5f1e3"];
-  return (
-    <div className="confetti-layer" aria-hidden>
-      {Array.from({ length: 60 }, (_, i) => (
-        <span
-          key={i}
-          className="confetti"
-          style={{
-            left: `${(i * 137.5) % 100}%`,
-            background: COLORS[i % COLORS.length],
-            animationDelay: `${(i % 12) * 0.28}s`,
-            animationDuration: `${2.4 + ((i * 7) % 10) / 6}s`,
-          }}
-        />
-      ))}
-    </div>
-  );
-}
+import { TeamIdentity } from "../components/TeamIdentity";
+import { Confetti } from "../components/Confetti";
 
 export function ResultScreen({
   run,
@@ -31,16 +12,7 @@ export function ResultScreen({
   content: ContentBundle;
   onNewRun: () => void;
 }) {
-  const teamName = (id: string) => content.teams.find((t) => t.id === id)?.name ?? id;
-  const teamIdentity = (id: string) => {
-    const team = content.teams.find((candidate) => candidate.id === id);
-    return (
-      <span className="team-identity">
-        <TeamFlag team={team} />
-        <span>{teamName(id)}</span>
-      </span>
-    );
-  };
+  const teamIdentity = (id: string) => <TeamIdentity content={content} id={id} />;
   const won = run.result === "won";
 
   return (

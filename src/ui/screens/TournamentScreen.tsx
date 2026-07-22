@@ -1,7 +1,7 @@
 import { standings } from "../../core/run/group";
 import type { ContentBundle, RunAction, RunState } from "../../core/types";
 import { ThirdsVerdictPanel } from "../components/ThirdsVerdictPanel";
-import { TeamFlag } from "../components/TeamFlag";
+import { TeamIdentity } from "../components/TeamIdentity";
 
 export function TournamentScreen({
   run,
@@ -16,19 +16,7 @@ export function TournamentScreen({
   onOpenShop: () => void;
   onAbandon: () => void;
 }) {
-  const teamName = (id: string) =>
-    id === run.playerTeamId
-      ? `${content.teams.find((t) => t.id === id)?.name ?? id} (you)`
-      : (content.teams.find((t) => t.id === id)?.name ?? id);
-  const teamIdentity = (id: string) => {
-    const team = content.teams.find((candidate) => candidate.id === id);
-    return (
-      <span className="team-identity">
-        <TeamFlag team={team} />
-        <span>{teamName(id)}</span>
-      </span>
-    );
-  };
+  const teamIdentity = (id: string) => <TeamIdentity content={content} id={id} you={id === run.playerTeamId} />;
   const nextOpp = run.nextOppId ? content.teams.find((t) => t.id === run.nextOppId) : null;
   const groupSchedule = run.groupOpponentOrder.flatMap((oppId, index) => {
     const matchday = index + 1;
@@ -146,7 +134,7 @@ export function TournamentScreen({
 
       {nextOpp && (
         <section>
-          <h2>Next: <TeamFlag team={nextOpp} /> <span>{nextOpp.name}</span></h2>
+          <h2>Next: {teamIdentity(nextOpp.id)}</h2>
           {(() => {
             const heat = content.balance.STAGE_CLOCK_MULT[run.stage];
             const effRating = Math.round(nextOpp.attackRating * content.styles[nextOpp.style].clockMult * heat);

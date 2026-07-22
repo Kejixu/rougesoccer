@@ -19,6 +19,7 @@ import {
   DiceSlotGlyph,
 } from "../components/DiceCardArt";
 import { TeamFlag } from "../components/TeamFlag";
+import { Confetti } from "../components/Confetti";
 import {
   CHAIN_GLOSSARY,
   COACH_TIP_KEYS,
@@ -27,7 +28,7 @@ import {
   describeChainStatus,
   type CoachTipKey,
 } from "../diceUx";
-import { dieDropInfo } from "../diceDropTargets";
+import { dieDropInfo, okDropUids } from "../diceDropTargets";
 import { stageEvents } from "../eventTimeline";
 import { tutorialLockAllows, type TutorialActionIntent, type TutorialStep } from "../tutorialScript";
 
@@ -498,7 +499,6 @@ export function DiceMatchScreen(props: DiceMatchScreenProps) {
   const [running, setRunning] = useState(false);
   const runningRef = useRef(false);
   const [rerollFx, setRerollFx] = useState<{ i: number; lucky: boolean; n: number } | null>(null);
-  const fxNonce = useRef(0);
   const [displayBall, setDisplayBall] = useState(m.ball);
   const ballTimersRef = useRef<ReturnType<typeof setTimeout>[]>([]);
   const handoverTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -561,8 +561,7 @@ export function DiceMatchScreen(props: DiceMatchScreenProps) {
       }, 1800);
     }
     if (events.some((e) => e.type === "DICE_ROLLED")) {
-      fxNonce.current += 1;
-      setRollKey(fxNonce.current);
+      setRollKey((k) => k + 1);
       setSelectedDie(null);
     }
     if (events.some((e) => e.type === "ROUND_START")) {
@@ -603,8 +602,7 @@ export function DiceMatchScreen(props: DiceMatchScreenProps) {
     if (events.some((e) => e.type === "ROUND_START") || completed.length > 0) setChainEntries([...chainRef.current]);
     const re = [...events].reverse().find((e) => e.type === "DIE_REROLLED");
     if (re && re.type === "DIE_REROLLED") {
-      fxNonce.current += 1;
-      setRerollFx({ i: re.dieIndex, lucky: re.to >= 5, n: fxNonce.current });
+      setRerollFx((prev) => ({ i: re.dieIndex, lucky: re.to >= 5, n: (prev?.n ?? 0) + 1 }));
     }
   }, [events]);
 
@@ -641,13 +639,7 @@ export function DiceMatchScreen(props: DiceMatchScreenProps) {
   const playable = playableCards(content.defs, m);
   const activeDieIndex = draggingDie?.dieIndex ?? (selectedDie !== null && !m.dice[selectedDie]?.used ? selectedDie : null);
   const dropInfo = activeDieIndex !== null ? dieDropInfo(content.defs, m, activeDieIndex, tutorial?.step.lock) : null;
-  const dragTargets = dropInfo
-    ? new Set(
-        [...dropInfo]
-          .filter(([, status]) => status === "ok")
-          .map(([uid]) => uid),
-      )
-    : null;
+  const dragTargets = dropInfo ? okDropUids(dropInfo) : null;
 
   const selVal = selectedDie !== null ? m.dice[selectedDie]?.value : undefined;
   const coachTip = tutorial
@@ -814,22 +806,7 @@ export function DiceMatchScreen(props: DiceMatchScreenProps) {
     <main className={`board${m.possession === "them" ? " mode-defending" : ""}`}>
       <ScorePopups events={events} />
       {handover && <HandoverBanner handover={handover} />}
-      {celebration === "goal" && (
-        <div className="confetti-layer celebration" aria-hidden="true">
-          {Array.from({ length: 36 }, (_, i) => (
-            <span
-              key={i}
-              className="confetti"
-              style={{
-                left: `${(i * 137) % 100}%`,
-                background: ["#ffd34d", "#4dd07a", "#f2efe6", "#6ec3ff"][i % 4],
-                animationDuration: `${1 + ((i * 7) % 10) / 10}s`,
-                animationDelay: `${((i * 13) % 6) / 10}s`,
-              }}
-            />
-          ))}
-        </div>
-      )}
+      {celebration === "goal" && <Confetti variant="celebration" />}
       {celebration === "concede" && <div className="concede-flash" aria-hidden="true" />}
 
       <div className="scoreboard panel">
