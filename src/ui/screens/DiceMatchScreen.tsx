@@ -838,35 +838,9 @@ export function DiceMatchScreen(props: DiceMatchScreenProps) {
         </div>
       </div>
 
-      <PitchTrack ball={displayBall} possession={m.possession} bal={m.bal} />
-
       {m.corner && (
         <div className="corner-banner panel" data-testid="corner-banner">
           <strong>CORNER!</strong> One delivery — make it count
-        </div>
-      )}
-
-      <div className="dice-stat-row">
-        <span className="shotq-badge" data-testid="shot-quality">
-          Chance {m.shotQuality}
-        </span>
-        <span className="shotq-badge" data-testid="passes">
-          Passes {m.possession === "you" ? m.passes : m.oppPasses}
-        </span>
-        <span className="pitch-arrow" data-testid="pitch-arrow">
-          {m.possession === "you" ? "→" : "←"}
-        </span>
-        <span style={{ marginLeft: "auto", fontSize: 12, color: "var(--ink-dim)" }}>
-          draw {m.drawPile.length} · discard {m.discardPile.length}
-        </span>
-      </div>
-
-      {intent && m.phase === "ROUND_ACTIVE" && (
-        <div className="intent-panel panel" data-testid="intent">
-          <span className="intent-icon">{intent.icon}</span>
-          <span>
-            <strong>{m.opp.name}:</strong> {intent.text}
-          </span>
         </div>
       )}
 
@@ -879,58 +853,11 @@ export function DiceMatchScreen(props: DiceMatchScreenProps) {
         </div>
       )}
 
-      {m.phase === "ROUND_ACTIVE" && m.possession === "you" && (
-        <div className="chain-panel panel" data-testid="chain-panel">
-          <div className="chain-strip" data-testid="chain-strip">
-            {chainEntries.length === 0 ? (
-              <span className="chain-chip empty">First pass safe</span>
-            ) : (
-              chainEntries.map((chip, i) => (
-                <span key={`${chip.uid}-${i}`} className="chain-chip">
-                  {chip.die !== undefined && <span className="chip-die">{PIPS[chip.die]}</span>}
-                  {chip.passes}. {chip.cardName}
-                  {chip.chanceGained > 0 && <strong>+{chip.chanceGained}</strong>}
-                  {chip.combo && <em className="combo-tag">{chip.combo}</em>}
-                </span>
-              ))
-            )}
-          </div>
-          <div className="chain-summary">
-            <span className="shotq-badge">Chance {m.shotQuality}</span>
-            {riskNow > 0 && (
-              <span className="risk-badge" data-testid="chain-risk" data-hot={riskNow >= 0.3 ? "true" : "false"}>
-                pressure {pressureNow} ({Math.round(riskNow * 100)}%)
-              </span>
-            )}
-            <span className="chain-status" data-testid="chain-status">{chainStatus}</span>
-          </div>
-        </div>
-      )}
-
-      {m.phase === "ROUND_ACTIVE" && m.possession === "them" && (
-        <div className="their-chain panel" data-testid="their-chain">
-          <span>Their pass {m.oppPasses}</span>
-          <span>Chance {m.oppChance}</span>
-          <span className="their-shot-odds" data-testid="their-shot-odds" title="if their chain finished right now">
-            their shot ~{Math.round(oppShotEstimate(m).p * 100)}%
-          </span>
-          <span>Committed +{Math.round(m.defenseCommit * 100)}%</span>
-          <span data-testid="fresh-legs-bank">banking {bankingDice} dice</span>
-          <span className="risk-badge" data-hot={theirRisk >= 0.3 ? "true" : "false"}>
-            pressure {theirPressure} ({Math.round(theirRisk * 100)}%)
-          </span>
-          <span className="chain-status" data-testid="chain-status">{chainStatus}</span>
-        </div>
-      )}
-
-      <ChainGlossary />
-      <MatchTicker lines={tickerLines} />
-      {tutorial && <TutorialOverlay tutorial={tutorial} />}
-
       {m.phase === "ROUND_ACTIVE" && (
         <>
           <div className="dice-tray" data-testid="dice-tray">
             <span className="dice-label">YOUR ROLL</span>
+            <span className="dice-rule">1 die plays 1 card</span>
             {m.dice.map((d, i) => {
               const rerolled = rerollFx?.i === i;
               return (
@@ -1046,17 +973,6 @@ export function DiceMatchScreen(props: DiceMatchScreenProps) {
             })}
           </div>
 
-          {draggingDie && (
-            <div
-              className="die die-drag-ghost"
-              style={{ transform: `translate3d(${draggingDie.x - 24}px, ${draggingDie.y - 24}px, 0)` }}
-              aria-hidden="true"
-            >
-              <span className="die-pip">{PIPS[draggingDie.value]}</span>
-              <span className="die-num">{draggingDie.value}</span>
-            </div>
-          )}
-
           <div className="action-bar">
             {!tutorial && (m.corner || m.possession === "them") && (
               <button
@@ -1112,6 +1028,92 @@ export function DiceMatchScreen(props: DiceMatchScreenProps) {
           </div>
         </>
       )}
+
+      {m.phase === "ROUND_ACTIVE" && m.possession === "you" && (
+        <div className="chain-panel panel" data-testid="chain-panel">
+          <div className="chain-strip" data-testid="chain-strip">
+            {chainEntries.length === 0 ? (
+              <span className="chain-chip empty">First pass safe</span>
+            ) : (
+              chainEntries.map((chip, i) => (
+                <span key={`${chip.uid}-${i}`} className="chain-chip">
+                  {chip.die !== undefined && <span className="chip-die">{PIPS[chip.die]}</span>}
+                  {chip.passes}. {chip.cardName}
+                  {chip.chanceGained > 0 && <strong>+{chip.chanceGained}</strong>}
+                  {chip.combo && <em className="combo-tag">{chip.combo}</em>}
+                </span>
+              ))
+            )}
+          </div>
+          <div className="chain-summary">
+            <span className="shotq-badge">Chance {m.shotQuality}</span>
+            {riskNow > 0 && (
+              <span className="risk-badge" data-testid="chain-risk" data-hot={riskNow >= 0.3 ? "true" : "false"}>
+                pressure {pressureNow} ({Math.round(riskNow * 100)}%)
+              </span>
+            )}
+            <span className="chain-status" data-testid="chain-status">{chainStatus}</span>
+          </div>
+        </div>
+      )}
+
+      {m.phase === "ROUND_ACTIVE" && m.possession === "them" && (
+        <div className="their-chain panel" data-testid="their-chain">
+          <span>Their pass {m.oppPasses}</span>
+          <span>Chance {m.oppChance}</span>
+          <span className="their-shot-odds" data-testid="their-shot-odds" title="if their chain finished right now">
+            their shot ~{Math.round(oppShotEstimate(m).p * 100)}%
+          </span>
+          <span>Committed +{Math.round(m.defenseCommit * 100)}%</span>
+          <span data-testid="fresh-legs-bank">banking {bankingDice} dice</span>
+          <span className="risk-badge" data-hot={theirRisk >= 0.3 ? "true" : "false"}>
+            pressure {theirPressure} ({Math.round(theirRisk * 100)}%)
+          </span>
+          <span className="chain-status" data-testid="chain-status">{chainStatus}</span>
+        </div>
+      )}
+
+      <div className="dice-stat-row">
+        <span className="shotq-badge" data-testid="shot-quality">
+          Chance {m.shotQuality}
+        </span>
+        <span className="shotq-badge" data-testid="passes">
+          Passes {m.possession === "you" ? m.passes : m.oppPasses}
+        </span>
+        <span className="pitch-arrow" data-testid="pitch-arrow">
+          {m.possession === "you" ? "→" : "←"}
+        </span>
+        <span style={{ marginLeft: "auto", fontSize: 12, color: "var(--ink-dim)" }}>
+          draw {m.drawPile.length} · discard {m.discardPile.length}
+        </span>
+      </div>
+
+      <PitchTrack ball={displayBall} possession={m.possession} bal={m.bal} />
+
+      {intent && m.phase === "ROUND_ACTIVE" && (
+        <div className="intent-panel panel" data-testid="intent">
+          <span className="intent-icon">{intent.icon}</span>
+          <span>
+            <strong>{m.opp.name}:</strong> {intent.text}
+          </span>
+        </div>
+      )}
+
+      <ChainGlossary />
+      <MatchTicker lines={tickerLines} />
+
+      {draggingDie && (
+        <div
+          className="die die-drag-ghost"
+          style={{ transform: `translate3d(${draggingDie.x - 24}px, ${draggingDie.y - 24}px, 0)` }}
+          aria-hidden="true"
+        >
+          <span className="die-pip">{PIPS[draggingDie.value]}</span>
+          <span className="die-num">{draggingDie.value}</span>
+        </div>
+      )}
+
+      {tutorial && <TutorialOverlay tutorial={tutorial} />}
     </main>
   );
 }

@@ -73,6 +73,7 @@ describe("dice UX copy", () => {
   it("defines the chain glossary terms", () => {
     expect(CHAIN_GLOSSARY).toEqual({
       Possession: "Possessions alternate like innings: three attacks and three defenses. Fight for the ball within each round through tackles, interceptions, and counters.",
+      Dice: "Each die plays one card, once. Spending dice is free — risk comes from each extra pass. On defense, unused dice bank into your next attack (max 2).",
       Chance: "Chance is your banked shot bonus for this possession.",
       Risk: "Risk becomes d20 pressure on the next pass.",
       Recycle: "Recycle ends your possession safely without shooting.",
@@ -133,6 +134,30 @@ describe("coach tips", () => {
       key: "defense",
       text: "Their turn. Unused dice carry to your attack, up to 2. Stand off to bank energy; commit defenders to spend it on safety now.",
     });
+  });
+
+  it("teaches dice economics after two passes without repeating", () => {
+    const afterTwoPasses = { ...baseSummary, passes: 2 };
+
+    expect((DiceUx as typeof DiceUx & { COACH_TIP_KEYS?: readonly string[] }).COACH_TIP_KEYS).toContain("dice");
+    expect(coachTipFor(afterTwoPasses, new Set())).toEqual({
+      key: "dice",
+      text: "Spending dice has no downside on attack — one die, one card. The cost is pressure: each extra pass is riskier. On defense, unused dice bank forward (max 2).",
+    });
+    expect(coachTipFor({ ...baseSummary, passes: 1 }, new Set())).toBeNull();
+    expect(coachTipFor(afterTwoPasses, new Set(["dice"]))).toBeNull();
+    expect(
+      coachTipFor(
+        { ...afterTwoPasses, interceptionRisk: 0.15, shotQuality: 4 },
+        new Set(["risk", "chance"]),
+      ),
+    ).toMatchObject({ key: "dice" });
+  });
+
+  it("teaches risk before dice economics when both are unseen", () => {
+    expect(
+      coachTipFor({ ...baseSummary, passes: 2, interceptionRisk: 0.15 }, new Set()),
+    ).toMatchObject({ key: "risk" });
   });
 
   it("shows the combo tip the first time a combo triggers", () => {

@@ -1013,6 +1013,11 @@
   color: var(--ink-dim);
 }
 
+.dice-rule {
+  font-size: 11px;
+  color: var(--ink-dim);
+}
+
 .die {
   position: relative;
   width: 62px;

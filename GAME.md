@@ -93,9 +93,9 @@ Their possession mirrors the same rhythm:
 Their possession shows a live "their shot ~N%" readout (single-source with the
 engine's oppShotEstimate), and the pre-match screen shows the opponent's tier,
 effective rating, keeper DC, and the stage heat multiplier — difficulty is visible,
-not just felt. The match UI surfaces this loop with pass chips, current/interception pressure, a
-live shot estimate, their-chain defense controls, drag legality highlights, a
-persistent ticker, and one-time coach tips.
+not just felt. The match UI uses an inputs-first column: the thin scoreboard and
+urgent corner/coach teaching lead into dice, hand, and actions, followed by chain
+context and stats, then the pitch, opponent intent, glossary, and persistent ticker.
 
 The pitch replays passes and counter attacks event-by-event in step with the staged
 match popups. While a die is active, a fitting card blocked by the current possession
@@ -132,8 +132,8 @@ teams, interceptions, counters, shot roll math, goals/saves, and possession
 changes). A one-time `coach.schedule` tip explains that possessions alternate like
 innings and that tackles, interceptions, and counters fight for the ball within each
 round. Coach tips are stored as `coach.schedule`, `coach.possession`, `coach.risk`,
-`coach.chance`, `coach.punt`, `coach.defense`, `coach.combo`, `coach.corner`, and
-`coach.rattled` once dismissed.
+`coach.dice`, `coach.chance`, `coach.punt`, `coach.defense`, `coach.combo`,
+`coach.corner`, and `coach.rattled` once dismissed.
 
 ---
 

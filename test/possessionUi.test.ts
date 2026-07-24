@@ -163,6 +163,25 @@ describe("possession strip", () => {
 });
 
 describe("possession controls", () => {
+  it("renders match inputs before pitch output and ticker", () => {
+    const html = liveMatchScreenMarkup("you", 1);
+    const renderedSurfaceOrder = [...html.matchAll(/data-testid="(dice-tray|hand|pitch)"/g)]
+      .map((match) => match[1]);
+    const screenSource = MatchUi.DiceMatchScreen.toString();
+
+    expect(renderedSurfaceOrder).toEqual(["dice-tray", "hand", "pitch"]);
+    expect(screenSource.indexOf("PitchTrack")).toBeLessThan(screenSource.indexOf("MatchTicker"));
+  });
+
+  it("renders the one-die-per-card rule inside the dice tray", () => {
+    const html = liveMatchScreenMarkup("you", 1);
+    const trayStart = html.indexOf('<div class="dice-tray" data-testid="dice-tray">');
+    const trayEnd = html.indexOf("</div>", trayStart);
+
+    expect(trayStart).toBeGreaterThanOrEqual(0);
+    expect(html.slice(trayStart, trayEnd)).toContain("1 die plays 1 card");
+  });
+
   it("shows only Play & Shoot and Recycle on a normal player possession", () => {
     const html = liveMatchScreenMarkup("you", 1);
 
