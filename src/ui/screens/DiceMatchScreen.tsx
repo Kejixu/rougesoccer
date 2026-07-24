@@ -2,6 +2,7 @@ import { useEffect, useRef, useState, type PointerEvent } from "react";
 import {
   dieFitsSlot,
   pressureOf,
+  type CardDefMap,
   type ContentBundle,
   type DiceMatchAction,
   type DiceMatchState,
@@ -241,6 +242,44 @@ export function recycleButtonLabel(
   if (match.corner) return "Clear it";
   if (match.possession === "you" && dockedCount > 0) return `↩ Play & Recycle (${dockedCount})`;
   return "↩ Recycle possession";
+}
+
+export interface RecycleAdvice {
+  tone: "cold" | "hot" | "neutral";
+  sub: string | null;
+}
+
+export function recycleAdvice(defs: CardDefMap, state: DiceMatchState): RecycleAdvice {
+  if (state.possession !== "you" || state.phase !== "ROUND_ACTIVE" || state.corner) {
+    return { tone: "neutral", sub: null };
+  }
+
+  const risk = interceptionRisk(state);
+  if (risk >= 0.3) {
+    return {
+      tone: "hot",
+      sub: `smart stop — pressure ${pressureOf(risk)} (${Math.round(risk * 100)}%)`,
+    };
+  }
+
+  const playable = playableCards(defs, state);
+  const hasLegalAttack = state.hand.some(
+    (card) => playable.has(card.uid) && !isDefenseCard(defs[card.defId]),
+  );
+  if (!hasLegalAttack) return { tone: "neutral", sub: null };
+
+  const unused = state.dice.filter((die) => !die.used).length;
+  return {
+    tone: "cold",
+    sub: `${unused} ${unused === 1 ? "die" : "dice"} unspent — passes are cheap right now`,
+  };
+}
+
+export function unspentAttackDice(
+  prevState: Pick<DiceMatchState, "possession" | "dice">,
+): number[] {
+  if (prevState.possession !== "you") return [];
+  return prevState.dice.filter((die) => !die.used).map((die) => die.value);
 }
 
 function intentText(intent: Intent): { icon: string; text: string } {
@@ -494,6 +533,7 @@ export function DiceMatchScreen(props: DiceMatchScreenProps) {
   // A fresh roll remounts the dice so they cascade in; a reroll spins the one die.
   const [rollKey, setRollKey] = useState(0);
   const [celebration, setCelebration] = useState<"goal" | "concede" | null>(null);
+  const [unspentFizzle, setUnspentFizzle] = useState<{ values: number[]; key: number } | null>(null);
   // Call the play: dice dock onto cards (pure UI), then RUN executes the sequence.
   const [docked, setDocked] = useState<DockedPlay[]>([]);
   const [running, setRunning] = useState(false);
@@ -503,9 +543,12 @@ export function DiceMatchScreen(props: DiceMatchScreenProps) {
   const ballTimersRef = useRef<ReturnType<typeof setTimeout>[]>([]);
   const handoverTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const celebrationTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const unspentFizzleTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const unspentFizzleKeyRef = useRef(0);
   const ballCleanupGenerationRef = useRef(0);
   const lastBatchRef = useRef<GameEvent[] | null>(null);
   const previousPossessionRef = useRef<PossessionOwner>(m.possession);
+  const previousMatchRef = useRef(m);
   const latestMatchRef = useRef<DiceMatchState | null>(null);
   latestMatchRef.current = m;
   useEffect(() => {
@@ -521,6 +564,8 @@ export function DiceMatchScreen(props: DiceMatchScreenProps) {
         handoverTimerRef.current = null;
         if (celebrationTimerRef.current) clearTimeout(celebrationTimerRef.current);
         celebrationTimerRef.current = null;
+        if (unspentFizzleTimerRef.current) clearTimeout(unspentFizzleTimerRef.current);
+        unspentFizzleTimerRef.current = null;
       });
     };
   }, []);
@@ -529,6 +574,23 @@ export function DiceMatchScreen(props: DiceMatchScreenProps) {
     // twice duplicated ticker/chip entries. Process each event batch exactly once.
     if (lastBatchRef.current === events) return;
     lastBatchRef.current = events;
+    const previousMatch = previousMatchRef.current;
+    previousMatchRef.current = m;
+    const playerPossessionEnded =
+      previousMatch.possession === "you" &&
+      (m.possession !== "you" || m.phase === "DONE");
+    if (playerPossessionEnded) {
+      const values = unspentAttackDice(previousMatch);
+      if (values.length > 0) {
+        if (unspentFizzleTimerRef.current) clearTimeout(unspentFizzleTimerRef.current);
+        unspentFizzleKeyRef.current += 1;
+        setUnspentFizzle({ values, key: unspentFizzleKeyRef.current });
+        unspentFizzleTimerRef.current = setTimeout(() => {
+          setUnspentFizzle(null);
+          unspentFizzleTimerRef.current = null;
+        }, 650);
+      }
+    }
     ballTimersRef.current.forEach(clearTimeout);
     ballTimersRef.current = [];
     const stagedEvents = stageEvents(events);
@@ -799,6 +861,8 @@ export function DiceMatchScreen(props: DiceMatchScreenProps) {
   const shotIfPlayed = docked.length > 0 ? projectedShotEstimate(content.defs, m, docked) : shotNow;
   const shootLabel = shootButtonLabel(m, docked.length, shotIfPlayed.p);
   const recycleLabel = recycleButtonLabel(m, docked.length);
+  const recycleRead = recycleAdvice(content.defs, m);
+  const showRecycleAdvice = m.possession === "you" && !m.corner && docked.length === 0;
   const bankingDice =
     m.possession === "them" ? Math.min(m.bal.DICE.CARRY_MAX, m.dice.filter((die) => !die.used).length) : 0;
 
@@ -850,6 +914,27 @@ export function DiceMatchScreen(props: DiceMatchScreenProps) {
           <button type="button" aria-label="Dismiss coach tip" onClick={() => dismissCoachTip(coachTip.key)}>
             ×
           </button>
+        </div>
+      )}
+
+      {unspentFizzle && (
+        <div
+          key={unspentFizzle.key}
+          className="unspent-fizzle"
+          data-testid="unspent-fizzle"
+          aria-live="polite"
+        >
+          <span className="unspent-fizzle-label">unspent</span>
+          {unspentFizzle.values.map((value, index) => (
+            <span
+              key={`${unspentFizzle.key}-${index}`}
+              className="unspent-ghost-die"
+              data-value={value}
+              aria-hidden="true"
+            >
+              {PIPS[value]}
+            </span>
+          ))}
         </div>
       )}
 
@@ -1014,6 +1099,8 @@ export function DiceMatchScreen(props: DiceMatchScreenProps) {
               type="button"
               className={`btn btn--danger${tutorialHighlights({ kind: "endRound" }) ? " tutorial-highlight" : ""}`}
               data-testid="end-round"
+              data-hot={showRecycleAdvice ? (recycleRead.tone === "hot" ? "true" : "false") : undefined}
+              data-cold={showRecycleAdvice ? (recycleRead.tone === "cold" ? "true" : "false") : undefined}
               disabled={endRoundDisabled}
               onClick={() => {
                 if (m.possession === "you" && !m.corner && docked.length > 0) {
@@ -1024,6 +1111,11 @@ export function DiceMatchScreen(props: DiceMatchScreenProps) {
               }}
             >
               {m.possession === "them" ? `Stand off (bank ${bankingDice})` : recycleLabel}
+              {showRecycleAdvice && recycleRead.sub && (
+                <span className="btn-sub" data-testid="recycle-advice">
+                  {recycleRead.sub}
+                </span>
+              )}
             </button>
           </div>
         </>

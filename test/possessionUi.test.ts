@@ -38,6 +38,11 @@ type PossessionExports = typeof MatchUi & {
     match: Pick<DiceMatchState, "corner" | "possession">,
     dockedCount: number,
   ) => string;
+  recycleAdvice?: (
+    defs: typeof DICE_CARD_MAP,
+    state: DiceMatchState,
+  ) => { tone: "cold" | "hot" | "neutral"; sub: string | null };
+  unspentAttackDice?: (state: DiceMatchState) => number[];
   runDockedPlay?: (options: {
     queue: readonly { uid: string; dieIndex: number }[];
     initialMatch: DiceMatchState;
@@ -208,6 +213,144 @@ describe("possession controls", () => {
     expect(html).toContain("▶ Take the corner");
     expect(html).toContain("Clear it");
     expect(html).not.toContain('data-testid="shoot"');
+  });
+
+  it("marks empty-dock Recycle cold when a cheap legal attack play remains", () => {
+    const attack = inst("d_shortpass", 30);
+    const html = liveMatchScreenMarkup("you", 1, {
+      passes: 1,
+      intent: { kind: "attack", points: 1 },
+      hand: [attack],
+      dice: [{ value: 2, used: false }],
+    });
+    const button = html.match(/<button[^>]*data-testid="end-round"[^>]*>.*?<\/button>/)?.[0];
+
+    expect(button).toContain('data-cold="true"');
+    expect(button).toContain('data-testid="recycle-advice"');
+    expect(button).toContain("1 die unspent — passes are cheap right now");
+  });
+
+  it("leaves their-possession Stand off without recycle tone attributes", () => {
+    const html = liveMatchScreenMarkup("them", 2);
+    const button = html.match(/<button[^>]*data-testid="end-round"[^>]*>.*?<\/button>/)?.[0];
+
+    expect(button).toContain("Stand off (bank");
+    expect(button).not.toContain("data-cold");
+    expect(button).not.toContain("data-hot");
+  });
+});
+
+describe("recycle advice", () => {
+  it("endorses stopping at the same 30% pressure threshold as the chain badge", () => {
+    expect(possessionUi.recycleAdvice).toBeTypeOf("function");
+    if (!possessionUi.recycleAdvice) return;
+    const state = {
+      ...playAndShootMatch("recycle-advice-hot"),
+      passes: 2,
+      intent: { kind: "press" } as const,
+    };
+
+    expect(possessionUi.recycleAdvice(DICE_CARD_MAP, state)).toEqual({
+      tone: "hot",
+      sub: "smart stop — pressure 7 (33%)",
+    });
+  });
+
+  it("warns about one unspent die when a low-risk attack card fits", () => {
+    expect(possessionUi.recycleAdvice).toBeTypeOf("function");
+    if (!possessionUi.recycleAdvice) return;
+    const attack = inst("d_shortpass", 31);
+    const state = {
+      ...playAndShootMatch("recycle-advice-singular"),
+      passes: 1,
+      intent: { kind: "attack", points: 1 } as const,
+      hand: [attack],
+      dice: [
+        { value: 2, used: false },
+        { value: 6, used: true },
+      ],
+    };
+
+    expect(possessionUi.recycleAdvice(DICE_CARD_MAP, state)).toEqual({
+      tone: "cold",
+      sub: "1 die unspent — passes are cheap right now",
+    });
+  });
+
+  it("counts all unused dice in the plural warning when any attack card fits", () => {
+    expect(possessionUi.recycleAdvice).toBeTypeOf("function");
+    if (!possessionUi.recycleAdvice) return;
+    const attack = inst("d_shortpass", 32);
+    const state = {
+      ...playAndShootMatch("recycle-advice-plural"),
+      passes: 1,
+      intent: { kind: "attack", points: 1 } as const,
+      hand: [attack],
+      dice: [
+        { value: 2, used: false },
+        { value: 1, used: false },
+      ],
+    };
+
+    expect(possessionUi.recycleAdvice(DICE_CARD_MAP, state)).toEqual({
+      tone: "cold",
+      sub: "2 dice unspent — passes are cheap right now",
+    });
+  });
+
+  it("stays neutral with only defense cards or no fitting attack die", () => {
+    expect(possessionUi.recycleAdvice).toBeTypeOf("function");
+    if (!possessionUi.recycleAdvice) return;
+    const defense = inst("d_tackle", 33);
+    const attack = inst("d_shortpass", 34);
+    const base = {
+      ...playAndShootMatch("recycle-advice-neutral"),
+      passes: 1,
+      intent: { kind: "attack", points: 1 } as const,
+    };
+
+    expect(possessionUi.recycleAdvice(DICE_CARD_MAP, {
+      ...base,
+      hand: [defense],
+      dice: [{ value: 2, used: false }],
+    })).toEqual({ tone: "neutral", sub: null });
+    expect(possessionUi.recycleAdvice(DICE_CARD_MAP, {
+      ...base,
+      hand: [attack],
+      dice: [{ value: 1, used: false }],
+    })).toEqual({ tone: "neutral", sub: null });
+  });
+});
+
+describe("unspent attack dice", () => {
+  it("returns unused die values from a player possession", () => {
+    expect(possessionUi.unspentAttackDice).toBeTypeOf("function");
+    if (!possessionUi.unspentAttackDice) return;
+    const state = {
+      ...playAndShootMatch("unspent-attack"),
+      dice: [
+        { value: 6, used: false },
+        { value: 4, used: true },
+        { value: 2, used: false },
+      ],
+    };
+
+    expect(possessionUi.unspentAttackDice(state)).toEqual([6, 2]);
+  });
+
+  it("returns no waste framing for their possession or an all-used attack roll", () => {
+    expect(possessionUi.unspentAttackDice).toBeTypeOf("function");
+    if (!possessionUi.unspentAttackDice) return;
+    const state = {
+      ...playAndShootMatch("unspent-none"),
+      dice: [
+        { value: 5, used: true },
+        { value: 3, used: true },
+      ],
+    };
+
+    expect(possessionUi.unspentAttackDice({ ...state, possession: "them" })).toEqual([]);
+    expect(possessionUi.unspentAttackDice(state)).toEqual([]);
   });
 });
 

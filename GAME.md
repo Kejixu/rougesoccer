@@ -100,6 +100,10 @@ context and stats, then the pitch, opponent intent, glossary, and persistent tic
 The pitch replays passes and counter attacks event-by-event in step with the staged
 match popups. While a die is active, a fitting card blocked by the current possession
 stays visible and says why; tutorial-locked cards keep the plain dim treatment.
+With an empty attack dock, Recycle is cold while passes are cheap and playable dice
+remain, then gains an endorsed glow once pressure makes stopping smart. Unspent
+attack dice visibly fizzle when the possession ends, while unused defensive dice
+keep their Fresh Legs banking treatment.
 
 The scoreboard shows the full possession schedule as a six-slot strip instead of a
 separate “Round X of 6” label: odd rounds are filled gold number pills for your
