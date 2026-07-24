@@ -1013,6 +1013,47 @@
   color: var(--ink-dim);
 }
 
+.dice-rule {
+  font-size: 11px;
+  color: var(--ink-dim);
+}
+
+.unspent-fizzle {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  min-height: 32px;
+  padding: 0 12px;
+  color: var(--ink-dim);
+  pointer-events: none;
+}
+
+.unspent-fizzle-label {
+  margin-right: 2px;
+  font-size: 10px;
+  font-weight: 800;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+
+.unspent-ghost-die {
+  display: inline-grid;
+  width: 28px;
+  height: 28px;
+  place-items: center;
+  border: 1px solid rgba(205, 212, 206, 0.55);
+  border-radius: 7px;
+  background: rgba(246, 243, 234, 0.14);
+  color: rgba(246, 243, 234, 0.72);
+  font-size: 21px;
+  animation: unspent-die-fizzle 600ms ease-out forwards;
+}
+
+@keyframes unspent-die-fizzle {
+  0%, 18% { opacity: 0.8; transform: scale(1); }
+  100% { opacity: 0; transform: translateY(5px) scale(0.45); }
+}
+
 .die {
   position: relative;
   width: 62px;
@@ -1510,6 +1551,29 @@
   box-shadow: none;
 }
 
+/* Recycle uses the same hot/cold decision grammar as Shoot. */
+.action-bar .btn--danger[data-hot="true"] {
+  border-color: rgba(255, 211, 77, 0.8);
+  color: #f3db78;
+  box-shadow: 0 0 16px rgba(255, 211, 77, 0.3);
+}
+
+.action-bar .btn--danger[data-cold="true"] {
+  opacity: 0.55;
+  filter: saturate(0.55);
+  box-shadow: none;
+}
+
+.btn-sub {
+  display: block;
+  margin-top: 3px;
+  color: var(--ink-dim);
+  font-size: 10px;
+  font-weight: 600;
+  letter-spacing: 0;
+  text-transform: none;
+}
+
 /* ---- nation colors on the team picker ---- */
 
 .kit-card {
@@ -1582,7 +1646,8 @@
   .action-bar .btn--primary[data-hot="true"],
   .ball-token,
   .combo-tag,
-  .dice-card.drop-ok {
+  .dice-card.drop-ok,
+  .unspent-ghost-die {
     animation: none !important;
   }
 }

@@ -2,6 +2,7 @@ import { useEffect, useRef, useState, type PointerEvent } from "react";
 import {
   dieFitsSlot,
   pressureOf,
+  type CardDefMap,
   type ContentBundle,
   type DiceMatchAction,
   type DiceMatchState,
@@ -241,6 +242,44 @@ export function recycleButtonLabel(
   if (match.corner) return "Clear it";
   if (match.possession === "you" && dockedCount > 0) return `↩ Play & Recycle (${dockedCount})`;
   return "↩ Recycle possession";
+}
+
+export interface RecycleAdvice {
+  tone: "cold" | "hot" | "neutral";
+  sub: string | null;
+}
+
+export function recycleAdvice(defs: CardDefMap, state: DiceMatchState): RecycleAdvice {
+  if (state.possession !== "you" || state.phase !== "ROUND_ACTIVE" || state.corner) {
+    return { tone: "neutral", sub: null };
+  }
+
+  const risk = interceptionRisk(state);
+  if (risk >= 0.3) {
+    return {
+      tone: "hot",
+      sub: `smart stop — pressure ${pressureOf(risk)} (${Math.round(risk * 100)}%)`,
+    };
+  }
+
+  const playable = playableCards(defs, state);
+  const hasLegalAttack = state.hand.some(
+    (card) => playable.has(card.uid) && !isDefenseCard(defs[card.defId]),
+  );
+  if (!hasLegalAttack) return { tone: "neutral", sub: null };
+
+  const unused = state.dice.filter((die) => !die.used).length;
+  return {
+    tone: "cold",
+    sub: `${unused} ${unused === 1 ? "die" : "dice"} unspent — passes are cheap right now`,
+  };
+}
+
+export function unspentAttackDice(
+  prevState: Pick<DiceMatchState, "possession" | "dice">,
+): number[] {
+  if (prevState.possession !== "you") return [];
+  return prevState.dice.filter((die) => !die.used).map((die) => die.value);
 }
 
 function intentText(intent: Intent): { icon: string; text: string } {
@@ -494,6 +533,7 @@ export function DiceMatchScreen(props: DiceMatchScreenProps) {
   // A fresh roll remounts the dice so they cascade in; a reroll spins the one die.
   const [rollKey, setRollKey] = useState(0);
   const [celebration, setCelebration] = useState<"goal" | "concede" | null>(null);
+  const [unspentFizzle, setUnspentFizzle] = useState<{ values: number[]; key: number } | null>(null);
   // Call the play: dice dock onto cards (pure UI), then RUN executes the sequence.
   const [docked, setDocked] = useState<DockedPlay[]>([]);
   const [running, setRunning] = useState(false);
@@ -503,9 +543,12 @@ export function DiceMatchScreen(props: DiceMatchScreenProps) {
   const ballTimersRef = useRef<ReturnType<typeof setTimeout>[]>([]);
   const handoverTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const celebrationTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const unspentFizzleTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const unspentFizzleKeyRef = useRef(0);
   const ballCleanupGenerationRef = useRef(0);
   const lastBatchRef = useRef<GameEvent[] | null>(null);
   const previousPossessionRef = useRef<PossessionOwner>(m.possession);
+  const previousMatchRef = useRef(m);
   const latestMatchRef = useRef<DiceMatchState | null>(null);
   latestMatchRef.current = m;
   useEffect(() => {
@@ -521,6 +564,8 @@ export function DiceMatchScreen(props: DiceMatchScreenProps) {
         handoverTimerRef.current = null;
         if (celebrationTimerRef.current) clearTimeout(celebrationTimerRef.current);
         celebrationTimerRef.current = null;
+        if (unspentFizzleTimerRef.current) clearTimeout(unspentFizzleTimerRef.current);
+        unspentFizzleTimerRef.current = null;
       });
     };
   }, []);
@@ -529,6 +574,23 @@ export function DiceMatchScreen(props: DiceMatchScreenProps) {
     // twice duplicated ticker/chip entries. Process each event batch exactly once.
     if (lastBatchRef.current === events) return;
     lastBatchRef.current = events;
+    const previousMatch = previousMatchRef.current;
+    previousMatchRef.current = m;
+    const playerPossessionEnded =
+      previousMatch.possession === "you" &&
+      (m.possession !== "you" || m.phase === "DONE");
+    if (playerPossessionEnded) {
+      const values = unspentAttackDice(previousMatch);
+      if (values.length > 0) {
+        if (unspentFizzleTimerRef.current) clearTimeout(unspentFizzleTimerRef.current);
+        unspentFizzleKeyRef.current += 1;
+        setUnspentFizzle({ values, key: unspentFizzleKeyRef.current });
+        unspentFizzleTimerRef.current = setTimeout(() => {
+          setUnspentFizzle(null);
+          unspentFizzleTimerRef.current = null;
+        }, 650);
+      }
+    }
     ballTimersRef.current.forEach(clearTimeout);
     ballTimersRef.current = [];
     const stagedEvents = stageEvents(events);
@@ -799,6 +861,8 @@ export function DiceMatchScreen(props: DiceMatchScreenProps) {
   const shotIfPlayed = docked.length > 0 ? projectedShotEstimate(content.defs, m, docked) : shotNow;
   const shootLabel = shootButtonLabel(m, docked.length, shotIfPlayed.p);
   const recycleLabel = recycleButtonLabel(m, docked.length);
+  const recycleRead = recycleAdvice(content.defs, m);
+  const showRecycleAdvice = m.possession === "you" && !m.corner && docked.length === 0;
   const bankingDice =
     m.possession === "them" ? Math.min(m.bal.DICE.CARRY_MAX, m.dice.filter((die) => !die.used).length) : 0;
 
@@ -838,35 +902,9 @@ export function DiceMatchScreen(props: DiceMatchScreenProps) {
         </div>
       </div>
 
-      <PitchTrack ball={displayBall} possession={m.possession} bal={m.bal} />
-
       {m.corner && (
         <div className="corner-banner panel" data-testid="corner-banner">
           <strong>CORNER!</strong> One delivery — make it count
-        </div>
-      )}
-
-      <div className="dice-stat-row">
-        <span className="shotq-badge" data-testid="shot-quality">
-          Chance {m.shotQuality}
-        </span>
-        <span className="shotq-badge" data-testid="passes">
-          Passes {m.possession === "you" ? m.passes : m.oppPasses}
-        </span>
-        <span className="pitch-arrow" data-testid="pitch-arrow">
-          {m.possession === "you" ? "→" : "←"}
-        </span>
-        <span style={{ marginLeft: "auto", fontSize: 12, color: "var(--ink-dim)" }}>
-          draw {m.drawPile.length} · discard {m.discardPile.length}
-        </span>
-      </div>
-
-      {intent && m.phase === "ROUND_ACTIVE" && (
-        <div className="intent-panel panel" data-testid="intent">
-          <span className="intent-icon">{intent.icon}</span>
-          <span>
-            <strong>{m.opp.name}:</strong> {intent.text}
-          </span>
         </div>
       )}
 
@@ -879,58 +917,32 @@ export function DiceMatchScreen(props: DiceMatchScreenProps) {
         </div>
       )}
 
-      {m.phase === "ROUND_ACTIVE" && m.possession === "you" && (
-        <div className="chain-panel panel" data-testid="chain-panel">
-          <div className="chain-strip" data-testid="chain-strip">
-            {chainEntries.length === 0 ? (
-              <span className="chain-chip empty">First pass safe</span>
-            ) : (
-              chainEntries.map((chip, i) => (
-                <span key={`${chip.uid}-${i}`} className="chain-chip">
-                  {chip.die !== undefined && <span className="chip-die">{PIPS[chip.die]}</span>}
-                  {chip.passes}. {chip.cardName}
-                  {chip.chanceGained > 0 && <strong>+{chip.chanceGained}</strong>}
-                  {chip.combo && <em className="combo-tag">{chip.combo}</em>}
-                </span>
-              ))
-            )}
-          </div>
-          <div className="chain-summary">
-            <span className="shotq-badge">Chance {m.shotQuality}</span>
-            {riskNow > 0 && (
-              <span className="risk-badge" data-testid="chain-risk" data-hot={riskNow >= 0.3 ? "true" : "false"}>
-                pressure {pressureNow} ({Math.round(riskNow * 100)}%)
-              </span>
-            )}
-            <span className="chain-status" data-testid="chain-status">{chainStatus}</span>
-          </div>
+      {unspentFizzle && (
+        <div
+          key={unspentFizzle.key}
+          className="unspent-fizzle"
+          data-testid="unspent-fizzle"
+          aria-live="polite"
+        >
+          <span className="unspent-fizzle-label">unspent</span>
+          {unspentFizzle.values.map((value, index) => (
+            <span
+              key={`${unspentFizzle.key}-${index}`}
+              className="unspent-ghost-die"
+              data-value={value}
+              aria-hidden="true"
+            >
+              {PIPS[value]}
+            </span>
+          ))}
         </div>
       )}
-
-      {m.phase === "ROUND_ACTIVE" && m.possession === "them" && (
-        <div className="their-chain panel" data-testid="their-chain">
-          <span>Their pass {m.oppPasses}</span>
-          <span>Chance {m.oppChance}</span>
-          <span className="their-shot-odds" data-testid="their-shot-odds" title="if their chain finished right now">
-            their shot ~{Math.round(oppShotEstimate(m).p * 100)}%
-          </span>
-          <span>Committed +{Math.round(m.defenseCommit * 100)}%</span>
-          <span data-testid="fresh-legs-bank">banking {bankingDice} dice</span>
-          <span className="risk-badge" data-hot={theirRisk >= 0.3 ? "true" : "false"}>
-            pressure {theirPressure} ({Math.round(theirRisk * 100)}%)
-          </span>
-          <span className="chain-status" data-testid="chain-status">{chainStatus}</span>
-        </div>
-      )}
-
-      <ChainGlossary />
-      <MatchTicker lines={tickerLines} />
-      {tutorial && <TutorialOverlay tutorial={tutorial} />}
 
       {m.phase === "ROUND_ACTIVE" && (
         <>
           <div className="dice-tray" data-testid="dice-tray">
             <span className="dice-label">YOUR ROLL</span>
+            <span className="dice-rule">1 die plays 1 card</span>
             {m.dice.map((d, i) => {
               const rerolled = rerollFx?.i === i;
               return (
@@ -1046,17 +1058,6 @@ export function DiceMatchScreen(props: DiceMatchScreenProps) {
             })}
           </div>
 
-          {draggingDie && (
-            <div
-              className="die die-drag-ghost"
-              style={{ transform: `translate3d(${draggingDie.x - 24}px, ${draggingDie.y - 24}px, 0)` }}
-              aria-hidden="true"
-            >
-              <span className="die-pip">{PIPS[draggingDie.value]}</span>
-              <span className="die-num">{draggingDie.value}</span>
-            </div>
-          )}
-
           <div className="action-bar">
             {!tutorial && (m.corner || m.possession === "them") && (
               <button
@@ -1098,6 +1099,8 @@ export function DiceMatchScreen(props: DiceMatchScreenProps) {
               type="button"
               className={`btn btn--danger${tutorialHighlights({ kind: "endRound" }) ? " tutorial-highlight" : ""}`}
               data-testid="end-round"
+              data-hot={showRecycleAdvice ? (recycleRead.tone === "hot" ? "true" : "false") : undefined}
+              data-cold={showRecycleAdvice ? (recycleRead.tone === "cold" ? "true" : "false") : undefined}
               disabled={endRoundDisabled}
               onClick={() => {
                 if (m.possession === "you" && !m.corner && docked.length > 0) {
@@ -1108,10 +1111,101 @@ export function DiceMatchScreen(props: DiceMatchScreenProps) {
               }}
             >
               {m.possession === "them" ? `Stand off (bank ${bankingDice})` : recycleLabel}
+              {showRecycleAdvice && recycleRead.sub && (
+                <span className="btn-sub" data-testid="recycle-advice">
+                  {recycleRead.sub}
+                </span>
+              )}
             </button>
           </div>
         </>
       )}
+
+      {m.phase === "ROUND_ACTIVE" && m.possession === "you" && (
+        <div className="chain-panel panel" data-testid="chain-panel">
+          <div className="chain-strip" data-testid="chain-strip">
+            {chainEntries.length === 0 ? (
+              <span className="chain-chip empty">First pass safe</span>
+            ) : (
+              chainEntries.map((chip, i) => (
+                <span key={`${chip.uid}-${i}`} className="chain-chip">
+                  {chip.die !== undefined && <span className="chip-die">{PIPS[chip.die]}</span>}
+                  {chip.passes}. {chip.cardName}
+                  {chip.chanceGained > 0 && <strong>+{chip.chanceGained}</strong>}
+                  {chip.combo && <em className="combo-tag">{chip.combo}</em>}
+                </span>
+              ))
+            )}
+          </div>
+          <div className="chain-summary">
+            <span className="shotq-badge">Chance {m.shotQuality}</span>
+            {riskNow > 0 && (
+              <span className="risk-badge" data-testid="chain-risk" data-hot={riskNow >= 0.3 ? "true" : "false"}>
+                pressure {pressureNow} ({Math.round(riskNow * 100)}%)
+              </span>
+            )}
+            <span className="chain-status" data-testid="chain-status">{chainStatus}</span>
+          </div>
+        </div>
+      )}
+
+      {m.phase === "ROUND_ACTIVE" && m.possession === "them" && (
+        <div className="their-chain panel" data-testid="their-chain">
+          <span>Their pass {m.oppPasses}</span>
+          <span>Chance {m.oppChance}</span>
+          <span className="their-shot-odds" data-testid="their-shot-odds" title="if their chain finished right now">
+            their shot ~{Math.round(oppShotEstimate(m).p * 100)}%
+          </span>
+          <span>Committed +{Math.round(m.defenseCommit * 100)}%</span>
+          <span data-testid="fresh-legs-bank">banking {bankingDice} dice</span>
+          <span className="risk-badge" data-hot={theirRisk >= 0.3 ? "true" : "false"}>
+            pressure {theirPressure} ({Math.round(theirRisk * 100)}%)
+          </span>
+          <span className="chain-status" data-testid="chain-status">{chainStatus}</span>
+        </div>
+      )}
+
+      <div className="dice-stat-row">
+        <span className="shotq-badge" data-testid="shot-quality">
+          Chance {m.shotQuality}
+        </span>
+        <span className="shotq-badge" data-testid="passes">
+          Passes {m.possession === "you" ? m.passes : m.oppPasses}
+        </span>
+        <span className="pitch-arrow" data-testid="pitch-arrow">
+          {m.possession === "you" ? "→" : "←"}
+        </span>
+        <span style={{ marginLeft: "auto", fontSize: 12, color: "var(--ink-dim)" }}>
+          draw {m.drawPile.length} · discard {m.discardPile.length}
+        </span>
+      </div>
+
+      <PitchTrack ball={displayBall} possession={m.possession} bal={m.bal} />
+
+      {intent && m.phase === "ROUND_ACTIVE" && (
+        <div className="intent-panel panel" data-testid="intent">
+          <span className="intent-icon">{intent.icon}</span>
+          <span>
+            <strong>{m.opp.name}:</strong> {intent.text}
+          </span>
+        </div>
+      )}
+
+      <ChainGlossary />
+      <MatchTicker lines={tickerLines} />
+
+      {draggingDie && (
+        <div
+          className="die die-drag-ghost"
+          style={{ transform: `translate3d(${draggingDie.x - 24}px, ${draggingDie.y - 24}px, 0)` }}
+          aria-hidden="true"
+        >
+          <span className="die-pip">{PIPS[draggingDie.value]}</span>
+          <span className="die-num">{draggingDie.value}</span>
+        </div>
+      )}
+
+      {tutorial && <TutorialOverlay tutorial={tutorial} />}
     </main>
   );
 }
