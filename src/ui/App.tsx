@@ -4,7 +4,7 @@ import { applyRunAction, createRun } from "../core/run/run";
 import type { DiceMatchAction, DiceMatchState, GameEvent, RunAction, RunState } from "../core/types";
 import { makeContent } from "../data/content";
 import { loadRun, saveRun } from "../save/persistence";
-import { DiceMatchScreen } from "./screens/DiceMatchScreen";
+import { DiceMatchScreen, UI_REVEAL_KEYS } from "./screens/DiceMatchScreen";
 import { ResultScreen } from "./screens/ResultScreen";
 import { RewardScreen } from "./screens/RewardScreen";
 import { ShopScreen } from "./screens/ShopScreen";
@@ -28,6 +28,7 @@ function coachStorageKey(key: string): string {
 function markCoachTipsSeen(): void {
   if (typeof localStorage === "undefined") return;
   for (const key of COACH_TIP_KEYS) localStorage.setItem(coachStorageKey(key), "1");
+  for (const key of UI_REVEAL_KEYS) localStorage.setItem(key, "1");
 }
 
 function tutorialIntentForAction(state: DiceMatchState, action: DiceMatchAction): TutorialActionIntent {
