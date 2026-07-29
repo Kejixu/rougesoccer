@@ -3,6 +3,21 @@ import { NATION_DICE_KITS } from "../../data/content";
 import { PLAYABLE_TEAM_IDS, TEAM_MAP } from "../../data/teams";
 import { TeamFlag } from "../components/TeamFlag";
 
+export function isFreshProfile(storedKeys: readonly string[]): boolean {
+  return !storedKeys.some(
+    (key) => key.startsWith("coach.") || key.startsWith("ui."),
+  );
+}
+
+function readFreshProfile(): boolean {
+  if (typeof localStorage === "undefined") return true;
+  const storedKeys = Array.from(
+    { length: localStorage.length },
+    (_, index) => localStorage.key(index),
+  ).filter((key): key is string => key !== null);
+  return isFreshProfile(storedKeys);
+}
+
 export function TitleScreen({
   hasSave,
   onNewRun,
@@ -16,6 +31,20 @@ export function TitleScreen({
 }) {
   const [teamId, setTeamId] = useState<string>(PLAYABLE_TEAM_IDS[0]);
   const [seed, setSeed] = useState<string>("");
+  const [freshProfile] = useState(readFreshProfile);
+  const campaignButton = (
+    <button type="button" className={freshProfile ? "btn" : "btn btn--primary"}
+      data-testid="start-run"
+      onClick={() => onNewRun(teamId, seed || `run-${Math.random().toString(36).slice(2, 10)}`)}
+    >
+      Start the campaign
+    </button>
+  );
+  const tutorialButton = (
+    <button type="button" className="btn btn--primary" data-testid="start-tutorial" onClick={onTutorial}>
+      Learn the game (5 min)
+    </button>
+  );
 
   return (
     <main className="screen">
@@ -75,15 +104,8 @@ export function TitleScreen({
         </label>
       </p>
       <p style={{ display: "flex", gap: 12, flexWrap: "wrap" }}>
-        <button type="button" className="btn btn--primary"
-          data-testid="start-run"
-          onClick={() => onNewRun(teamId, seed || `run-${Math.random().toString(36).slice(2, 10)}`)}
-        >
-          Start the campaign
-        </button>
-        <button type="button" className="btn btn--primary" data-testid="start-tutorial" onClick={onTutorial}>
-          Learn the game (5 min)
-        </button>
+        {freshProfile ? tutorialButton : campaignButton}
+        {freshProfile ? campaignButton : tutorialButton}
       </p>
     </main>
   );

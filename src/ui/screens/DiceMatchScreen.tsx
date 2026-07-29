@@ -416,6 +416,46 @@ function persistCoachKey(key: CoachTipKey): void {
   localStorage.setItem(coachStorageKey(key), "1");
 }
 
+export const UI_REVEAL_KEYS = [
+  "ui.chain",
+  "ui.stats",
+  "ui.intent",
+  "ui.theirchain",
+  "ui.glossary",
+] as const;
+
+export type UiRevealKey = typeof UI_REVEAL_KEYS[number];
+
+export function rookieReveals(state: DiceMatchState): UiRevealKey[] {
+  const revealed: UiRevealKey[] = [];
+  if (state.possession === "you" && state.passes >= 1) revealed.push("ui.chain");
+  if (state.passes >= 1 || state.shotQuality > 0) revealed.push("ui.stats");
+  if (state.passes >= 1) revealed.push("ui.intent");
+  if (
+    state.possession === "them" &&
+    (state.oppPasses >= 1 || state.defenseCommit > 0)
+  ) {
+    revealed.push("ui.theirchain");
+  }
+  if (state.round >= 2) revealed.push("ui.glossary");
+  return revealed;
+}
+
+function readRevealedUiKeys(initialRevealedUi?: readonly string[]): Set<UiRevealKey> {
+  if (initialRevealedUi) {
+    return new Set(UI_REVEAL_KEYS.filter((key) => initialRevealedUi.includes(key)));
+  }
+  if (typeof localStorage === "undefined") return new Set();
+  return new Set(
+    UI_REVEAL_KEYS.filter((key) => localStorage.getItem(key) === "1"),
+  );
+}
+
+function persistUiKey(key: UiRevealKey): void {
+  if (typeof localStorage === "undefined") return;
+  localStorage.setItem(key, "1");
+}
+
 function ChainGlossary() {
   return (
     <details className="glossary panel" data-testid="chain-glossary">
@@ -462,6 +502,7 @@ interface TutorialScreenProps {
 type DiceMatchScreenProps = {
   content: ContentBundle;
   events: GameEvent[];
+  initialRevealedUi?: readonly string[];
 } & (
   | {
       run: RunState;
@@ -524,6 +565,10 @@ export function DiceMatchScreen(props: DiceMatchScreenProps) {
   const [chainEntries, setChainEntries] = useState<ChainChip[]>([]);
   const [tickerLines, setTickerLines] = useState<string[]>([]);
   const [seenCoachKeys, setSeenCoachKeys] = useState<Set<CoachTipKey>>(() => readSeenCoachKeys());
+  const [revealedUi, setRevealedUi] = useState<Set<UiRevealKey>>(
+    () => readRevealedUiKeys(props.initialRevealedUi),
+  );
+  const revealedUiRef = useRef(revealedUi);
   const [handover, setHandover] = useState<PossessionHandover | null>(null);
   const [puntPressed, setPuntPressed] = useState(false);
   const [draggingDie, setDraggingDie] = useState<DraggingDie | null>(null);
@@ -550,7 +595,26 @@ export function DiceMatchScreen(props: DiceMatchScreenProps) {
   const previousPossessionRef = useRef<PossessionOwner>(m.possession);
   const previousMatchRef = useRef(m);
   const latestMatchRef = useRef<DiceMatchState | null>(null);
+  const triggeredUi = rookieReveals(m);
+  const triggerSignature = triggeredUi.join("|");
+  const visibleUi = new Set<UiRevealKey>([...revealedUi, ...triggeredUi]);
+  const isUiVisible = (key: UiRevealKey): boolean => Boolean(tutorial) || visibleUi.has(key);
   latestMatchRef.current = m;
+  useEffect(() => {
+    if (tutorial) return;
+    const newlyRevealed = rookieReveals(m).filter(
+      (key) => !revealedUiRef.current.has(key),
+    );
+    if (newlyRevealed.length === 0) return;
+
+    const next = new Set(revealedUiRef.current);
+    for (const key of newlyRevealed) {
+      next.add(key);
+      persistUiKey(key);
+    }
+    revealedUiRef.current = next;
+    setRevealedUi(next);
+  }, [triggerSignature, tutorial]);
   useEffect(() => {
     // StrictMode immediately cleans up and re-runs mount effects. Defer the
     // clear so that rehearsal does not cancel the one guarded replay batch.
@@ -940,6 +1004,13 @@ export function DiceMatchScreen(props: DiceMatchScreenProps) {
 
       {m.phase === "ROUND_ACTIVE" && (
         <>
+          <div className="objective-line" data-testid="objective-line">
+            {m.corner
+              ? "Corner — one delivery, pick your best card."
+              : m.possession === "you"
+                ? "Your ball — pass to build a Chance, then shoot."
+                : "Their ball — commit defenders to fight their passes, or stand off and bank dice."}
+          </div>
           <div className="dice-tray" data-testid="dice-tray">
             <span className="dice-label">YOUR ROLL</span>
             <span className="dice-rule">1 die plays 1 card</span>
@@ -1121,7 +1192,7 @@ export function DiceMatchScreen(props: DiceMatchScreenProps) {
         </>
       )}
 
-      {m.phase === "ROUND_ACTIVE" && m.possession === "you" && (
+      {m.phase === "ROUND_ACTIVE" && m.possession === "you" && isUiVisible("ui.chain") && (
         <div className="chain-panel panel" data-testid="chain-panel">
           <div className="chain-strip" data-testid="chain-strip">
             {chainEntries.length === 0 ? (
@@ -1149,7 +1220,7 @@ export function DiceMatchScreen(props: DiceMatchScreenProps) {
         </div>
       )}
 
-      {m.phase === "ROUND_ACTIVE" && m.possession === "them" && (
+      {m.phase === "ROUND_ACTIVE" && m.possession === "them" && isUiVisible("ui.theirchain") && (
         <div className="their-chain panel" data-testid="their-chain">
           <span>Their pass {m.oppPasses}</span>
           <span>Chance {m.oppChance}</span>
@@ -1165,24 +1236,26 @@ export function DiceMatchScreen(props: DiceMatchScreenProps) {
         </div>
       )}
 
-      <div className="dice-stat-row">
-        <span className="shotq-badge" data-testid="shot-quality">
-          Chance {m.shotQuality}
-        </span>
-        <span className="shotq-badge" data-testid="passes">
-          Passes {m.possession === "you" ? m.passes : m.oppPasses}
-        </span>
-        <span className="pitch-arrow" data-testid="pitch-arrow">
-          {m.possession === "you" ? "→" : "←"}
-        </span>
-        <span style={{ marginLeft: "auto", fontSize: 12, color: "var(--ink-dim)" }}>
-          draw {m.drawPile.length} · discard {m.discardPile.length}
-        </span>
-      </div>
+      {isUiVisible("ui.stats") && (
+        <div className="dice-stat-row">
+          <span className="shotq-badge" data-testid="shot-quality">
+            Chance {m.shotQuality}
+          </span>
+          <span className="shotq-badge" data-testid="passes">
+            Passes {m.possession === "you" ? m.passes : m.oppPasses}
+          </span>
+          <span className="pitch-arrow" data-testid="pitch-arrow">
+            {m.possession === "you" ? "→" : "←"}
+          </span>
+          <span style={{ marginLeft: "auto", fontSize: 12, color: "var(--ink-dim)" }}>
+            draw {m.drawPile.length} · discard {m.discardPile.length}
+          </span>
+        </div>
+      )}
 
       <PitchTrack ball={displayBall} possession={m.possession} bal={m.bal} />
 
-      {intent && m.phase === "ROUND_ACTIVE" && (
+      {intent && m.phase === "ROUND_ACTIVE" && isUiVisible("ui.intent") && (
         <div className="intent-panel panel" data-testid="intent">
           <span className="intent-icon">{intent.icon}</span>
           <span>
@@ -1191,7 +1264,7 @@ export function DiceMatchScreen(props: DiceMatchScreenProps) {
         </div>
       )}
 
-      <ChainGlossary />
+      {isUiVisible("ui.glossary") && <ChainGlossary />}
       <MatchTicker lines={tickerLines} />
 
       {draggingDie && (

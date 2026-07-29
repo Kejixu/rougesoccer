@@ -139,6 +139,15 @@ round. Coach tips are stored as `coach.schedule`, `coach.possession`, `coach.ris
 `coach.dice`, `coach.chance`, `coach.punt`, `coach.defense`, `coach.combo`,
 `coach.corner`, and `coach.rattled` once dismissed.
 
+Fresh profiles progressively reveal the secondary match UI: your chain, stats, and
+opponent intent appear after the first pass (stats also appear when Chance rises);
+their chain appears after their first pass or a defensive commitment; and the
+glossary appears in round 2. These reveals persist per profile, while the tutorial
+always shows the complete screen. Every active round has a small objective line
+above the dice for a corner, your ball, or their ball; on a fresh title screen,
+**Learn the game (5 min)** is the first primary action and the still-available
+campaign action is secondary until any coach or UI flag has been seen.
+
 ---
 
 ## 3. Round rhythm
