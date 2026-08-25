@@ -1,8 +1,9 @@
 # RogueSoccer — project guide for Claude
 
-RogueSoccer is a FIFA World Cup 2026-themed roguelike deckbuilder: pure TypeScript
+RogueSoccer is an international-tournament roguelike deckbuilder: pure TypeScript
 browser game (Vite + React 19 + strict TS, pnpm, vitest). Real countries + verified
-groups, parody player/coach names, NO FIFA branding.
+groups (the real 2026 draw as data), parody player/coach names, NO FIFA branding,
+and no "World Cup"/"2026" in player-facing copy — the theme is evergreen.
 
 ## Read this first
 

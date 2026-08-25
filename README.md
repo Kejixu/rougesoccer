@@ -1,12 +1,12 @@
 # RogueSoccer ⚽
 
-A roguelike deckbuilder for the 2026 World Cup. Balatro-style card scoring meets
+An international tournament roguelike deckbuilder. Balatro-style card scoring meets
 Retro Bowl's "you only play offense" — build a squad of parody stars, outscore
 the opponent's clock, and survive seven matches from the group stage to the final.
 
 ## How it plays
 
-- **A run = one World Cup campaign** using the real 2026 groups: 3 group matches
+- **A run = one tournament campaign** using the real 2026 groups: 3 group matches
   (the table decides), then sudden-death knockouts to the final.
 - **A match is a scoring puzzle.** Each round you draw to 7 and get 2 plays + 2
   discards. ATTACK commits up to 4 cards: `(Σ power) × mults`, every 40 points

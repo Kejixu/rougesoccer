@@ -6,14 +6,16 @@ feels off, that is the thing to change. Source of truth = `src/core/match/dice.t
 `src/core/balance.ts` (`DICE`), `src/data/diceCards.ts`, `src/data/content.ts`,
 `src/core/run/`.
 
-> Theme: FIFA World Cup 2026, real countries + verified groups, parody player/coach
-> names, NO FIFA branding. Inspirations: Slay the Spire, Dawncaster, Balatro, Dicey Dungeons.
+> Theme: international tournament football — real countries + verified groups (the
+> real 2026 draw as data), parody player/coach names, NO FIFA branding, and no
+> "World Cup"/"2026" in player-facing copy (evergreen framing).
+> Inspirations: Slay the Spire, Dawncaster, Balatro, Dicey Dungeons.
 
 ---
 
 ## 1. The shape of a run
 
-One run = one World Cup campaign with the team you pick.
+One run = one tournament campaign with the team you pick.
 
 - **Group stage:** a real 4-team group - you play **3 matches**, one against every
   groupmate. After each match, the other two teams' fixture is simulated, so the

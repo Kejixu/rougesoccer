@@ -50,7 +50,7 @@ export function TitleScreen({
     <main className="screen">
       <h1>RogueSoccer</h1>
       <p style={{ color: "var(--ink-dim)" }}>
-        A World Cup 2026 roguelike deckbuilder. Build your squad, beat the clock, lift the trophy.
+        An international tournament roguelike deckbuilder. Build your squad, beat the clock, lift the trophy.
       </p>
 
       {hasSave && (

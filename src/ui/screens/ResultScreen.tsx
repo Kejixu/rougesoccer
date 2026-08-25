@@ -24,7 +24,7 @@ export function ResultScreen({
       <p>
         {teamIdentity(run.playerTeamId)}{" "}
         {won
-          ? "win the 2026 World Cup!"
+          ? "lift the trophy!"
           : run.stage === "GROUP"
             ? "crashed out in the group stage."
             : `fell in the ${run.stage}.`}
